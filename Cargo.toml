@@ -131,5 +131,5 @@ proptest = "1"
 pretty_assertions = "1"
 
 [build-dependencies]
-vergen = "8"
+
 reqwest = { version = "0.12", features = ["blocking"] }

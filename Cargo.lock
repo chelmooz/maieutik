@@ -2947,7 +2947,6 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
- "vergen",
  "walkdir",
  "zip 0.6.6",
 ]
@@ -5456,16 +5455,6 @@ name = "vcpkg"
 version = "0.2.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
-
-[[package]]
-name = "vergen"
-version = "8.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2990d9ea5967266ea0ccf413a4aa5c42a93dbcfda9cb49a97de6931726b12566"
-dependencies = [
- "anyhow",
- "rustversion",
-]
 
 [[package]]
 name = "version_check"
