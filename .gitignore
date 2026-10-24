@@ -1,0 +1,9 @@
+/target
+/models
+*.onnx
+*.onnx_data
+*.gguf
+*.log
+.env*
+*.pem
+*.key
