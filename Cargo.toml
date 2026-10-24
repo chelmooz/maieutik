@@ -98,7 +98,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 
 # Updater
-self_update = "0.40"
+
 
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
