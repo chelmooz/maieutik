@@ -22,7 +22,7 @@ configuration, never by code.
 | Google Drive sync | `drive` | **stub** — operations do nothing; OAuth client id read from `MAIEUTIK_GOOGLE_CLIENT_ID` | `src/drive/mod.rs:46` |
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
-| GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:13` |
+| GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:12` |
 
 Status vocabulary: **tested** = a real automated run with raw output exists;
 **stub** = compiles but does nothing or is not wired; **broken** = compiles but
