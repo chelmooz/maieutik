@@ -26,6 +26,7 @@ cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
 vulkan = ["llama-cpp-2/vulkan"]
 full = ["cuda", "vulkan"]
+stt = ["dep:sherpa-onnx"]
 
 [dependencies]
 # Core
@@ -63,7 +64,7 @@ ort = { version = "2.0.0-rc.15", features = ["api-31", "load-dynamic", "ndarray"
 llama-cpp-2 = { version = "0.1", features = [] }  # features set via crate features
 
 # STT - sherpa-onnx
-sherpa-onnx = { version = "1.13", features = ["static"] }
+sherpa-onnx = { version = "1.13", features = ["static"], optional = true }
 
 # VAD - use ort directly (no silero_vad crate - incompatible with ort 2.x)
 
