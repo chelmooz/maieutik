@@ -64,6 +64,10 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `ndarray` | dependencies | src | 5.8 |  |
 | `vergen` | build-dependencies | UNUSED | 0.1 | UNUSED (build.rs ne génère plus de version). ÉLAGUER + sa reqwest de build |
 
+| `tempfile` | dev-dependencies | tests | 0.7 |  |
+| `proptest` | dev-dependencies | UNUSED | 3.6 | utilisé à partir de P3 (propriétés du chunker) |
+| `pretty_assertions` | dev-dependencies | UNUSED | 0.3 | UNUSED confirmé — à retirer ou utiliser en P3 |
+
 ## Plan d'élagage proposé (aucun retrait fait dans ce lot)
 
 1. Retraits sans usage visible (à re-vérifier un par un au moment du retrait :
