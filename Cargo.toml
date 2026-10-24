@@ -120,7 +120,7 @@ sha2 = "0.10"
 blake3 = "1"
 base64 = "0.22"
 percent-encoding = "2.3"
-md5 = "0.7"
+
 
 ndarray = "0.17"
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
