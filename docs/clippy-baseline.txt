@@ -569,7 +569,7 @@
     Checking jsonrpsee-ws-client v0.26.1
    Compiling zbus_macros v5.19.0
     Checking sherpa-onnx v1.13.8
-   Compiling maieutik v0.1.0 (/home/chelmooz/Work/maieutik)
+   Compiling maieutik v0.1.0 (~/Work/maieutik)
 warning: maieutik@0.1.0: Skipping model download (set MAIEUTIK_DOWNLOAD_MODELS=1 to enable); models are fetched at runtime instead
     Checking zbus v5.19.0
     Checking hyper-rustls v0.27.10

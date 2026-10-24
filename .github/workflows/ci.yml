@@ -33,9 +33,9 @@ jobs:
       - name: cargo test --locked (model-independent)
         run: cargo test --locked
 
-      # Warnings are listed, not blocking: ~50 known warnings (unused imports,
-      # derivable impls, ...) recorded in the P1 report. Switching to
-      # -D warnings is planned once they are cleaned up.
+      # Warnings are listed, not blocking: the full baseline is committed at
+      # docs/clippy-baseline.txt (54 warnings, captured on this tree).
+      # Switching to -D warnings is planned once they are cleaned up.
       - name: cargo clippy --locked --all-targets (non-blocking)
         run: cargo clippy --locked --all-targets
 
