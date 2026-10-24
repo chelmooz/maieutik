@@ -83,7 +83,6 @@ url = "2"
 
 # Document Processing
 docx-rs = "0.3"
-lopdf = "0.1"
 pdf-extract = "0.7"
 zip = "0.6"
 
