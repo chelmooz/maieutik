@@ -1,0 +1,1041 @@
+   Compiling unicode-ident v1.0.27
+    Checking cfg-if v1.0.5
+    Checking memchr v2.8.3
+    Checking once_cell v1.21.4
+    Checking pin-project-lite v0.2.17
+    Checking scopeguard v1.2.0
+    Checking log v0.4.34
+    Checking slab v0.4.12
+    Checking futures-core v0.3.34
+    Checking smallvec v1.16.3
+    Checking typenum v1.20.1
+    Checking futures-io v0.3.34
+    Checking itoa v1.0.18
+    Checking bytes v1.12.1
+    Checking futures-sink v0.3.34
+    Checking libc v0.2.191
+   Compiling equivalent v1.0.3
+   Compiling hashbrown v0.17.1
+    Checking stable_deref_trait v1.2.1
+   Compiling proc-macro2 v1.0.107
+    Checking serde_core v1.0.229
+    Checking lock_api v0.4.14
+    Checking subtle v2.6.1
+    Checking fnv v1.0.7
+    Checking futures-task v0.3.34
+    Checking crossbeam-utils v0.8.23
+    Checking cfg-if v0.1.10
+    Checking futures-channel v0.3.34
+    Checking zerocopy v0.8.63
+    Checking num-traits v0.2.19
+    Checking zmij v1.0.23
+    Checking lazy_static v1.5.1
+    Checking litemap v0.8.3
+    Checking tracing-core v0.1.36
+    Checking writeable v0.6.4
+    Checking percent-encoding v2.3.2
+    Checking atomic-waker v1.1.2
+    Checking adler2 v2.0.1
+   Compiling num-conv v0.2.2
+   Compiling time-core v0.1.9
+    Checking utf8_iter v1.0.4
+    Checking zeroize v1.9.1
+    Checking linux-raw-sys v0.12.1
+    Checking byteorder v1.5.0
+    Checking crc32fast v1.5.3
+    Checking icu_properties_data v2.4.0
+    Checking icu_normalizer_data v2.4.0
+    Checking tower-service v0.3.3
+    Checking httparse v1.10.1
+    Checking openssl-probe v0.2.1
+    Checking untrusted v0.9.0
+    Checking fastrand v2.5.0
+    Checking rustls-pki-types v1.15.1
+   Compiling winnow v1.0.4
+    Checking simd-adler32 v0.3.10
+    Checking parking v2.2.1
+   Compiling generic-array v0.14.7
+    Checking crossbeam-utils v0.7.2
+    Checking maybe-uninit v2.0.0
+    Checking form_urlencoded v1.2.2
+   Compiling strsim v0.11.1
+    Checking try-lock v0.2.5
+    Checking rand_core v0.10.1
+    Checking futures v0.1.31
+   Compiling quote v1.0.47
+    Checking want v0.3.2
+    Checking httpdate v1.0.3
+    Checking miniz_oxide v0.9.1
+   Compiling foreign-types-shared v0.1.1
+   Compiling time-macros v0.2.32
+    Checking num_threads v0.1.8
+    Checking http v1.5.0
+   Compiling foreign-types v0.3.2
+    Checking base64 v0.22.1
+    Checking base64 v0.23.1
+    Checking powerfmt v0.2.1
+    Checking ipnet v2.12.2
+   Compiling aho-corasick v1.1.5
+    Checking sync_wrapper v1.0.2
+   Compiling indexmap v2.14.2
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling syn v1.0.109
+    Checking rustls-native-certs v0.8.5
+    Checking cpufeatures v0.2.17
+   Compiling regex-syntax v0.8.11
+    Checking tower-layer v0.3.3
+    Checking either v1.19.0
+    Checking crossbeam-epoch v0.9.21
+    Checking concurrent-queue v2.5.0
+    Checking event-listener v5.4.2
+    Checking webpki-roots v1.0.11
+    Checking futures-lite v2.6.1
+    Checking alloc-no-stdlib v3.0.0
+    Checking num-integer v0.1.47
+    Checking core_detect v1.0.0
+    Checking smallvec v0.6.14
+    Checking flate2 v1.1.10
+    Checking alloc-stdlib v0.3.0
+    Checking event-listener-strategy v0.5.4
+    Checking crossbeam-deque v0.8.8
+    Checking simdutf8 v0.1.5
+    Checking cmov v0.5.4
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+    Checking hybrid-array v0.4.15
+    Checking cpufeatures v0.3.1
+   Compiling futures-util v0.3.34
+   Compiling digest v0.10.7
+    Checking rayon-core v1.13.0
+    Checking encoding_rs v0.8.42
+    Checking errno v0.3.14
+    Checking parking_lot_core v0.9.12
+    Checking getrandom v0.2.17
+    Checking socket2 v0.6.5
+    Checking mio v1.2.4
+    Checking signal-hook-registry v1.4.8
+   Compiling jobserver v0.1.35
+    Checking http-body v1.1.0
+    Checking getrandom v0.3.4
+    Checking parking_lot v0.12.5
+    Checking rand_core v0.6.4
+    Checking iovec v0.1.4
+    Checking http-body-util v0.1.5
+    Checking getrandom v0.4.3
+    Checking tokio-executor v0.1.10
+    Checking bytes v0.4.12
+   Compiling cc v1.10.0
+    Checking rand_core v0.9.5
+    Checking net2 v0.2.39
+    Checking num_cpus v1.17.0
+   Compiling tracing v0.1.44
+    Checking ctutils v0.4.5
+    Checking parking_lot_core v0.6.3
+   Compiling inout v0.1.4
+   Compiling toml_parser v1.1.5+spec-1.1.0
+    Checking brotli-decompressor v6.0.1
+    Checking lock_api v0.3.4
+   Compiling endi v1.1.1
+    Checking mio v0.6.23
+    Checking const-oid v0.10.2
+    Checking tokio-io v0.1.13
+   Compiling tokio v1.54.1
+    Checking async-task v4.7.1
+    Checking crypto-common v0.2.2
+    Checking block-padding v0.4.2
+    Checking block-buffer v0.12.1
+   Compiling minimal-lexical v0.2.1
+    Checking bitflags v1.3.2
+    Checking parking_lot v0.9.0
+    Checking inout v0.2.5
+    Checking memoffset v0.5.6
+   Compiling cipher v0.4.4
+    Checking rayon v1.12.0
+    Checking tokio-sync v0.1.8
+   Compiling hmac v0.12.1
+    Checking num-iter v0.1.46
+    Checking async-channel v2.5.0
+    Checking num-complex v0.4.6
+   Compiling libloading v0.8.9
+    Checking sha1 v0.10.7
+    Checking weezl v0.1.12
+   Compiling nom v7.1.3
+   Compiling toml_edit v0.25.17+spec-1.1.0
+    Checking no-std-net v0.6.0
+    Checking allocator-api2 v0.2.21
+    Checking futures-timer v3.0.4
+   Compiling ucd-trie v0.1.7
+    Checking ryu v1.0.23
+    Checking rustc-hash v2.1.3
+    Checking unicode-segmentation v1.13.3
+    Checking compression-core v0.4.34
+   Compiling lzma-rs v0.3.0
+    Checking tokio-reactor v0.1.12
+   Compiling jack-sys v0.5.1
+   Compiling time v0.3.55
+    Checking pnet_base v0.35.0
+   Compiling clang-sys v1.9.1
+   Compiling aes v0.8.4
+   Compiling pbkdf2 v0.12.2
+    Checking crossbeam-epoch v0.8.2
+   Compiling const-random-macro v0.1.16
+   Compiling ureq-proto v0.6.5
+   Compiling filetime v0.2.29
+    Checking bitflags v2.13.2
+    Checking serde_json v1.0.154
+    Checking deranged v0.5.9
+    Checking regex-automata v0.4.18
+    Checking brotli v9.0.0
+    Checking digest v0.11.3
+    Checking cipher v0.5.2
+    Checking num-bigint v0.4.8
+   Compiling zopfli v0.8.4
+    Checking async-lock v3.4.2
+    Checking piper v0.2.5
+    Checking rustix v1.1.5
+    Checking unicode-width v0.2.2
+    Checking mime v0.3.17
+   Compiling proc-macro-crate v3.5.0
+    Checking utf8parse v0.2.2
+   Compiling same-file v1.0.6
+    Checking adler32 v1.2.0
+    Checking psl-types v2.0.11
+   Compiling walkdir v2.5.0
+    Checking anstyle-parse v1.0.0
+    Checking blocking v1.7.0
+   Compiling cmake v0.1.58
+    Checking hmac v0.13.0
+    Checking const-random v0.1.18
+    Checking crossbeam-deque v0.7.4
+   Compiling tar v0.4.46
+    Checking uuid v1.29.0
+    Checking tokio-codec v0.1.2
+    Checking async-executor v1.14.0
+   Compiling wasm-bindgen-shared v0.2.129
+    Checking async-broadcast v0.7.2
+    Checking crossbeam-queue v0.2.3
+    Checking ordered-stream v0.2.0
+    Checking hex v0.4.3
+    Checking cpubits v0.1.1
+    Checking iana-time-zone v0.1.65
+    Checking colorchoice v1.0.5
+    Checking adler v1.0.2
+    Checking anstyle v1.0.14
+    Checking gimli v0.32.3
+    Checking anstyle-query v1.1.5
+    Checking is_terminal_polyfill v1.70.2
+    Checking miniz_oxide v0.4.4
+    Checking tokio-threadpool v0.1.18
+    Checking aes v0.9.3
+    Checking hkdf v0.13.0
+    Checking dlv-list v0.5.2
+    Checking object v0.37.3
+    Checking miniz_oxide v0.3.7
+    Checking anstream v1.0.0
+    Checking deflate v0.8.6
+    Checking cbc v0.2.1
+    Checking sha2 v0.11.1
+    Checking pnet_macros_support v0.35.0
+    Checking mio-uds v0.6.8
+    Checking sha2 v0.10.9
+    Checking pnet_sys v0.35.0
+   Compiling anyhow v1.0.104
+   Compiling ring v0.17.14
+   Compiling openssl-sys v0.9.117
+   Compiling bzip2-sys v0.1.13+1.0.8
+   Compiling psm v0.1.24
+   Compiling stacker v0.1.25
+   Compiling zstd-sys v2.1.2+zstd.1.5.7
+   Compiling lzma-sys v0.1.20
+   Compiling cexpr v0.6.0
+   Compiling onig_sys v69.9.3
+    Checking num-rational v0.4.2
+    Checking rustls-pemfile v2.2.0
+    Checking miniz_oxide v0.8.9
+    Checking jpeg-decoder v0.1.22
+   Compiling bzip2 v0.5.2
+   Compiling bzip2 v0.4.4
+    Checking instant v0.1.13
+    Checking libloading v0.7.4
+    Checking rustc-demangle v0.1.28
+    Checking bit-vec v0.8.0
+   Compiling xz2 v0.1.7
+   Compiling darling_core v0.14.4
+   Compiling synstructure v0.12.6
+    Checking num v0.4.3
+    Checking base64ct v1.8.3
+   Compiling pest v2.9.4
+   Compiling openssl v0.10.81
+   Compiling native-tls v0.2.18
+    Checking clap_lex v1.1.1
+    Checking toml_write v0.1.2
+    Checking seahash v4.1.0
+    Checking color_quant v1.1.0
+    Checking winnow v0.7.15
+    Checking pom v1.1.0
+    Checking rawpointer v0.2.1
+    Checking gif v0.11.4
+   Compiling jack v0.11.4
+    Checking password-hash v0.4.2
+    Checking tiff v0.6.1
+    Checking bit-set v0.8.0
+    Checking matrixmultiply v0.3.11
+    Checking ppv-lite86 v0.2.21
+   Compiling darling_core v0.20.11
+   Compiling prettyplease v0.2.37
+    Checking parking_lot_core v0.8.6
+   Compiling vergen v8.3.2
+    Checking png v0.16.8
+    Checking tokio-fs v0.1.7
+   Compiling blake3 v1.8.7
+    Checking tokio-uds v0.2.7
+    Checking rand_chacha v0.9.0
+   Compiling synstructure v0.14.0
+    Checking rand_chacha v0.3.1
+   Compiling darling_core v0.24.1
+   Compiling wasm-bindgen-macro-support v0.2.129
+    Checking num-rational v0.3.2
+    Checking alsa-sys v0.3.1
+   Compiling regex v1.13.1
+    Checking rand v0.9.5
+    Checking rand v0.8.8
+    Checking inotify-sys v0.1.8
+    Checking portable-atomic v1.15.0
+    Checking tokio-udp v0.1.6
+    Checking console v0.15.11
+    Checking tokio-tcp v0.1.4
+   Compiling bindgen v0.72.1
+    Checking md-5 v0.10.6
+    Checking tokio-current-thread v0.1.7
+    Checking tokio-timer v0.2.13
+    Checking itertools v0.14.0
+    Checking itertools v0.13.0
+    Checking crossbeam-channel v0.5.17
+    Checking castaway v0.2.4
+   Compiling pest_meta v2.9.4
+    Checking addr2line v0.25.1
+    Checking keyring-core v1.0.1
+    Checking route-recognizer v0.3.1
+    Checking compression-codecs v0.4.46
+    Checking tinyvec v1.13.3
+    Checking base64 v0.21.7
+    Checking option-ext v0.2.0
+    Checking bytemuck v1.25.2
+   Compiling tokio-util v0.7.20
+   Compiling tower v0.5.3
+    Checking scoped_threadpool v0.1.9
+    Checking arraydeque v0.5.1
+    Checking static_assertions v1.1.0
+    Checking base64 v0.13.1
+    Checking unicode_categories v0.1.1
+    Checking number_prefix v0.4.0
+    Checking deunicode v1.6.2
+    Checking rangemap v1.8.0
+    Checking image v0.23.14
+    Checking macro_rules_attribute v0.2.3
+    Checking indicatif v0.17.11
+    Checking dirs-sys v0.4.1
+    Checking tokio v0.1.22
+    Checking unicode-normalization v0.1.26
+    Checking pbkdf2 v0.11.0
+    Checking alsa v0.9.1
+    Checking cookie v0.18.2
+    Checking slug v0.1.6
+    Checking inotify v0.9.6
+    Checking matchers v0.2.0
+    Checking fancy-regex v0.17.0
+    Checking lopdf v0.34.0
+    Checking parking_lot v0.11.2
+    Checking ndarray v0.17.2
+   Compiling ts-rs-macros v6.2.0
+   Compiling h2 v0.4.20
+   Compiling failure_derive v0.1.8
+    Checking x11-dl v2.21.0
+    Checking esaxx-rs v0.1.10
+   Compiling darling_macro v0.14.4
+    Checking type1-encoding-parser v0.1.1
+   Compiling pest_generator v2.9.4
+    Checking adobe-cmap-parser v0.4.1
+    Checking getopts v0.2.24
+    Checking convert_case v0.6.0
+    Checking serde_path_to_error v0.1.20
+   Compiling tracing-attributes v0.1.31
+   Compiling zeroize_derive v1.5.0
+   Compiling openssl-macros v0.1.1
+   Compiling enumflags2_derive v0.7.12
+   Compiling pin-project-internal v1.1.13
+   Compiling thiserror-impl v1.0.69
+   Compiling darling v0.14.4
+   Compiling pnet_macros v0.35.0
+   Compiling derive_builder_core v0.12.0
+    Checking backtrace v0.3.76
+    Checking polling v3.11.0
+   Compiling serde_derive v1.0.229
+   Compiling zerofrom-derive v0.1.8
+   Compiling yoke-derive v0.8.4
+   Compiling zerovec-derive v0.11.7
+   Compiling displaydoc v0.2.7
+   Compiling tokio-macros v2.7.2
+   Compiling futures-macro v0.3.34
+   Compiling async-trait v0.1.92
+   Compiling thiserror-impl v2.0.21
+    Checking async-io v2.6.0
+   Compiling rustls v0.23.46
+   Compiling darling_macro v0.20.11
+   Compiling der v0.8.2
+    Checking async-signal v0.2.14
+   Compiling serde_repr v0.1.21
+   Compiling webpki-root-certs v1.0.11
+    Checking async-process v2.5.0
+   Compiling darling v0.20.11
+   Compiling webpki-roots v0.26.11
+   Compiling async-recursion v1.2.0
+    Checking tempfile v3.27.0
+   Compiling derive_builder_core v0.20.2
+    Checking terminal_size v0.4.4
+    Checking pin-project v1.1.13
+    Checking clap_builder v4.6.7
+    Checking thiserror v1.0.69
+   Compiling pest_derive v2.9.4
+   Compiling derive_builder_macro v0.12.0
+    Checking pnet_packet v0.35.0
+   Compiling clap_derive v4.6.7
+   Compiling monostate-impl v0.1.18
+    Checking self-replace v1.5.0
+    Checking ts-rs v6.2.1
+    Checking zip v0.5.13
+    Checking failure v0.1.8
+    Checking rayon-cond v0.4.0
+    Checking derive_builder v0.12.0
+   Compiling jsonrpsee-proc-macros v0.26.1
+    Checking mio v0.8.11
+    Checking monostate v0.1.18
+    Checking dirs-sys v0.3.7
+    Checking fs2 v0.4.3
+    Checking memmap2 v0.9.12
+    Checking euclid v0.20.14
+    Checking tracing-log v0.2.0
+    Checking zerofrom v0.1.8
+    Checking fxhash v0.2.1
+    Checking quick-xml v0.23.1
+    Checking sharded-slab v0.1.7
+    Checking yoke v0.8.4
+    Checking unicode-normalization-alignments v0.1.12
+    Checking libloading v0.9.0
+    Checking thread_local v1.1.10
+    Checking typed-arena v2.0.2
+    Checking dasp_sample v0.11.0
+    Checking semver v1.0.28
+    Checking xml-rs v0.8.29
+    Checking zerovec v0.11.9
+    Checking zerotrie v0.2.5
+    Checking rustls-webpki v0.103.16
+    Checking thiserror v2.0.21
+   Compiling darling_macro v0.24.1
+    Checking mio-named-pipes v0.1.7
+    Checking unicase v2.10.0
+    Checking daachorse v3.0.3
+    Checking pathdiff v0.2.3
+    Checking pulldown-cmark-escape v0.10.1
+    Checking nu-ansi-term v0.50.3
+    Checking fixedbitset v0.4.2
+   Compiling derive_builder_macro v0.20.2
+    Checking constant_time_eq v0.4.2
+    Checking jsonrpsee-wasm-client v0.26.1
+   Compiling darling v0.24.1
+    Checking postscript v0.14.1
+    Checking xdg v2.5.2
+    Checking nom v2.2.1
+   Compiling serde_with_macros v3.24.0
+    Checking urlencoding v2.1.3
+    Checking shell-words v1.1.1
+    Checking constant_time_eq v0.1.5
+    Checking entities v1.0.1
+    Checking tinystr v0.8.5
+    Checking potential_utf v0.1.6
+    Checking widestring v0.2.2
+    Checking arrayvec v0.7.8
+    Checking petgraph v0.6.5
+    Checking derive_builder v0.20.2
+    Checking pulldown-cmark v0.10.3
+    Checking icu_collections v2.4.0
+    Checking tokio-named-pipes v0.1.0
+    Checking single-instance v0.1.2
+    Checking icu_locale_core v2.4.0
+    Checking cpal v0.15.3
+    Checking pdf-extract v0.7.12
+    Checking fast-hnsw v1.0.1
+    Checking onig v6.5.3
+   Compiling hyper v1.12.0
+    Checking sled v0.34.7
+    Checking lopdf v0.1.1
+    Checking notify v6.1.1
+    Checking directories v2.0.2
+    Checking dirs v5.0.1
+    Checking wait-timeout v0.2.1
+    Checking hunspell v0.1.2
+    Checking bit-vec v0.10.1
+    Checking hound v3.5.1
+    Checking quick-error v1.2.3
+    Checking md5 v0.7.0
+    Checking rusty-fork v0.3.1
+    Checking rand v0.10.3
+    Checking chacha20 v0.10.2
+    Checking bit-set v0.11.1
+    Checking rand_xorshift v0.5.0
+    Checking diff v0.1.13
+    Checking unarray v0.1.4
+    Checking yansi v1.0.1
+    Checking clap v4.6.7
+    Checking serde_with v3.24.0
+    Checking icu_provider v2.4.0
+    Checking pretty_assertions v1.4.1
+    Checking serde v1.0.229
+    Checking icu_normalizer v2.4.0
+    Checking icu_properties v2.4.0
+    Checking proptest v1.12.0
+   Compiling wasm-bindgen-macro v0.2.129
+    Checking futures-executor v0.3.34
+    Checking futures v0.3.34
+   Compiling hyper-util v0.1.21
+   Compiling ureq v3.5.0
+    Checking soketto v0.8.1
+   Compiling tokio-native-tls v0.3.1
+    Checking wasm-bindgen v0.2.129
+    Checking ahash v0.8.12
+    Checking enumflags2 v0.7.12
+    Checking jsonrpsee-types v0.26.1
+   Compiling zvariant_utils v4.2.0
+   Compiling zcheapstr v1.1.0
+    Checking hashbrown v0.14.5
+   Compiling serde_urlencoded v0.7.1
+    Checking serde_spanned v0.6.9
+    Checking chrono v0.4.45
+    Checking toml_datetime v0.6.11
+    Checking ipnetwork v0.20.0
+    Checking bincode v1.3.3
+   Compiling llama-cpp-sys-2 v0.1.160
+    Checking keyboard-types v0.7.0
+    Checking tracing-serde v0.2.0
+    Checking toml_edit v0.22.27
+    Checking ron v0.8.1
+    Checking json5 v0.4.1
+    Checking dary_heap v0.3.9
+    Checking spm_precompiled v0.1.4
+    Checking pnet_datalink v0.35.0
+    Checking compact_str v0.9.1
+    Checking tracing-subscriber v0.3.23
+   Compiling zstd-safe v7.3.0
+    Checking pnet_transport v0.35.0
+    Checking syntect v5.3.0
+    Checking pnet v0.35.0
+    Checking ordered-multimap v0.7.3
+    Checking hashlink v0.8.4
+    Checking idna_adapter v1.2.2
+   Compiling zstd v0.13.3
+   Compiling zvariant_derive v5.15.1
+    Checking idna v1.1.0
+    Checking tokenizers v0.23.2
+   Compiling zip v2.6.1
+    Checking rust-ini v0.20.0
+    Checking yaml-rust2 v0.8.1
+    Checking url v2.5.8
+    Checking publicsuffix v2.3.0
+   Compiling zvariant v5.15.1
+   Compiling hyper-tls v0.6.0
+    Checking async-compression v0.4.51
+    Checking docx-rs v0.3.4
+   Compiling ort-sys v2.0.0-rc.15
+    Checking global-hotkey v0.3.0
+    Checking tokio-rustls v0.26.6
+    Checking rustls-platform-verifier v0.5.3
+   Compiling zstd-safe v5.0.2+zstd.1.5.2
+    Checking cookie_store v0.22.1
+    Checking zstd v0.11.2+zstd.1.5.2
+    Checking comrak v0.20.0
+    Checking tokio-stream v0.1.19
+    Checking tower-http v0.6.11
+    Checking zip v0.6.6
+    Checking toml v0.8.23
+    Checking config v0.14.1
+    Checking jsonrpsee-core v0.26.1
+    Checking ort v2.0.0-rc.15
+   Compiling reqwest v0.12.28
+   Compiling ureq v2.12.1
+   Compiling sherpa-onnx-sys v1.13.8
+    Checking zbus_names v4.3.5
+    Checking jsonrpsee-client-transport v0.26.1
+    Checking jsonrpsee-ws-client v0.26.1
+   Compiling zbus_macros v5.19.0
+    Checking sherpa-onnx v1.13.8
+   Compiling maieutik v0.1.0 (/home/chelmooz/Work/maieutik)
+warning: maieutik@0.1.0: Skipping model download (set MAIEUTIK_DOWNLOAD_MODELS=1 to enable); models are fetched at runtime instead
+    Checking zbus v5.19.0
+    Checking hyper-rustls v0.27.10
+    Checking jsonrpsee-server v0.26.1
+    Checking yup-oauth2 v11.0.0
+    Checking jsonrpsee-http-client v0.26.1
+    Checking jsonrpsee v0.26.1
+    Checking self_update v0.40.0
+    Checking oauth2 v5.0.0
+    Checking google-apis-common v7.0.0
+    Checking google-drive3 v6.0.0+20240618
+    Checking secret-service v5.2.0
+    Checking zbus-secret-service-keyring-store v1.0.1
+    Checking keyring v4.2.0
+    Checking llama-cpp-2 v0.1.160
+warning: unused import: `FileItem`
+ --> src/core/watch.rs:4:21
+  |
+4 | use crate::config::{FileItem, AppSettings};
+  |                     ^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `HashSet`
+ --> src/core/watch.rs:7:33
+  |
+7 | use std::collections::{HashMap, HashSet};
+  |                                 ^^^^^^^
+
+warning: unused import: `tokio::time::sleep`
+  --> src/core/watch.rs:12:5
+   |
+12 | use tokio::time::sleep;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `debug`
+  --> src/core/watch.rs:13:15
+   |
+13 | use tracing::{debug, info, warn};
+   |               ^^^^^
+
+warning: unused import: `Context`
+ --> src/core/indexer/mod.rs:3:14
+  |
+3 | use anyhow::{Context, Result};
+  |              ^^^^^^^
+
+warning: unused import: `IVec`
+ --> src/core/indexer/mod.rs:9:16
+  |
+9 | use sled::{Db, IVec};
+  |                ^^^^
+
+warning: unused import: `debug`
+  --> src/llm/mod.rs:16:15
+   |
+16 | use tracing::{debug, info};
+   |               ^^^^^
+
+warning: unused import: `debug`
+ --> src/speech/mod.rs:9:15
+  |
+9 | use tracing::{debug, info};
+  |               ^^^^^
+
+warning: unused import: `LocalLlamaProvider`
+   --> src/speech/mod.rs:146:46
+    |
+146 |     use crate::llm::{ChatCompletionProvider, LocalLlamaProvider};
+    |                                              ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+ --> src/drive/mod.rs:9:5
+  |
+9 | use std::collections::HashMap;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `debug` and `warn`
+  --> src/drive/mod.rs:13:15
+   |
+13 | use tracing::{debug, info, warn};
+   |               ^^^^^        ^^^^
+
+warning: unused import: `async_trait`
+ --> src/mcp/mod.rs:7:23
+  |
+7 | use jsonrpsee::core::{async_trait, RpcResult};
+  |                       ^^^^^^^^^^^
+
+warning: unused import: `jsonrpsee::server::ServerBuilder`
+ --> src/mcp/mod.rs:9:5
+  |
+9 | use jsonrpsee::server::ServerBuilder;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::path::PathBuf`
+  --> src/mcp/mod.rs:12:5
+   |
+12 | use std::path::PathBuf;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `debug`
+  --> src/mcp/mod.rs:15:15
+   |
+15 | use tracing::{debug, info, warn};
+   |               ^^^^^
+
+warning: unused import: `tracing::debug`
+   --> src/mcp/mod.rs:296:9
+    |
+296 |     use tracing::debug;
+    |         ^^^^^^^^^^^^^^
+
+warning: unused imports: `debug` and `warn`
+ --> src/utils/mod.rs:6:15
+  |
+6 | use tracing::{debug, warn};
+  |               ^^^^^  ^^^^
+
+warning: unused imports: `AsyncBufReadExt` and `BufReader`
+  --> src/utils/mod.rs:83:21
+   |
+83 |     use tokio::io::{AsyncBufReadExt, BufReader};
+   |                     ^^^^^^^^^^^^^^^  ^^^^^^^^^
+
+warning: unused imports: `config_path` and `secrets`
+  --> src/lib.rs:16:28
+   |
+16 | use crate::config::store::{config_path, load_settings, save_settings, secrets};
+   |                            ^^^^^^^^^^^                                ^^^^^^^
+
+warning: unused import: `warn`
+  --> src/lib.rs:23:21
+   |
+23 | use tracing::{info, warn};
+   |                     ^^^^
+
+warning: variable does not need to be mutable
+   --> src/llm/mod.rs:271:104
+    |
+271 | ...format::ChatMessage], max_tokens: u32, temp: f32, mut on_token: TokenCallback) -> Result<()> {
+    |                                                      ----^^^^^^^^
+    |                                                      |
+    |                                                      help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `drive`
+   --> src/drive/mod.rs:153:13
+    |
+153 |         let drive = self.ensure_drive().await?;
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_drive`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `drive`
+   --> src/drive/mod.rs:174:13
+    |
+174 |         let drive = self.ensure_drive().await.map_err(|e| anyhow::anyhow!("Drive not configured: {}", e))?;
+    |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_drive`
+
+warning: unused variable: `file`
+   --> src/drive/mod.rs:175:13
+    |
+175 |         let file = File {
+    |             ^^^^ help: if this is intentional, prefix it with an underscore: `_file`
+
+warning: unused variable: `content`
+   --> src/drive/mod.rs:179:13
+    |
+179 |         let content = tokio::fs::read(local_path).await?;
+    |             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_content`
+
+warning: field `tx` is never read
+  --> src/core/watch.rs:18:5
+   |
+15 | pub struct FileWatcher {
+   |            ----------- field in this struct
+...
+18 |     tx: mpsc::Sender<WatchEvent>,
+   |     ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `db` and `settings` are never read
+   --> src/core/indexer/mod.rs:284:5
+    |
+283 | pub struct VectorIndex {
+    |            ----------- fields in this struct
+284 |     db: Db,
+    |     ^^
+...
+289 |     settings: Arc<RwLock<AppSettings>>,
+    |     ^^^^^^^^
+    |
+    = note: `VectorIndex` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `speech` and `llm` are never read
+   --> src/speech/mod.rs:153:9
+    |
+152 |     pub struct MeetingController {
+    |                ----------------- fields in this struct
+153 |         speech: Arc<SpeechService>,
+    |         ^^^^^^
+154 |         llm: Arc<dyn ChatCompletionProvider>,
+    |         ^^^
+
+warning: field `client` is never read
+  --> src/drive/mod.rs:39:5
+   |
+37 | pub struct GoogleDriveAuth {
+   |            --------------- field in this struct
+38 |     /// `None` until `MAIEUTIK_GOOGLE_CLIENT_ID` is provided at runtime.
+39 |     client: Option<BasicClient>,
+   |     ^^^^^^
+
+warning: method `oauth_client` is never used
+  --> src/drive/mod.rs:66:8
+   |
+44 | impl GoogleDriveAuth {
+   | -------------------- method in this implementation
+...
+66 |     fn oauth_client(&self) -> Result<&BasicClient> {
+   |        ^^^^^^^^^^^^
+
+warning: fields `auth`, `drive`, `settings`, and `local_root` are never read
+   --> src/drive/mod.rs:126:5
+    |
+125 | pub struct DriveSync {
+    |            --------- fields in this struct
+126 |     auth: GoogleDriveAuth,
+    |     ^^^^
+127 |     drive: Option<Drive>,
+    |     ^^^^^
+128 |     settings: Arc<RwLock<crate::config::AppSettings>>,
+    |     ^^^^^^^^
+129 |     local_root: PathBuf,
+    |     ^^^^^^^^^^
+
+warning: field `settings` is never read
+   --> src/mcp/mod.rs:209:5
+    |
+208 | pub struct McpServer {
+    |            --------- field in this struct
+209 |     settings: Arc<RwLock<HashMap<String, serde_json::Value>>>,
+    |     ^^^^^^^^
+
+warning: this `impl` can be derived
+   --> src/config/mod.rs:224:1
+    |
+224 | / impl Default for FileSortColumn {
+225 | |     fn default() -> Self { FileSortColumn::Name }
+226 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#derivable_impls
+    = note: `#[warn(clippy::derivable_impls)]` on by default
+help: replace the manual implementation with a derive attribute and mark the default variant
+    |
+217 + #[derive(Default)]
+218 | pub enum FileSortColumn {
+219 ~     #[default]
+220 ~     Name,
+    |
+
+warning: this `impl` can be derived
+   --> src/config/mod.rs:237:1
+    |
+237 | / impl Default for ThinkingLevel {
+238 | |     fn default() -> Self { ThinkingLevel::Medium }
+239 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#derivable_impls
+help: replace the manual implementation with a derive attribute and mark the default variant
+    |
+230 + #[derive(Default)]
+231 | pub enum ThinkingLevel {
+232 |     None,
+233 |     Low,
+234 ~     #[default]
+235 ~     Medium,
+    |
+
+warning: this `impl` can be derived
+   --> src/config/mod.rs:249:1
+    |
+249 | / impl Default for ChatScope {
+250 | |     fn default() -> Self { ChatScope::WatchedFolders }
+251 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#derivable_impls
+help: replace the manual implementation with a derive attribute and mark the default variant
+    |
+243 + #[derive(Default)]
+244 | pub enum ChatScope {
+245 |     CurrentFile,
+246 ~     #[default]
+247 ~     WatchedFolders,
+    |
+
+warning: this `impl` can be derived
+   --> src/config/mod.rs:301:1
+    |
+301 | / impl Default for ConflictStrategy {
+302 | |     fn default() -> Self { ConflictStrategy::KeepLocal }
+303 | | }
+    | |_^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#derivable_impls
+help: replace the manual implementation with a derive attribute and mark the default variant
+    |
+294 + #[derive(Default)]
+295 | pub enum ConflictStrategy {
+296 ~     #[default]
+297 ~     KeepLocal,
+    |
+
+warning: struct `HnswIndex` has a public `len` method, but no `is_empty` method
+   --> src/core/indexer/mod.rs:269:5
+    |
+269 |     pub fn len(&self) -> usize {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#len_without_is_empty
+    = note: `#[warn(clippy::len_without_is_empty)]` on by default
+
+warning: the borrowed expression implements the required traits
+   --> src/llm/mod.rs:307:19
+    |
+307 |             .post(&format!("{}/v1/chat/completions", self.endpoint))
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `format!("{}/v1/chat/completions", self.endpoint)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_borrows_for_generic_args
+    = note: `#[warn(clippy::needless_borrows_for_generic_args)]` on by default
+
+warning: the borrowed expression implements the required traits
+   --> src/llm/mod.rs:330:19
+    |
+330 |             .post(&format!("{}/v1/chat/completions", self.endpoint))
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `format!("{}/v1/chat/completions", self.endpoint)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#needless_borrows_for_generic_args
+
+warning: method `default` can be confused for the standard trait method `std::default::Default::default`
+  --> src/speech/mod.rs:21:5
+   |
+21 | /     pub fn default() -> Self {
+22 | |         let base = crate::config::store::models_dir();
+23 | |         Self {
+24 | |             encoder: base.join("parakeet-encoder.fp16.onnx"),
+...  |
+30 | |     }
+   | |_____^
+   |
+   = help: consider implementing the trait `std::default::Default` or choosing a less ambiguous method name
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#should_implement_trait
+   = note: `#[warn(clippy::should_implement_trait)]` on by default
+
+warning: you should consider adding a `Default` implementation for `GoogleDriveAuth`
+  --> src/drive/mod.rs:45:5
+   |
+45 | /     pub fn new() -> Self {
+46 | |         let client = std::env::var("MAIEUTIK_GOOGLE_CLIENT_ID")
+47 | |             .ok()
+48 | |             .map(|id| id.trim().to_string())
+...  |
+63 | |     }
+   | |_____^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#new_without_default
+   = note: `#[warn(clippy::new_without_default)]` on by default
+help: try adding this
+   |
+86 ~ }
+87 + 
+88 + impl Default for GoogleDriveAuth {
+89 +     fn default() -> Self {
+90 +         Self::new()
+91 +     }
+92 + }
+   |
+
+warning: field assignment outside of initializer for an instance created with Default::default()
+   --> src/drive/mod.rs:165:9
+    |
+165 |         result.files_uploaded = 0;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: consider initializing the variable with `drive::SyncResult { files_uploaded: 0, files_downloaded: 0, conflicts: 0, ..Default::default() }` and removing relevant reassignments
+   --> src/drive/mod.rs:163:9
+    |
+163 |         let mut result = SyncResult::default();
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#field_reassign_with_default
+    = note: `#[warn(clippy::field_reassign_with_default)]` on by default
+
+warning: you should consider adding a `Default` implementation for `McpServer`
+   --> src/mcp/mod.rs:214:5
+    |
+214 | /     pub fn new() -> Self {
+215 | |         Self {
+216 | |             settings: Arc::new(RwLock::new(HashMap::new())),
+217 | |         }
+218 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#new_without_default
+help: try adding this
+    |
+288 ~ }
+289 + 
+290 + impl Default for McpServer {
+291 +     fn default() -> Self {
+292 +         Self::new()
+293 +     }
+294 + }
+    |
+
+warning: replacing text with itself
+  --> src/utils/mod.rs:56:5
+   |
+56 | /     out.replace("<", "<")
+57 | |         .replace(">", ">")
+58 | |         .replace("&", "&")
+   | |__________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#no_effect_replace
+   = note: `#[warn(clippy::no_effect_replace)]` on by default
+
+warning: replacing text with itself
+  --> src/utils/mod.rs:56:5
+   |
+56 | /     out.replace("<", "<")
+57 | |         .replace(">", ">")
+   | |__________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#no_effect_replace
+
+warning: replacing text with itself
+  --> src/utils/mod.rs:56:5
+   |
+56 |     out.replace("<", "<")
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#no_effect_replace
+
+warning: `maieutik` (lib test) generated 46 warnings (46 duplicates)
+warning: `maieutik` (lib) generated 46 warnings (run `cargo clippy --fix --lib -p maieutik -- ` to apply 33 suggestions)
+warning: unused import: `save_settings_if_changed`
+ --> src/main.rs:5:39
+  |
+5 | use maieutik::{AppState, run_watcher, save_settings_if_changed};
+  |                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `tokio::sync::RwLock`
+ --> src/main.rs:9:5
+  |
+9 | use tokio::sync::RwLock;
+  |     ^^^^^^^^^^^^^^^^^^^
+
+warning: `maieutik` (bin "maieutik") generated 2 warnings (2 duplicates)
+warning: `maieutik` (bin "maieutik" test) generated 2 warnings (run `cargo clippy --fix --bin "maieutik" -p maieutik --tests -- ` to apply 2 suggestions)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 53s
+warning: the following packages contain code that will be rejected by a future version of Rust: nom v2.2.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
