@@ -62,4 +62,6 @@ MAIEUTIK_EMBEDDER_MODEL=… MAIEUTIK_EMBEDDER_TOKENIZER=… ORT_DYLIB_PATH=… \
 - Sparse/ColBERT outputs of BGE-M3 are absent from the ONNX export used here
   (dense retrieval only).
 
-See `VERIFICATION.md` for what was actually run, with raw logs.
+See `VERIFICATION.md` for what was actually run. Raw logs are produced locally
+(gitignored) and travel with the review archives — they are not part of this
+repository.
