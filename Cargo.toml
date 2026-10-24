@@ -110,7 +110,7 @@ clap = { version = "4", features = ["derive", "env"] }
 single-instance = "0.1"
 
 # Audio (for meeting recording)
-cpal = { version = "0.15", features = ["jack"] }
+
 hound = "3.5"  # WAV writing
 
 # Utilities
