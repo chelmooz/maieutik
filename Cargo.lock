@@ -2092,12 +2092,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
-name = "hunspell"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "92a1481919add41a5c256027b4dfb54566c6a93e398223ee069336c6cc34e0b1"
-
-[[package]]
 name = "hybrid-array"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2999,7 +2993,6 @@ dependencies = [
  "futures",
  "global-hotkey",
  "hound",
- "hunspell",
  "jsonrpsee",
  "keyring",
  "llama-cpp-2",
