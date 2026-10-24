@@ -101,8 +101,8 @@ fichier
 ```
 
 **Wired today**: nothing end-to-end. The watcher → extraction → chunk → index
-chain is not connected (`run_watcher` TODO, `Commands::Index` empty), and
-nothing after the index exists. The only complete path is the test path:
+chain is not connected (`run_watcher` leaves re-indexing unimplemented,
+`Commands::Index` is an empty stub), and nothing after the index exists. The only complete path is the test path:
 corpus → chunk → embed → index → dense search, exercised by
 `tests/embedding_search.rs`.
 
@@ -133,11 +133,14 @@ extractions must be visible instead of silently polluting retrieval.
 | `MAIEUTIK_OPENAI_API_KEY` | OpenAI provider (keyring preferred) | phase 4 |
 | `MAIEUTIK_LAYA_URL` | Judge sidecar | P7 |
 
+## Decisions taken by the owner
+
+1. Lexical search: **SQLite FTS5 with BM25** (rusqlite, `bundled` feature),
+   merged with dense results by RRF (P4).
+2. Voice: **path B — sherpa-onnx in Rust** with Parakeet TDT 0.6B v3;
+   OpenWhispr serves as an open-source reference for configuration only (P8).
+
 ## Open decisions (listed, not decided)
 
-1. Lexical search engine: SQLite FTS5 vs tantivy — decided during the storage
-   work (P3/P4); evaluation bench (P2) provides the comparison basis.
-2. LLM model: none chosen; reference candidate Qwen2.5 7B Instruct Q4_K_M.
-3. Voice: OpenWhispr as external application (A) vs sherpa-onnx in Rust (B) —
-   owner decision before P8.
-4. Reranker artifact format (which ONNX export) — decided when P4 starts.
+1. LLM model beyond the Qwen2.5 7B Q4 reference candidate (P5).
+2. Reranker artifact format (which ONNX export) — decided when P4 starts.
