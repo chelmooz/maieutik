@@ -43,3 +43,13 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
    d'`onig_sys` ; réduction du temps cold et de la surface d'audit.
    Ces retraits sont hors périmètre P1 (consigne : inventaire seulement) et
    seront exécutés après GO, un retrait par commit, avec cargo audit rejoué.
+
+## Dev-dependencies
+
+| Crate | Utilisée dans | Note |
+|---|---|---|
+| `tempfile` | tests (répertoires temporaires des tests d'intégration) | gardée |
+| `proptest` | prévu P3 (propriétés du chunker) | gardée |
+| `pretty_assertions` | UNUSED visible aujourd'hui — à retirer ou utiliser en P3 | à arbitrer |
+
+Le lot P1-d n'a retiré aucune dépendance (consigne).

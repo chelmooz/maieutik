@@ -19,10 +19,10 @@ configuration, never by code.
 | LLM generation (llama.cpp) | `llm` | **never executed** — no model ever loaded; sampler chain incomplete; 512-token batch cap | `VERIFICATION.md` issue 6 |
 | OpenAI-compatible provider | `llm` | **never executed** — no timeout, no status check, no true streaming | same |
 | MCP / JSON-RPC bridge | `mcp` | **stub** — handlers defined, not wired to index/LLM; socket path uses caller PID | `src/mcp/mod.rs` (`socket_path`) |
-| Google Drive sync | `drive` | **stub** — operations do nothing; OAuth client id read from `MAIEUTIK_GOOGLE_CLIENT_ID` | `src/drive/mod.rs:45` |
+| Google Drive sync | `drive` | **stub** — operations do nothing; OAuth client id read from `MAIEUTIK_GOOGLE_CLIENT_ID` | `src/drive/mod.rs:46` |
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
-| GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:12` |
+| GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:13` |
 
 Status vocabulary: **tested** = a real automated run with raw output exists;
 **stub** = compiles but does nothing or is not wired; **broken** = compiles but
