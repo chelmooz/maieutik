@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-test-clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo check --locked --all-targets
+        run: cargo check --locked --all-targets
+
+      # Model-dependent tests are #[ignore]d by design (they need the BGE-M3
+      # files and libonnxruntime) and stay out of CI on purpose.
+      - name: cargo test --locked (model-independent)
+        run: cargo test --locked
+
+      # Warnings are listed, not blocking: ~50 known warnings (unused imports,
+      # derivable impls, ...) recorded in the P1 report. Switching to
+      # -D warnings is planned once they are cleaned up.
+      - name: cargo clippy --locked --all-targets (non-blocking)
+        run: cargo clippy --locked --all-targets
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # NON-BLOCKING by explicit note: 14 known RUSTSEC advisories, all in
+      # dependencies already listed for pruning in docs/DEPENDENCIES.md
+      # (zip, lopdf, bincode, tokio 0.1 via tokio-named-pipes, google-apis-common,
+      # failure, instant, fxhash, lock_api/memoffset via sled...). The audit
+      # becomes blocking once the pruning plan is executed.
+      - name: cargo audit (non-blocking — advisories in deps slated for pruning)
+        continue-on-error: true
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
