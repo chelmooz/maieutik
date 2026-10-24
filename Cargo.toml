@@ -67,10 +67,6 @@ sherpa-onnx = { version = "1.13", features = ["static"] }
 
 # VAD - use ort directly (no silero_vad crate - incompatible with ort 2.x)
 
-# Google Drive
-google-drive3 = "6"
-oauth2 = "5"
-url = "2"
 reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "brotli", "cookies"] }
 
 # MCP / JSON-RPC
@@ -83,6 +79,8 @@ tokio-named-pipes = "0.1"
 # egui-winit = { version = "0.28", optional = true }
 # winit = { version = "0.28", features = ["serde"], optional = true }
 # wgpu = { version = "21", features = ["vulkan-portability"], optional = true }
+
+url = "2"
 
 # Document Processing
 docx-rs = "0.3"

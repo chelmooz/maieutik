@@ -45,14 +45,11 @@ MAIEUTIK_EMBEDDER_MODEL=… MAIEUTIK_EMBEDDER_TOKENIZER=… ORT_DYLIB_PATH=… \
 | `MAIEUTIK_EMBEDDER_TOKENIZER` | path to `tokenizer.json` (default alongside the model) |
 | `MAIEUTIK_EMBEDDER_THREADS` | intra-op threads (default: machine parallelism) |
 | `ORT_DYLIB_PATH` | path to `libonnxruntime.so` (required with `load-dynamic`) |
-| `MAIEUTIK_GOOGLE_CLIENT_ID` | your own Google OAuth client id (none is embedded; Drive stays unconfigured without it) |
 
 ## Limits (known, by design for now)
 
 - The indexing pipeline is **not wired** end to end (watcher → extract →
   chunk → index); `maieutik search` over real files returns nothing yet.
-- Google Drive sync is a compile-time stub. No OAuth client id is embedded:
-  set `MAIEUTIK_GOOGLE_CLIENT_ID` to your own client id before any real use.
 - The MCP module is a JSON-RPC bridge skeleton, not a spec-compliant MCP
   server.
 - The chunker **panics on non-ASCII text when overlap > 0**, and heading

@@ -57,26 +57,11 @@ enum Commands {
         #[arg(long)]
         file: Option<PathBuf>,
     },
-    /// Manage Google Drive sync
-    Drive {
-        #[command(subcommand)]
-        action: DriveAction,
-    },
     /// Manage models (download, list, remove)
     Model {
         #[command(subcommand)]
         action: ModelAction,
     },
-}
-
-#[derive(Debug, Subcommand)]
-enum DriveAction {
-    Status,
-    Enable,
-    Disable,
-    Sync,
-    Auth,
-    Deauth,
 }
 
 #[derive(Debug, Subcommand)]
@@ -176,9 +161,6 @@ async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<()> {
         Commands::Chat { message, file } => {
             println!("Chat: {} (file: {:?})", message, file);
             // TODO: implement
-        }
-        Commands::Drive { action } => {
-            println!("Drive: {:?}", action);
         }
         Commands::Model { action } => {
             println!("Model: {:?}", action);

@@ -6,7 +6,6 @@ pub mod config;
 pub mod core;
 pub mod llm;
 pub mod speech;
-pub mod drive;
 pub mod mcp;
 
 pub mod ui;

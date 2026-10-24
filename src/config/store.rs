@@ -1,4 +1,4 @@
-//! Settings persistence — JSON file + keyring for secrets (API keys, OAuth tokens)
+//! Settings persistence — JSON file + keyring for secrets (API keys, tokens)
 
 use anyhow::{Context, Result};
 use crate::config::AppSettings;
@@ -137,6 +137,4 @@ pub mod secrets {
 
     // Known secret keys
     pub const OPENAI_API_KEY: &str = "openai_api_key";
-    pub const GOOGLE_REFRESH_TOKEN: &str = "google_refresh_token";
-    pub const GOOGLE_ACCESS_TOKEN: &str = "google_access_token";
 }

@@ -19,7 +19,6 @@ configuration, never by code.
 | LLM generation (llama.cpp) | `llm` | **never executed** — no model ever loaded; sampler chain incomplete; 512-token batch cap | `VERIFICATION.md` issue 6 |
 | OpenAI-compatible provider | `llm` | **never executed** — no timeout, no status check, no true streaming | same |
 | MCP / JSON-RPC bridge | `mcp` | **stub** — handlers defined, not wired to index/LLM; socket path uses caller PID | `src/mcp/mod.rs` (`socket_path`) |
-| Google Drive sync | `drive` | **stub** — operations do nothing; OAuth client id read from `MAIEUTIK_GOOGLE_CLIENT_ID` | `src/drive/mod.rs:46` |
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
 | GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:12` |
@@ -127,7 +126,6 @@ extractions must be visible instead of silently polluting retrieval.
 | `MAIEUTIK_EMBEDDER_THREADS` | Embedder | in place |
 | `ORT_DYLIB_PATH` | ORT loader | in place |
 | `MAIEUTIK_DOWNLOAD_MODELS` | build-time downloader (off by default) | in place |
-| `MAIEUTIK_GOOGLE_CLIENT_ID` | Drive OAuth (stub) | in place |
 | `MAIEUTIK_RERANKER_MODEL` / `_TOKENIZER` | Reranker | P4 |
 | `MAIEUTIK_LLM_MODEL` | Generator | P5 |
 | `MAIEUTIK_OPENAI_API_KEY` | OpenAI provider (keyring preferred) | phase 4 |
