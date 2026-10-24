@@ -95,7 +95,6 @@ petgraph = "0.6"
 
 # Markdown
 pulldown-cmark = "0.10"
-comrak = { version = "0.20", features = ["default"] }
 
 # Logging
 tracing = "0.1"
