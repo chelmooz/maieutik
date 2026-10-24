@@ -7,3 +7,4 @@
 .env*
 *.pem
 *.key
+.cargo/config.toml
