@@ -72,13 +72,13 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
    à arbitrer : `url`, `futures`, `parking_lot`, `uuid`, `base64`,
    `percent-encoding`, `sha2`, les deux parseurs markdown (`comrak`, `pulldown-cmark`)
    helpers de répertoires (`dirs`/`directories`).
-2. Retrait du module `src/drive` avec `google-drive3` + `oauth2` (décision du
-   propriétaire : 100 % local, pas de Google Drive — le module est un code
-   mort planifié pour retrait).
-3. Reconfiguration : `reqwest` en `default-features = false` + rustls (supprime
+1 bis. Retrait du module `src/drive` avec `google-drive3` + `oauth2` (décision
+   du propriétaire : 100 % local, pas de Google Drive — code mort planifié
+   pour retrait).
+2. Reconfiguration : `reqwest` en `default-features = false` + rustls (supprime
    openssl) ; `cpal` sans `jack` (ou retrait avec cpal) ; `hound`/`sherpa-onnx`
    derrière une feature `stt`.
-4. Effet attendu : disparition de `tokio 0.1.22` et de la majorité des 14
+3. Effet attendu : disparition de `tokio 0.1.22` et de la majorité des 14
    advisories RUSTSEC actuels (zip/lopdf/bincode/google-apis-common/failure/
    instant/fxhash/lock_api/memoffset selon les retraits), d'`openssl` et
    d'`onig_sys` ; réduction du temps cold et de la surface d'audit.
