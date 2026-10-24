@@ -12,18 +12,18 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `tokio` | dependencies | src, tests | 11.9 |  |
 | `config` | dependencies | src, tests, build.rs | 2.3 |  |
 | `notify` | dependencies | src | 2.0 |  |
-| `ort` | dependencies | src, tests | 2.6 |  |
+| `ort` | dependencies | src, tests | 2.6 | features réduites (S17) : `default-features = false`, sans `tls-native`/`download-binaries`/`copy-dylibs` — openssl-sorti du graphe |
 | `llama-cpp-2` | dependencies | src | 0.8 |  |
-| `sherpa-onnx` | dependencies | UNUSED | 0.4 | liaison statique + téléchargement au build ; réservé P8. GARDER derrière une feature `stt` |
-| `reqwest` | dependencies | src, build.rs | 5.5 | default features ON → compile `openssl` (6,9 s) en plus de rustls. `default-features = false` + rustls |
+| `sherpa-onnx` | dependencies | UNUSED | 0.4 | liaison statique + téléchargement au build ; réservé P8. **fait (P1.5-15)** : `optional = true`, feature `stt` |
+| `reqwest` | dependencies, build-dependencies | src, build.rs | 5.5 | **fait (P1.5-13)** : `default-features = false` sur les deux déclarations, `rustls-tls` ajouté au build-dep — plus d'openssl via reqwest |
 | `jsonrpsee` | dependencies | src | 0.0 |  |
-| `comrak` | dependencies | UNUSED | 3.4 | doublon markdown avec `pulldown-cmark` — n’en garder qu’un |
+| `comrak` | dependencies | UNUSED | 3.4 | **RETIRÉ (P1.5-S3)** |
 | `tracing-subscriber` | dependencies | src | 3.5 |  |
 | `clap` | dependencies | src | 0.1 |  |
-| `cpal` | dependencies | UNUSED | 1.2 | feature `jack` impose libjack ; audio inutilisé (voix = voie B, sherpa-onnx). ÉLAGUER ou feature `stt` |
+| `cpal` | dependencies | UNUSED | 1.2 | **RETIRÉ (P1.5-S14)** |
 | `uuid` | dependencies | UNUSED | 0.7 | UNUSED confirmé (grep -w). ÉLAGUER |
 | `chrono` | dependencies | src | 2.8 |  |
-| `pnet` | dependencies | UNUSED | 0.2 | tire `pnet_packet` (6,6 s). UNUSED visible. ÉLAGUER |
+| `pnet` | dependencies | UNUSED | 0.2 | **RETIRÉ (P1.5-S7)** |
 | `tokenizers` | dependencies | src | 8.2 |  |
 
 | `anyhow` | dependencies | src | 0.6 |  |
@@ -40,29 +40,29 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `walkdir` | dependencies | UNUSED | 0.5 |  |
 | `sled` | dependencies | src | 4.2 |  |
 | `fast-hnsw` | dependencies | src | 0.7 |  |
-| `google-drive3` | dependencies | src | 4.2 | module Drive = code mort (décision : 100 % local) — voir plan |
-| `oauth2` | dependencies | src | 1.4 | module Drive = code mort — voir plan |
+| `google-drive3` | dependencies | src | 4.2 | **RETIRÉ (P1.5-S1)** |
+| `oauth2` | dependencies | src | 1.4 | **RETIRÉ (P1.5-S1)** |
 | `url` | dependencies | build.rs | 1.4 |  |
-| `tokio-named-pipes` | dependencies | UNUSED | 0.1 |  |
+| `tokio-named-pipes` | dependencies | UNUSED | 0.1 | **RETIRÉ (P1.5-S2)** |
 | `docx-rs` | dependencies | UNUSED | 5.6 |  |
-| `lopdf` | dependencies | UNUSED | 7.4 |  |
+| `lopdf` | dependencies | UNUSED | 7.4 | **RETIRÉ (P1.5-S5)** |
 | `pdf-extract` | dependencies | src | 2.7 |  |
 | `zip` | dependencies | src, tests | 1.9 |  |
-| `hunspell` | dependencies | UNUSED | 0.1 |  |
-| `petgraph` | dependencies | UNUSED | 2.5 |  |
-| `pulldown-cmark` | dependencies | UNUSED | 2.5 | UNUSED confirmé — retirer avec `comrak` |
+| `hunspell` | dependencies | UNUSED | 0.1 | **RETIRÉ (P1.5-S6)** |
+| `petgraph` | dependencies | UNUSED | 2.5 | **RETIRÉ (P1.5-S9)** |
+| `pulldown-cmark` | dependencies | UNUSED | 2.5 | **RETIRÉ (P1.5-S4)** |
 | `tracing` | dependencies | src | 0.3 |  |
-| `self_update` | dependencies | UNUSED | 0.9 |  |
-| `global-hotkey` | dependencies | UNUSED | 1.0 |  |
+| `self_update` | dependencies | UNUSED | 0.9 | **RETIRÉ (P1.5-S10)** |
+| `global-hotkey` | dependencies | UNUSED | 1.0 | **RETIRÉ (P1.5-S11)** |
 | `single-instance` | dependencies | src | 0.1 |  |
 | `hound` | dependencies | UNUSED | 0.4 |  |
 | `sha2` | dependencies | UNUSED | 1.7 |  |
 | `blake3` | dependencies | src | 0.8 |  |
 | `base64` | dependencies | UNUSED | 0.7 |  |
 | `percent-encoding` | dependencies | UNUSED | 0.1 |  |
-| `md5` | dependencies | UNUSED | 0.2 |  |
+| `md5` | dependencies | UNUSED | 0.2 | **RETIRÉ (P1.5-S8)** |
 | `ndarray` | dependencies | src | 5.8 |  |
-| `vergen` | build-dependencies | UNUSED | 0.1 | UNUSED (build.rs ne génère plus de version). ÉLAGUER + sa reqwest de build |
+| `vergen` | build-dependencies | UNUSED | 0.1 | **RETIRÉ (P1.5-S12)** |
 
 | `tempfile` | dev-dependencies | tests | 0.7 |  |
 | `proptest` | dev-dependencies | UNUSED | 3.6 | utilisé à partir de P3 (propriétés du chunker) |
@@ -89,12 +89,5 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
    Ces retraits sont hors périmètre P1 (consigne : inventaire seulement) et
    seront exécutés après GO, un retrait par commit, avec cargo audit rejoué.
 
-## Dev-dependencies
-
-| Crate | Utilisée dans | Note |
-|---|---|---|
-| `tempfile` | tests (répertoires temporaires des tests d'intégration) | gardée |
-| `proptest` | prévu P3 (propriétés du chunker) | gardée |
-| `pretty_assertions` | UNUSED visible aujourd'hui — à retirer ou utiliser en P3 | à arbitrer |
 
 Le lot P1-d n'a retiré aucune dépendance (consigne).

@@ -48,11 +48,12 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # NON-BLOCKING by explicit note: 14 known RUSTSEC advisories, all in
-      # dependencies already listed for pruning in docs/DEPENDENCIES.md
-      # (zip, lopdf, bincode, tokio 0.1 via tokio-named-pipes, google-apis-common,
-      # failure, instant, fxhash, lock_api/memoffset via sled...). The audit
-      # becomes blocking once the pruning plan is executed.
+      # NON-BLOCKING by gatekeeper decision: 20 advisories remain after the
+      # P1.5 pruning (10 vulnerabilities: lopdf via pdf-extract, zip 0.5/0.6/2.6;
+      # 10 warnings: failure, instant, paste, adler, fxhash, bincode, the zbus
+      # stack via keyring). Full list in the P1.5 report — owner decides the
+      # treatment of the remaining crates (pdf-extract/docx-rs are needed until
+      # the P3 extraction rewrite, bincode until the SQLite move).
       - name: cargo audit (non-blocking — advisories in deps slated for pruning)
         continue-on-error: true
         run: |
