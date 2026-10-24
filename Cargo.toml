@@ -104,7 +104,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"]
 clap = { version = "4", features = ["derive", "env"] }
 
 # Global Hotkeys
-global-hotkey = "0.3"
+
 
 # Single instance (cross-platform)
 single-instance = "0.1"
