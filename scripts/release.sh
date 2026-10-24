@@ -11,6 +11,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Non-interactive shells (CI, hooks) may not have ~/.cargo/bin on PATH.
+if ! command -v cargo >/dev/null 2>&1; then
+  export PATH="${HOME:-}/.cargo/bin:$PATH"
+fi
+
 flags=()
 add_remap() { # from to — only if `from` is a non-empty, existing path
   if [ -n "${1:-}" ] && [ -e "$1" ]; then
