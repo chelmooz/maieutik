@@ -71,7 +71,6 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "gzip", "brotli"
 
 # MCP / JSON-RPC
 jsonrpsee = { version = "0.26", features = ["server", "client", "macros"] }
-tokio-named-pipes = "0.1"
 
 # UI - egui (immediate mode, pure Rust) - disabled for now due to version conflicts
 # egui = { version = "0.28", features = ["accesskit", "persistence", "default_fonts"], optional = true }
