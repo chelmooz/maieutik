@@ -16,7 +16,7 @@
 d45e04e9e055  build.rs
 a2a26107a9b6  src/config/mod.rs
 88b22495abc4  src/config/store.rs
-aef7e381a151  src/core/indexer/mod.rs
+fbb57b42e61e  src/core/indexer/mod.rs
 6e4b4102caff  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 8ad1c4ffa09f  src/core/watch.rs
@@ -29,6 +29,7 @@ a8d9e106e24a  src/speech/mod.rs
 552b75b369df  src/utils/mod.rs
 61734ffd9005  tests/chunker.rs
 28139d62c849  tests/embedding_search.rs
+4d1e2c21e798  tests/index_replace.rs
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -59,7 +60,7 @@ a8d9e106e24a  src/speech/mod.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.8 (`tests/chunker.rs` added); logs below predate P1.5
+- Hashes re-bound at P1.9 (`tests/index_replace.rs` added); logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
@@ -87,8 +88,8 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
    **Fixed in P1.8**: chunk size and overlap are counted in characters, byte
    offsets are always valid, and heading offsets are exact on CRLF files
    (`tests/chunker.rs`, no model needed).
-3. **HNSW fully rebuilt per `upsert_file`**; a file's stale chunks are not
-   purged when it shrinks.
+3. **HNSW fully rebuilt per `upsert_file`**; stale chunks are purged
+   atomically since P1.9 (`replace_file_records`, `tests/index_replace.rs`).
 4. **Meta mismatch purges without re-indexing**; no migration test yet.
 5. **Silero VAD v5 input shapes unverified** (`h`/`c` [1,128] vs `state`
    [2,1,128]). `Embedder` + `SileroVad` share the ORT environment; no test
