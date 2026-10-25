@@ -189,6 +189,64 @@ impl Embedder {
 }
 
 
+/// Port d'embedding : le vrai modèle ONNX ou un double de test.
+pub trait TextEmbedder: Send + Sync + std::fmt::Debug {
+    /// Vecteur normalisé L2 pour un texte.
+    fn embed(&self, text: &str) -> Result<Vec<f32>>;
+
+    fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        texts.iter().map(|t| self.embed(t)).collect()
+    }
+}
+
+impl TextEmbedder for Embedder {
+    fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        Embedder::embed(self, text)
+    }
+
+    fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
+        Embedder::embed_batch(self, texts)
+    }
+}
+
+/// Double de test déterministe : sac de mots haché en EMBEDDING_DIM dimensions,
+/// normalisé L2. Ce n'est PAS un modèle sémantique : deux textes ne sont
+/// proches que s'ils partagent des mots.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct HashEmbedder;
+
+impl HashEmbedder {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl TextEmbedder for HashEmbedder {
+    fn embed(&self, text: &str) -> Result<Vec<f32>> {
+        let mut v = vec![0.0f32; EMBEDDING_DIM];
+        for word in text
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+        {
+            let h = blake3::hash(word.to_lowercase().as_bytes());
+            let b = h.as_bytes();
+            let idx = (u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize) % EMBEDDING_DIM;
+            let sign = if b[4] % 2 == 0 { 1.0 } else { -1.0 };
+            v[idx] += sign;
+        }
+        let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for x in v.iter_mut() {
+                *x /= norm;
+            }
+        } else {
+            v[0] = 1.0;
+        }
+        Ok(v)
+    }
+}
+
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VectorRecord {
     pub id: String,           // file_path#chunk_idx
@@ -312,12 +370,12 @@ pub struct VectorIndex {
     vectors_tree: sled::Tree,
     meta_tree: sled::Tree,
     hnsw: Arc<RwLock<Option<HnswIndex>>>,
-    embedder: Embedder,
+    embedder: Arc<dyn TextEmbedder>,
     settings: Arc<RwLock<AppSettings>>,
 }
 
 impl VectorIndex {
-    pub fn open(data_dir: &Path, settings: Arc<RwLock<AppSettings>>, embedder: Embedder) -> Result<Self> {
+    pub fn open(data_dir: &Path, settings: Arc<RwLock<AppSettings>>, embedder: impl TextEmbedder + 'static) -> Result<Self> {
         let db = sled::open(data_dir.join("vector_index"))?;
         let vectors_tree = db.open_tree(VECTOR_TABLE)?;
         let meta_tree = db.open_tree(META_TABLE)?;
@@ -347,7 +405,7 @@ impl VectorIndex {
             vectors_tree,
             meta_tree,
             hnsw: Arc::new(RwLock::new(None)),
-            embedder,
+            embedder: Arc::new(embedder),
             settings,
         })
     }
