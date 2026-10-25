@@ -2761,7 +2761,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
- "url",
  "uuid",
  "walkdir",
  "zip 0.6.6",

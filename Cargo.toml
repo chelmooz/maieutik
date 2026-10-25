@@ -80,8 +80,6 @@ jsonrpsee = { version = "0.26", features = ["server", "client", "macros"] }
 # winit = { version = "0.28", features = ["serde"], optional = true }
 # wgpu = { version = "21", features = ["vulkan-portability"], optional = true }
 
-url = "2"
-
 # Document Processing
 docx-rs = "0.3"
 pdf-extract = "0.7"

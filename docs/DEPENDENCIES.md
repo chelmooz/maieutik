@@ -42,7 +42,7 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `fast-hnsw` | dependencies | src | 0.7 |  |
 | `google-drive3` | dependencies | src | 4.2 | **RETIRÉ (P1.5-S1)** |
 | `oauth2` | dependencies | src | 1.4 | **RETIRÉ (P1.5-S1)** |
-| `url` | dependencies | build.rs | 1.4 |  |
+| `url` | dependencies | build.rs | 1.4 | **RETIRÉ (P1.6-2)** |
 | `tokio-named-pipes` | dependencies | UNUSED | 0.1 | **RETIRÉ (P1.5-S2)** |
 | `docx-rs` | dependencies | UNUSED | 5.6 |  |
 | `lopdf` | dependencies | UNUSED | 7.4 | **RETIRÉ (P1.5-S5)** |
