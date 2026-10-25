@@ -428,7 +428,10 @@ impl VectorIndex {
     }
 }
 
-/// Heading-aware markdown/text chunker.
+/// Découpeur de texte conscient des titres.
+///
+/// Taille et recouvrement sont comptés en caractères ; les positions
+/// `byte_start`/`byte_end` restent des indices d'octets valides dans le texte.
 pub struct Chunker {
     max_chunk_chars: usize,
     overlap_chars: usize,
@@ -440,69 +443,62 @@ impl Chunker {
     }
 
     pub fn chunk(&self, content: &FileContent) -> Vec<Chunk> {
-        let mut chunks = Vec::new();
         let text = &content.text;
-        let headings = &content.headings;
+        // Frontière d'octet de chaque caractère, plus la fin du texte.
+        let mut bounds: Vec<usize> = text.char_indices().map(|(i, _)| i).collect();
+        let total = bounds.len();
+        bounds.push(text.len());
 
-        let mut current_chunk = String::new();
-        let mut current_heading_path = None;
-        let mut chunk_index = 0;
+        let max = self.max_chunk_chars.max(1);
+        // Recouvrement < taille : le début de chunk avance toujours.
+        let overlap = self.overlap_chars.min(max - 1);
 
-        for (pos, ch) in text.char_indices() {
-            // Update heading path
-            for h in headings {
-                if h.byte_offset == pos {
-                    current_heading_path = Some(h.text.clone());
-                    break;
-                }
-            }
-
-            current_chunk.push(ch);
-
-            if current_chunk.len() >= self.max_chunk_chars {
-                chunks.push(Chunk {
-                    index: chunk_index,
-                    text: current_chunk.clone(),
-                    heading_path: current_heading_path.clone(),
-                    byte_start: pos.saturating_sub(current_chunk.len()),
-                    byte_end: pos,
-                });
-                chunk_index += 1;
-                // Overlap
-                let overlap_start = current_chunk.len().saturating_sub(self.overlap_chars);
-                current_chunk = current_chunk[overlap_start..].to_string();
-            }
-        }
-
-        if !current_chunk.is_empty() {
-            let byte_start = text.len().saturating_sub(current_chunk.len());
+        let mut chunks = Vec::new();
+        let mut start = 0;
+        while start < total {
+            let end = (start + max).min(total);
+            let byte_start = bounds[start];
+            let byte_end = bounds[end];
+            let heading_path = content
+                .headings
+                .iter()
+                .filter(|h| h.byte_offset < byte_end)
+                .max_by_key(|h| h.byte_offset)
+                .map(|h| h.text.clone());
             chunks.push(Chunk {
-                index: chunk_index,
-                text: current_chunk,
-                heading_path: current_heading_path,
+                index: chunks.len(),
+                text: text[byte_start..byte_end].to_string(),
+                heading_path,
                 byte_start,
-                byte_end: text.len(),
+                byte_end,
             });
+            if end == total {
+                break;
+            }
+            start = end - overlap;
         }
-
         chunks
     }
 }
 
 pub fn extract_headings(text: &str) -> Vec<crate::config::Heading> {
     let mut headings = Vec::new();
-    for (line_num, line) in text.lines().enumerate() {
+    let mut offset = 0;
+    for (line_num, raw) in text.split_inclusive('\n').enumerate() {
+        // Retire le saut de ligne (LF ou CRLF) sans toucher à l'offset réel.
+        let line = raw.trim_end_matches(['\n', '\r']);
         if let Some(stripped) = line.strip_prefix('#') {
             let level = line.chars().take_while(|c| *c == '#').count();
             if level > 0 && level <= 6 {
                 headings.push(crate::config::Heading {
                     level,
                     text: stripped.trim().to_string(),
-                    byte_offset: text[..text.lines().take(line_num).map(|l| l.len() + 1).sum::<usize>()].len(),
+                    byte_offset: offset,
                     line_number: line_num + 1,
                 });
             }
         }
+        offset += raw.len();
     }
     headings
 }
