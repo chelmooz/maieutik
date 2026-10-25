@@ -225,6 +225,33 @@ impl Default for IndexMeta {
     }
 }
 
+/// Remplace atomiquement tous les enregistrements d'un fichier (un seul batch sled).
+///
+/// Correspondance exacte sur `file_path` : le préfixe `chemin#` seul est ambigu
+/// (`a` et `a#1.md`), donc chaque enregistrement scanné est vérifié.
+/// Une liste vide purge le fichier.
+pub fn replace_file_records(
+    tree: &sled::Tree,
+    file_path: &str,
+    records: &[VectorRecord],
+) -> Result<()> {
+    let mut batch = sled::Batch::default();
+    let prefix = format!("{file_path}#");
+    for item in tree.scan_prefix(prefix.as_bytes()) {
+        let (key, val) = item?;
+        let old: VectorRecord = bincode::deserialize(&val)?;
+        if old.file_path == file_path {
+            batch.remove(key);
+        }
+    }
+    for r in records {
+        batch.insert(r.id.as_bytes(), bincode::serialize(r)?);
+    }
+    tree.apply_batch(batch)?;
+    Ok(())
+}
+
+
 /// Wrapper for fast-hnsw index with ID mapping
 pub struct HnswIndex {
     inner: Hnsw<Euclidean>,
@@ -342,49 +369,40 @@ impl VectorIndex {
         Ok(())
     }
 
-    /// Upsert a file's chunks
+    /// Upsert a file's chunks: embeddings first, then one atomic replace.
+    /// Zero chunks (file emptied) purges the file's previous records.
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
         let chunks = &content.chunks;
-        if chunks.is_empty() {
-            return Ok(());
+        let path_str = file_path.to_string_lossy().to_string();
+
+        let mut records = Vec::with_capacity(chunks.len());
+        if !chunks.is_empty() {
+            let texts: Vec<&str> = chunks.iter().map(|c| c.text.as_str()).collect();
+            let embeddings = self.embedder.embed_batch(&texts)?;
+            for (i, (chunk, emb)) in chunks.iter().zip(embeddings).enumerate() {
+                records.push(VectorRecord {
+                    id: format!("{}#{}", path_str, i),
+                    file_path: path_str.clone(),
+                    chunk_index: i,
+                    text: chunk.text.clone(),
+                    embedding: emb,
+                    heading_path: chunk.heading_path.clone(),
+                    chunk_ordinal: chunk.index,
+                    display_text: None,
+                    index_text: None,
+                });
+            }
         }
 
-        let texts: Vec<&str> = chunks.iter().map(|c| c.text.as_str()).collect();
-        let embeddings = self.embedder.embed_batch(&texts)?;
-
-        for (i, (chunk, emb)) in chunks.iter().zip(embeddings).enumerate() {
-            let record = VectorRecord {
-                id: format!("{}#{}", file_path.display(), i),
-                file_path: file_path.to_string_lossy().to_string(),
-                chunk_index: i,
-                text: chunk.text.clone(),
-                embedding: emb,
-                heading_path: chunk.heading_path.clone(),
-                chunk_ordinal: chunk.index,
-                display_text: None,
-                index_text: None,
-            };
-            let key = record.id.as_bytes();
-            let val = bincode::serialize(&record)?;
-            self.vectors_tree.insert(key, val)?;
-        }
-
-        // Rebuild HNSW incrementally (or mark dirty for rebuild)
+        replace_file_records(&self.vectors_tree, &path_str, &records)?;
         self.rebuild_hnsw_if_needed().await?;
         Ok(())
     }
 
     /// Remove all chunks for a file
     pub async fn remove_file(&self, file_path: &Path) -> Result<()> {
-        let prefix = file_path.to_string_lossy().to_string() + "#";
-        let mut to_delete = Vec::new();
-        for item in self.vectors_tree.scan_prefix(prefix.as_bytes()) {
-            let (key, _) = item?;
-            to_delete.push(key.to_vec());
-        }
-        for key in to_delete {
-            self.vectors_tree.remove(key)?;
-        }
+        let path_str = file_path.to_string_lossy().to_string();
+        replace_file_records(&self.vectors_tree, &path_str, &[])?;
         self.rebuild_hnsw_if_needed().await?;
         Ok(())
     }
