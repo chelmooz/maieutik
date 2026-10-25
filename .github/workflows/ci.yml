@@ -48,14 +48,9 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # NON-BLOCKING by gatekeeper decision: 20 advisories remain after the
-      # P1.5 pruning (10 vulnerabilities: lopdf via pdf-extract, zip 0.5/0.6/2.6;
-      # 10 warnings: failure, instant, paste, adler, fxhash, bincode, the zbus
-      # stack via keyring). Full list in the P1.5 report — owner decides the
-      # treatment of the remaining crates (pdf-extract/docx-rs are needed until
-      # the P3 extraction rewrite, bincode until the SQLite move).
+      # Audit bloquant : les exceptions (14 identifiants, phase de revue) sont
+      # déclarées dans .cargo/audit.toml ; tout nouvel avis rend la CI rouge.
       - name: cargo audit (non-blocking — advisories in deps slated for pruning)
-        continue-on-error: true
         run: |
           cargo install cargo-audit --locked
-          cargo audit
+          cargo audit --deny warnings
