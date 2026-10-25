@@ -87,25 +87,12 @@ docx-rs = "0.3"
 pdf-extract = "0.7"
 zip = "0.6"
 
-# Spell/Thesaurus
-
-# Graph
-
-
-# Markdown
-
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
 
-# Updater
-
-
 # CLI
 clap = { version = "4", features = ["derive", "env"] }
-
-# Global Hotkeys
-
 
 # Single instance (cross-platform)
 single-instance = "0.1"
@@ -122,7 +109,6 @@ blake3 = "1"
 base64 = "0.22"
 percent-encoding = "2.3"
 
-
 ndarray = "0.17"
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 
@@ -132,5 +118,4 @@ proptest = "1"
 pretty_assertions = "1"
 
 [build-dependencies]
-
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
