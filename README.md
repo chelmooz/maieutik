@@ -84,7 +84,7 @@ maieutik chat "message" [--file CHEMIN]
 maieutik model list | download NOM | remove NOM | status
 ```
 
-Les dossiers à indexer se déclarent dans `config.json` (clé `Folders`).
+Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`).
 
 ### `index`
 
