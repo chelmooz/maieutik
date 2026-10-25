@@ -11,7 +11,4 @@ ignore = [
   "RUSTSEC-2026-0367", # zip 0.5.13 + 0.6.6 + 2.6.1 ; P3 leve 0.5.13 (docx-rs) et 0.6.6 (direct) ; 2.6.1 <- sherpa-onnx-sys (feature stt) : amont ou retrait de stt
   "RUSTSEC-2026-0368", # zip 0.5.13 + 0.6.6 + 2.6.1 ; P3 leve 0.5.13 (docx-rs) et 0.6.6 (direct) ; 2.6.1 <- sherpa-onnx-sys (feature stt) : amont ou retrait de stt
   "RUSTSEC-2026-0369", # zip 0.5.13 + 0.6.6 + 2.6.1 ; P3 leve 0.5.13 (docx-rs) et 0.6.6 (direct) ; 2.6.1 <- sherpa-onnx-sys (feature stt) : amont ou retrait de stt
-  "RUSTSEC-2026-0370", # zvariant 5.15.1 <- zbus <- keyring ; amont
-  "RUSTSEC-2026-0371", # zbus_names 4.3.5 <- zbus <- keyring ; amont
-  "RUSTSEC-2026-0372", # zvariant_derive 5.15.1 <- zvariant <- zbus <- keyring ; amont
 ]

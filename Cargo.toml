@@ -45,7 +45,6 @@ async-trait = "0.1"
 # Config & Secrets
 config = { version = "0.14", features = ["json"] }
 dirs = "5"
-keyring = "4.2"
 
 # File Watching
 notify = { version = "6", features = ["mio"] }
@@ -67,8 +66,6 @@ llama-cpp-2 = { version = "0.1", features = [] }  # features set via crate featu
 sherpa-onnx = { version = "1.13", features = ["static"], optional = true }
 
 # VAD - use ort directly (no silero_vad crate - incompatible with ort 2.x)
-
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip", "brotli", "cookies"] }
 
 # MCP / JSON-RPC
 jsonrpsee = { version = "0.26", features = ["server", "client", "macros"] }
