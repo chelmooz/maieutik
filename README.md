@@ -16,7 +16,7 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Faux embedder déterministe (tests, CI) | Implémenté | `src/core/indexer/mod.rs` (`HashEmbedder`) |
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
 | Extraction pdf | Présente, non vérifiée | `src/utils/mod.rs` |
-| Découpage en chunks | Implémenté ; tailles fixes non calibrées ; défauts documentés non revérifiés | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
+| Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
 | Surveillance de fichiers | Partielle : la suppression est traitée, la création et la modification sont journalisées sans réindexation | `src/core/watch.rs`, `src/lib.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
@@ -143,7 +143,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 - `chat` et `model` sont factices et sortent en code 0.
 - La génération n'a jamais chargé de modèle dans cet environnement.
 - Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.
-- `ARCHITECTURE.md` signale deux défauts du découpage (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec des fins de ligne CRLF). Leur état actuel n'est pas revérifié ici. Ce document n'a pas non plus été mis à jour après l'implémentation de `index` : il décrit encore cette commande comme un stub vide.
+- Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
 - Extraction pdf : les avis de sécurité sur `lopdf` (via `pdf-extract`) et sur `failure` (via `single-instance`) sont ignorés de façon documentée dans `.cargo/audit.toml`, avec revue prévue.
 - Les sorties du modèle sont denses seulement : les sorties sparse et ColBERT de BGE-M3 sont absentes de l'export ONNX utilisé.
 
