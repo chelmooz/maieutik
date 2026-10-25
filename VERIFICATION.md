@@ -16,7 +16,7 @@ f47019fdecca  Cargo.toml
 d45e04e9e055  build.rs
 a622ac8a2f56  src/config/mod.rs
 229a0e521e41  src/config/store.rs
-fbb57b42e61e  src/core/indexer/mod.rs
+5cfeac54868f  src/core/indexer/mod.rs
 6e4b4102caff  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 8ad1c4ffa09f  src/core/watch.rs
@@ -32,6 +32,7 @@ a8d9e106e24a  src/speech/mod.rs
 9a7b901ec93e  tests/docx_extract.rs
 28139d62c849  tests/embedding_search.rs
 4d1e2c21e798  tests/index_replace.rs
+9e6548501da4  tests/index_search.rs
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -62,7 +63,7 @@ a8d9e106e24a  src/speech/mod.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.12 (`tests/config_store.rs` added); logs below predate P1.5
+- Hashes re-bound at P1.13 (`tests/index_search.rs` added); logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
