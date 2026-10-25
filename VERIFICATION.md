@@ -16,7 +16,7 @@
 d45e04e9e055  build.rs
 a2a26107a9b6  src/config/mod.rs
 88b22495abc4  src/config/store.rs
-9ce5529fab7a  src/core/indexer/mod.rs
+aef7e381a151  src/core/indexer/mod.rs
 6e4b4102caff  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 8ad1c4ffa09f  src/core/watch.rs
@@ -27,6 +27,7 @@ d13b49258d75  src/llm/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
 552b75b369df  src/utils/mod.rs
+61734ffd9005  tests/chunker.rs
 28139d62c849  tests/embedding_search.rs
 ```
 
@@ -58,7 +59,8 @@ a8d9e106e24a  src/speech/mod.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.7; logs below predate P1.5 and were not replayed.
+- Hashes re-bound at P1.8 (`tests/chunker.rs` added); logs below predate P1.5
+  and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
 and were **not** replayed on this tree; only the source hashes above are
@@ -81,11 +83,10 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
 
 1. **Indexing pipeline not wired**: the watcher has a re-index TODO,
    the `index` CLI command is an empty stub, nothing calls `upsert_file`.
-2. **Chunker panics on non-ASCII text when overlap > 0** (byte slicing at
-   chunk boundaries — reproduced: `Chunker::new(10, 3)` on `"éééééééééééé"`
-   panics with `byte index 7 is not a char boundary; it is inside 'é'`), and
-   **heading offsets are wrong on CRLF files** (`lines()` drops `\r`; measured
-   offset 16 vs real 18). Fix scheduled (core phase).
+2. ~~Chunker panic on non-ASCII text and wrong heading offsets on CRLF files~~
+   **Fixed in P1.8**: chunk size and overlap are counted in characters, byte
+   offsets are always valid, and heading offsets are exact on CRLF files
+   (`tests/chunker.rs`, no model needed).
 3. **HNSW fully rebuilt per `upsert_file`**; a file's stale chunks are not
    purged when it shrinks.
 4. **Meta mismatch purges without re-indexing**; no migration test yet.
@@ -101,6 +102,8 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
 9. Secrets: keyring store not initialized (`NoDefaultStore` until a native
    store is registered); `open_ai_api_key` still stored in plain config JSON.
 10. `nom v2.2.1` (transitive) triggers a future-incompat warning.
+11. `extract_headings` keeps the extra `#` of levels 2-6 in `Heading.text`
+    (`## B` gives `# B`) and counts `#tag` as a heading; unchanged in P1.8.
 
 ## Third-party attributions
 
