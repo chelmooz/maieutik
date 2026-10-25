@@ -4,8 +4,8 @@
 
 - Multi-commit history on `main` (see `git log`).
 - Reference revision: **R0** — the pre-publication state this tree was derived
-  from. Behavior is unchanged from R0: top-1 retrieval distances are
-  bit-identical (see below).
+  from. The top-1 retrieval distances below were measured at R0; they have
+  not been replayed on this tree (see below).
 - Toolchain: `rustc 1.99.1`, `cargo 1.99.1`.
 
 ## Source file binding (sha256, first 12 hex chars)
@@ -60,16 +60,15 @@ a8d9e106e24a  src/speech/mod.rs
 
 - Hashes re-bound at P1.7; logs below predate P1.5 and were not replayed.
 
-Raw logs accompany this document in the review archive. They were produced on
-this exact tree (after the last source edit) and were **not** replayed for
-packaging.
+Raw logs accompany this document in the review archive. They predate P1.5
+and were **not** replayed on this tree; only the source hashes above are
+re-bound at each lot.
 
 ### Retrieval results and thresholds — honesty notes
 
 Top-1 Euclidean distances from `test-model-nocapture.log`:
-**0.8670 / 0.7834 / 0.7049** — identical to reference revision R0 (the
-cleanup changed names, comments and removed an unused module; behavior is
-unchanged).
+**0.8670 / 0.7834 / 0.7049** — measured at reference revision R0 and not
+replayed since the P1.5 cleanup (names, comments and an unused module changed).
 
 - `MAX_MATCH_DISTANCE = 1.05` was calibrated on an earlier, smaller model and
   is **not recalibrated for BGE-M3** (≈ cosine 0.45 — filters almost nothing).
