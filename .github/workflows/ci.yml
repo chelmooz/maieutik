@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -12,16 +15,17 @@ jobs:
   check-test-clippy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: install system libs (pkg-config)
         run: sudo apt-get update && sudo apt-get install -y pkg-config
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, version fixée ci-dessous
         with:
+          toolchain: 1.99.1
           components: clippy
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       - name: cargo check --locked --all-targets
         run: cargo check --locked --all-targets
@@ -40,15 +44,17 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, version fixée ci-dessous
+        with:
+          toolchain: 1.99.1
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
       # Audit bloquant : les exceptions (14 identifiants, phase de revue) sont
       # déclarées dans .cargo/audit.toml ; tout nouvel avis rend la CI rouge.
       - name: audit RUSTSEC (bloquant)
         run: |
-          cargo install cargo-audit --locked
+          cargo install cargo-audit --locked --version 0.22.2
           cargo audit --deny warnings
