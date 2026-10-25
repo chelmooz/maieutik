@@ -37,4 +37,4 @@ if [ ${#flags[@]} -gt 0 ]; then
   export RUSTFLAGS="${RUSTFLAGS:-} ${flags[*]}"
 fi
 echo "RUSTFLAGS: ${RUSTFLAGS:-<none>}"
-exec cargo build --release "$@"
+exec cargo build --release --locked "$@"
