@@ -37,7 +37,7 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `async-trait` | dependencies | src | 1.4 |  |
 | `dirs` | dependencies | src | 0.1 |  |
 | `keyring` | dependencies | src | 0.1 | **RETIRÉ (P1.12-3)** |
-| `walkdir` | dependencies | UNUSED | 0.5 |  |
+| `walkdir` | dependencies | src | 0.5 |  |
 | `sled` | dependencies | src | 4.2 |  |
 | `fast-hnsw` | dependencies | src | 0.7 |  |
 | `google-drive3` | dependencies | src | 4.2 | **RETIRÉ (P1.5-S1)** |

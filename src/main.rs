@@ -133,7 +133,11 @@ async fn main() -> Result<()> {
 
     // Handle CLI commands
     if let Some(cmd) = cli.command {
-        return handle_command(cmd, state_arc).await;
+        let code = handle_command(cmd, state_arc).await?;
+        if code != 0 {
+            std::process::exit(code);
+        }
+        return Ok(());
     }
 
     // Default: start UI (headless build logs a warning and exits)
@@ -142,11 +146,29 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<()> {
+async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<i32> {
     match cmd {
         Commands::Index { force } => {
+            let Some(idx) = &state.vector_index else {
+                eprintln!("Index indisponible : modèle d'embedding introuvable ou illisible (voir les journaux).");
+                return Ok(2);
+            };
+            let settings = state.settings.read().await.clone();
+            if settings.folders.is_empty() {
+                eprintln!("Aucun dossier à indexer : renseigne `Folders` dans config.json.");
+                return Ok(2);
+            }
             info!("Indexing... (force={})", force);
-            // TODO: implement full index
+            let report = maieutik::core::scan::index_all(idx, &settings, force).await?;
+            for (path, msg) in &report.failed {
+                eprintln!("échec : {} : {}", path.display(), msg);
+            }
+            println!(
+                "{} fichier(s) indexé(s), {} échec(s)",
+                report.indexed,
+                report.failed.len()
+            );
+            Ok(report.exit_code())
         }
         Commands::Search { query, limit } => {
             if let Some(idx) = &state.vector_index {
@@ -157,16 +179,18 @@ async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<()> {
             } else {
                 println!("Vector index not initialized");
             }
+            Ok(0)
         }
         Commands::Chat { message, file } => {
             println!("Chat: {} (file: {:?})", message, file);
             // TODO: implement
+            Ok(0)
         }
         Commands::Model { action } => {
             println!("Model: {:?}", action);
+            Ok(0)
         }
     }
-    Ok(())
 }
 
 async fn run_mcp_stdio_server() -> Result<()> {

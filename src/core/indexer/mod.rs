@@ -231,7 +231,7 @@ impl TextEmbedder for HashEmbedder {
             let h = blake3::hash(word.to_lowercase().as_bytes());
             let b = h.as_bytes();
             let idx = (u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize) % EMBEDDING_DIM;
-            let sign = if b[4] % 2 == 0 { 1.0 } else { -1.0 };
+            let sign = if b[4].is_multiple_of(2) { 1.0 } else { -1.0 };
             v[idx] += sign;
         }
         let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -430,6 +430,14 @@ impl VectorIndex {
     /// Upsert a file's chunks: embeddings first, then one atomic replace.
     /// Zero chunks (file emptied) purges the file's previous records.
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
+        self.store_file(file_path, content)?;
+        self.rebuild_hnsw_if_needed().await?;
+        Ok(())
+    }
+
+    /// Comme `upsert_file`, sans reconstruire HNSW : l'appelant lance
+    /// `build_hnsw` une fois à la fin d'un lot.
+    pub fn store_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
         let chunks = &content.chunks;
         let path_str = file_path.to_string_lossy().to_string();
 
@@ -453,7 +461,13 @@ impl VectorIndex {
         }
 
         replace_file_records(&self.vectors_tree, &path_str, &records)?;
-        self.rebuild_hnsw_if_needed().await?;
+        Ok(())
+    }
+
+    /// Purge tous les vecteurs (`index --force`) et invalide HNSW.
+    pub async fn clear(&self) -> Result<()> {
+        self.vectors_tree.clear()?;
+        *self.hnsw.write().await = None;
         Ok(())
     }
 
