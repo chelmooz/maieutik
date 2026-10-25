@@ -24,16 +24,13 @@ fn extract_plain(path: &Path) -> Result<String> {
 fn extract_docx(path: &Path) -> Result<String> {
     let file = std::fs::File::open(path)?;
     let mut zip = zip::ZipArchive::new(file)?;
-    let mut text = String::new();
-
-    // Read document.xml
-    if let Ok(mut doc) = zip.by_name("word/document.xml") {
-        let mut content = String::new();
-        doc.read_to_string(&mut content)?;
-        // Simple XML text extraction (remove tags)
-        text = strip_xml_tags(&content);
-    }
-    Ok(text)
+    // Absence de document.xml = échec d'extraction (jamais un texte vide).
+    let mut doc = zip
+        .by_name("word/document.xml")
+        .map_err(|e| anyhow::anyhow!("docx sans word/document.xml: {e}"))?;
+    let mut content = String::new();
+    doc.read_to_string(&mut content)?;
+    Ok(strip_xml_tags(&content))
 }
 
 fn extract_pdf(path: &Path) -> Result<String> {
@@ -43,22 +40,33 @@ fn extract_pdf(path: &Path) -> Result<String> {
 
 fn strip_xml_tags(xml: &str) -> String {
     let mut out = String::new();
+    let mut tag = String::new();
     let mut in_tag = false;
     for ch in xml.chars() {
         match ch {
-            '<' => in_tag = true,
-            '>' => in_tag = false,
-            _ if !in_tag => out.push(ch),
-            _ => {}
+            '\x3c' => {
+                in_tag = true;
+                tag.clear();
+            }
+            '\x3e' if in_tag => {
+                in_tag = false;
+                // Fin de paragraphe Word : saut de ligne.
+                if tag == "/w:p" {
+                    out.push(char::from(10u8));
+                }
+            }
+            _ if in_tag => tag.push(ch),
+            _ => out.push(ch),
         }
     }
-    // Decode common entities
-    out.replace("<", "<")
-        .replace(">", ">")
-        .replace("&", "&")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
+    // Entités : amp en dernier, pour ne pas décoder deux fois.
+    out.replace("\x26lt;", "\x3c")
+        .replace("\x26gt;", "\x3e")
+        .replace("\x26quot;", "\"")
+        .replace("\x26apos;", "'")
+        .replace("\x26amp;", "\x26")
 }
+
 
 /// Compute blake3 hash of file
 pub fn hash_file(path: &Path) -> Result<String> {
