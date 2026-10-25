@@ -2,7 +2,7 @@
 
 ## Revision
 
-- Single-commit history (fresh `main`, publication-ready tree).
+- Multi-commit history on `main` (see `git log`).
 - Reference revision: **R0** — the pre-publication state this tree was derived
   from. Behavior is unchanged from R0: top-1 retrieval distances are
   bit-identical (see below).
@@ -11,19 +11,18 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-27db23b9c48d  Cargo.lock
-2303f229a368  Cargo.toml
+17b2240789d7  Cargo.lock
+6e02f8e11529  Cargo.toml
 d45e04e9e055  build.rs
 a2a26107a9b6  src/config/mod.rs
-eccda2009436  src/config/store.rs
+88b22495abc4  src/config/store.rs
 9ce5529fab7a  src/core/indexer/mod.rs
 6e4b4102caff  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 8ad1c4ffa09f  src/core/watch.rs
-7b22658d7ed8  src/drive/mod.rs
-fd631300701d  src/lib.rs
+a756fbe9fa47  src/lib.rs
 d13b49258d75  src/llm/mod.rs
-7e0e64e34c18  src/main.rs
+73186a3d3ee6  src/main.rs
 9d039a3c4182  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
@@ -58,6 +57,8 @@ a8d9e106e24a  src/speech/mod.rs
 | 1 | `cargo check --locked --all-targets` | **0 errors**, warnings only (`check.log`) |
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
+
+- Hashes re-bound at P1.7; logs below predate P1.5 and were not replayed.
 
 Raw logs accompany this document in the review archive. They were produced on
 this exact tree (after the last source edit) and were **not** replayed for
