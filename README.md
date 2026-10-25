@@ -1,64 +1,109 @@
 # Maieutik
 
-Local-first notes with AI, in Rust. **Experimental quality bar**: the core
-(semantic indexing and search over a real embedding model) is tested; the rest
-is explicit stubs (see *Limits*).
+Maieutik — prise de notes locale avec IA : indexation sémantique, recherche, génération de réponses sourcées, jugement des réponses. Tout s'exécute localement ; chaque composant externe se trouve derrière un trait Rust et est sélectionné par configuration, jamais par code.
 
-## What works
+## État du projet
 
-- Semantic indexing of text: BGE-M3 dense embeddings (1024-dim, official ONNX
-  export), XLM-RoBERTa tokenizer, sled storage + HNSW (fast-hnsw).
-- A corpus → chunk → embed → search integration test with measured thresholds
-  (`tests/embedding_search.rs`).
-- CLI (`cargo run -- --help`), JSON settings, file
-  watcher skeleton, MCP bridge skeleton.
+| Fonction | Statut | Où |
+|---|---|---|
+| Indexation en ligne de commande (`index`) | Implémenté | `src/main.rs`, `core::scan` (si P1.14 fusionné) / `core::watch` |
+| Recherche sémantique (`search`) | Implémenté | `src/main.rs`, `core::indexer::VectorIndex::search` |
+| Chat / génération (`chat`) | Prévu (stub) | `src/main.rs`, `llm::LocalLlamaProvider` |
+| Gestion modèles (`model`) | Prévu (stub) | `src/main.rs` |
+| Extraction texte (md, txt, docx) | Implémenté | `utils::extract_text` |
+| Découpage en chunks (Chunker) | Implémenté (avec limites) | `core::indexer::Chunker`, `extract_headings` |
+| Embedding ONNX (BGE-M3) | Implémenté | `core::indexer::Embedder`, `core::ort_env` |
+| Faux embedder déterministe (tests) | Implémenté | `core::indexer::HashEmbedder` |
+| Index vectoriel (sled + HNSW) | Implémenté | `core::indexer::VectorIndex`, `sled`, `fast-hnsw` |
+| Watcher fichiers (notify) | Prévu (stub) | `core::watch::FileWatcher` |
+| MCP / JSON-RPC | Prévu (stub) | `mcp` |
+| Speech (VAD/STT) | Prévu (stub) | `speech` |
+| Interface graphique | Prévu (stub) | `ui` |
+| Reranker (P4) | Prévu | — |
+| Génération réponse (P5) | Prévu | `llm::Generator` (trait) |
+| Jugement réponse (P7) | Prévu | `llm::Judge` (trait), Laya sidecar |
+| Speech-to-text (P8) | Prévu | `speech::Transcriber` (trait) |
 
-## Requirements (Arch Linux)
+## Architecture
 
-- Rust (tested with 1.99.1; the true minimum version has not been measured yet),
-`cmake`, `clang`, `pkg-config`
-- `onnxruntime` (tested with 1.31.0), exposed via `ORT_DYLIB_PATH`, e.g.
-  `export ORT_DYLIB_PATH=/usr/lib/libonnxruntime.so`
-- For the model-dependent tests only:
-  - `MAIEUTIK_EMBEDDER_MODEL` → `model.onnx` (BAAI/bge-m3 ONNX export, fp32 —
-    note `model.onnx_data` (2.27 GB) must sit next to it)
-  - `MAIEUTIK_EMBEDDER_TOKENIZER` → matching `tokenizer.json`
-- Optional: `MAIEUTIK_DOWNLOAD_MODELS=1` makes
-  `build.rs` fetch small models at build time (off by default; the app is
-  meant to download models at runtime into the user data directory).
+```mermaid
+flowchart TD
+    CLI["CLI : main.rs<br/>index, search, chat, model"]
+    STATE["AppState<br/>settings, vector_index (Option)"]
+    SCAN["core::scan<br/>collect_files, index_all"]
+    FILTER["core::watch<br/>filtres extension et taille"]
+    EXTRACT["utils::extract_text<br/>md, txt, docx"]
+    CHUNK["Chunker, extract_headings"]
+    IDX["VectorIndex<br/>sled + HNSW"]
+    EMB["TextEmbedder (trait)"]
+    HASH["HashEmbedder<br/>tests et CI"]
+    ONNX["Embedder ONNX<br/>core::ort_env"]
+    WATCHER["Watcher notify<br/>réindexation continue"]
+    GEN["Chat et génération"]
+    JUDGE["Judge : Laya, sidecar HTTP<br/>P7"]
 
-## Build & test
+    CLI --> STATE
+    CLI -- index --> SCAN
+    CLI -- search --> IDX
+    SCAN --> FILTER
+    SCAN --> EXTRACT
+    SCAN --> CHUNK
+    SCAN --> IDX
+    IDX --> EMB
+    EMB --> HASH
+    EMB --> ONNX
+    WATCHER -.-> FILTER
+    WATCHER -.-> IDX
+    CLI -.-> GEN
+    GEN -.-> JUDGE
 
-```sh
-cargo check --locked --all-targets          # 0 errors expected
-cargo test --locked                          # model-independent tests
-# with the real model:
-MAIEUTIK_EMBEDDER_MODEL=… MAIEUTIK_EMBEDDER_TOKENIZER=… ORT_DYLIB_PATH=… \
-  cargo test --locked -- --ignored           # 3 integration tests
+    classDef planned stroke-dasharray: 5 5
+    class WATCHER,GEN,JUDGE planned
 ```
 
-## Environment variables
+**Légende** : trait plein = implémenté ; pointillé = prévu / stub.  
+Note : le module `core::scan` (collect_files, index_all) a été ajouté dans le lot P1.14 ; sur la branche `main` actuelle (P1.13), le parcours des dossiers est assuré par `core::watch` (filtres d'extension et taille) et l'indexation directe via `VectorIndex`.
 
-| Variable | Meaning |
-|---|---|
-| `MAIEUTIK_EMBEDDER_MODEL` | path to the ONNX model (default: `models_dir()/bge-m3/model.onnx`) |
-| `MAIEUTIK_EMBEDDER_TOKENIZER` | path to `tokenizer.json` (default alongside the model) |
-| `MAIEUTIK_EMBEDDER_THREADS` | intra-op threads (default: machine parallelism) |
-| `ORT_DYLIB_PATH` | path to `libonnxruntime.so` (required with `load-dynamic`) |
+## Commandes CLI
 
-## Limits (known, by design for now)
+```sh
+# Indexer les dossiers configurés
+maieutik index [--force]
+# Codes de sortie :
+#   0 = tout indexé
+#   1 = au moins un échec (fichier illisible, etc.) — l'ancien contenu du fichier est conservé
+#   2 = modèle d'embedding absent ou aucun dossier configuré
 
-- The indexing pipeline is **not wired** end to end (watcher → extract →
-  chunk → index); `maieutik search` over real files returns nothing yet.
-- The MCP module is a JSON-RPC bridge skeleton, not a spec-compliant MCP
-  server.
-- The chunker **panics on non-ASCII text when overlap > 0**, and heading
-  offsets are wrong on CRLF files. Fix scheduled (core phase).
-- The llama.cpp generation loop is written against the real API but has never
-  loaded a model in this environment.
-- Sparse/ColBERT outputs of BGE-M3 are absent from the ONNX export used here
-  (dense retrieval only).
+# Rechercher
+maieutik search "requête" [--limit 10]
 
-See `VERIFICATION.md` for what was actually run. Raw logs are produced locally
-(gitignored) and travel with the review archives — they are not part of this
-repository.
+# Chat (stub)
+maieutik chat "message" [--file PATH]
+
+# Modèles (stub)
+maieutik model list|download|remove|status
+```
+
+- `index --force` : purge l'index (supprime aussi les fichiers disparus) puis reconstruit l'index complet.
+- `index` sans `--force` : indexe les fichiers trouvés, remplace les fichiers modifiés, conserve les fichiers non trouvés.
+- `search` : retourne les meilleurs résultats avec score (distance euclidienne sur vecteurs normalisés L2).
+- `chat` et `model` : commandes factices (stubs) — non implémentées.
+
+## Tests
+
+```sh
+# Sans modèle (tests unitaires et d'intégration sans ONNX)
+cargo test --locked
+
+# Avec modèle réel (nécessite MAIEUTIK_EMBEDDER_MODEL, MAIEUTIK_EMBEDDER_TOKENIZER, ORT_DYLIB_PATH)
+MAIEUTIK_EMBEDDER_MODEL=… MAIEUTIK_EMBEDDER_TOKENIZER=… ORT_DYLIB_PATH=… \
+  cargo test --locked -- --ignored --nocapture --test-threads=1
+```
+
+Voir `VERIFICATION.md` pour les logs et seuils détaillés.
+
+## Licence / Liens
+
+- Licence : MIT (voir `LICENSE`)
+- Dépôt : https://github.com/chelmooz/maieutik
+- Avis tiers : `THIRD_PARTY_NOTICES.md`
