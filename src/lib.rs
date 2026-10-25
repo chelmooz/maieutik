@@ -12,7 +12,7 @@ pub mod ui;
 pub mod utils;
 
 use anyhow::Result;
-use crate::config::store::{config_path, load_settings, save_settings, secrets};
+use crate::config::store::{config_path, load_settings, save_settings};
 use crate::config::AppSettings;
 use crate::core::indexer::{Embedder, VectorIndex};
 use crate::core::watch::{DebouncedProcessor, FileWatcher, WatchEvent};

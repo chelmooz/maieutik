@@ -1,4 +1,4 @@
-//! Settings persistence — JSON file + keyring for secrets (API keys, tokens)
+//! Settings persistence — JSON file (mode 0600 on Unix)
 
 use anyhow::{Context, Result};
 use crate::config::AppSettings;
@@ -95,46 +95,34 @@ pub fn load_settings() -> Result<AppSettings> {
 
 pub fn save_settings(settings: &AppSettings) -> Result<()> {
     ensure_dirs()?;
-    let path = config_path();
+    save_settings_to(&config_path(), settings)
+}
+
+/// Écrit les réglages de façon atomique ; fichier en 0600 sur Unix.
+pub fn save_settings_to(path: &std::path::Path, settings: &AppSettings) -> Result<()> {
+    use std::io::Write;
     let file = SettingsFile {
         version: SETTINGS_VERSION,
         settings: settings.clone(),
     };
     let text = serde_json::to_string_pretty(&file)?;
-    // Atomic write
     let tmp = path.with_extension("json.tmp");
-    let saved_path = path.display().to_string();
-    fs::write(&tmp, text)?;
-    fs::rename(tmp, path)?;
-    debug!("Saved settings to {}", saved_path);
+    // Un .tmp résiduel garderait ses anciennes permissions : on le retire.
+    let _ = fs::remove_file(&tmp);
+    let mut opts = fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut out = opts
+        .open(&tmp)
+        .with_context(|| format!("Creating {}", tmp.display()))?;
+    out.write_all(text.as_bytes())?;
+    out.sync_all()?;
+    drop(out);
+    fs::rename(&tmp, path)?;
+    debug!("Saved settings to {}", path.display());
     Ok(())
-}
-
-/// Secret storage using system keyring (cross-platform)
-pub mod secrets {
-    use anyhow::Result;
-    use keyring::Entry;
-
-    const SERVICE: &str = "Maieutik";
-
-    pub fn set(key: &str, value: &str) -> Result<()> {
-        Entry::new(SERVICE, key)?.set_password(value)?;
-        Ok(())
-    }
-
-    pub fn get(key: &str) -> Result<Option<String>> {
-        match Entry::new(SERVICE, key)?.get_password() {
-            Ok(v) => Ok(Some(v)),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(e.into()),
-        }
-    }
-
-    pub fn delete(key: &str) -> Result<()> {
-        Entry::new(SERVICE, key)?.delete_credential()?;
-        Ok(())
-    }
-
-    // Known secret keys
-    pub const OPENAI_API_KEY: &str = "openai_api_key";
 }

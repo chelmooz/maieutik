@@ -60,15 +60,6 @@ pub struct AppSettings {
     #[serde(default = "default_true")]
     pub markdown_preview_enabled: bool,
 
-    #[serde(default)]
-    pub open_ai_endpoint: String,
-
-    #[serde(default)]
-    pub open_ai_api_key: String,
-
-    #[serde(default)]
-    pub open_ai_model_name: String,
-
     #[serde(default = "default_true")]
     pub prefer_local_model: bool,
 
@@ -181,9 +172,6 @@ impl Default for AppSettings {
             edge_bands: default_edge_bands(),
             graph_minimap_visible: default_true(),
             markdown_preview_enabled: default_true(),
-            open_ai_endpoint: String::new(),
-            open_ai_api_key: String::new(),
-            open_ai_model_name: String::new(),
             prefer_local_model: default_true(),
             file_sort_column: FileSortColumn::Name,
             file_sort_ascending: default_true(),

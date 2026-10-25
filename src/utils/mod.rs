@@ -1,4 +1,4 @@
-//! Utilities — document extraction, hashing, process sandboxing
+//! Utilities — document extraction, hashing
 
 use anyhow::Result;
 use std::io::Read;
@@ -79,74 +79,6 @@ pub fn hash_file(path: &Path) -> Result<String> {
 /// Compute blake3 hash of bytes
 pub fn hash_bytes(data: &[u8]) -> String {
     blake3::hash(data).to_hex().to_string()
-}
-
-/// Process execution helper. NOT a security sandbox: no rlimits, no network
-/// isolation, and only the direct child is killed on timeout.
-pub mod sandbox {
-    use anyhow::Result;
-    use std::process::Stdio;
-    use std::time::Duration;
-    use tokio::process::Command;
-    use tokio::io::{AsyncBufReadExt, BufReader};
-
-    #[derive(Debug, Clone)]
-    pub struct ExecResult {
-        pub stdout: String,
-        pub stderr: String,
-        pub exit_code: Option<i32>,
-        pub timed_out: bool,
-    }
-
-    pub async fn exec(
-        cmd: &str,
-        args: &[&str],
-        input: Option<&str>,
-        timeout: Duration,
-        work_dir: Option<&std::path::Path>,
-    ) -> Result<ExecResult> {
-        let mut command = Command::new(cmd);
-        command.args(args)
-            .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-
-        if let Some(dir) = work_dir {
-            command.current_dir(dir);
-        }
-
-        let mut child = command.spawn()?;
-
-        if let Some(stdin_text) = input {
-            if let Some(mut stdin) = child.stdin.take() {
-                use tokio::io::AsyncWriteExt;
-                stdin.write_all(stdin_text.as_bytes()).await?;
-                stdin.shutdown().await?;
-            }
-        }
-
-        let output = match tokio::time::timeout(timeout, child.wait_with_output()).await {
-            Ok(result) => result?,
-            Err(_) => {
-                // `wait_with_output` took ownership of `child`; dropping the
-                // future drops the child, and `kill_on_drop(true)` terminates it.
-                return Ok(ExecResult {
-                    stdout: String::new(),
-                    stderr: format!("process timed out after {timeout:?}"),
-                    exit_code: None,
-                    timed_out: true,
-                });
-            }
-        };
-
-        Ok(ExecResult {
-            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-            exit_code: output.status.code(),
-            timed_out: false,
-        })
-    }
 }
 
 #[cfg(test)]
