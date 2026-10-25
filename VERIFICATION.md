@@ -11,8 +11,8 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-17b2240789d7  Cargo.lock
-6e02f8e11529  Cargo.toml
+184f00c7586a  Cargo.lock
+c228f222aaad  Cargo.toml
 d45e04e9e055  build.rs
 a2a26107a9b6  src/config/mod.rs
 88b22495abc4  src/config/store.rs
@@ -26,8 +26,9 @@ d13b49258d75  src/llm/mod.rs
 9d039a3c4182  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
-552b75b369df  src/utils/mod.rs
+7f566077f6ae  src/utils/mod.rs
 61734ffd9005  tests/chunker.rs
+9a7b901ec93e  tests/docx_extract.rs
 28139d62c849  tests/embedding_search.rs
 4d1e2c21e798  tests/index_replace.rs
 ```
@@ -60,7 +61,7 @@ a8d9e106e24a  src/speech/mod.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.9 (`tests/index_replace.rs` added); logs below predate P1.5
+- Hashes re-bound at P1.11 (`tests/docx_extract.rs` added); logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
