@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, p1.6]
+    branches: [main]
   pull_request:
 
 env:
@@ -14,10 +14,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # cpal is compiled with the `jack` feature: libjack + alsa headers are
-      # needed on the runner (jack-sys build script panics without them).
-      - name: install system libs (jack, alsa, pkg-config)
-        run: sudo apt-get update && sudo apt-get install -y libjack-dev libasound2-dev pkg-config
+      - name: install system libs (pkg-config)
+        run: sudo apt-get update && sudo apt-get install -y pkg-config
 
       - uses: dtolnay/rust-toolchain@stable
         with:
