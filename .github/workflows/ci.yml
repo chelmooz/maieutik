@@ -50,7 +50,7 @@ jobs:
 
       # Audit bloquant : les exceptions (14 identifiants, phase de revue) sont
       # déclarées dans .cargo/audit.toml ; tout nouvel avis rend la CI rouge.
-      - name: cargo audit (non-blocking — advisories in deps slated for pruning)
+      - name: audit RUSTSEC (bloquant)
         run: |
           cargo install cargo-audit --locked
           cargo audit --deny warnings
