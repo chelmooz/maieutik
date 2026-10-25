@@ -11,22 +11,23 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-184f00c7586a  Cargo.lock
-c228f222aaad  Cargo.toml
+0318e584fa1a  Cargo.lock
+f47019fdecca  Cargo.toml
 d45e04e9e055  build.rs
-a2a26107a9b6  src/config/mod.rs
-88b22495abc4  src/config/store.rs
+a622ac8a2f56  src/config/mod.rs
+229a0e521e41  src/config/store.rs
 fbb57b42e61e  src/core/indexer/mod.rs
 6e4b4102caff  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 8ad1c4ffa09f  src/core/watch.rs
-a756fbe9fa47  src/lib.rs
-d13b49258d75  src/llm/mod.rs
+1ef2d10176a7  src/lib.rs
+57be2d0e1c96  src/llm/mod.rs
 73186a3d3ee6  src/main.rs
 9d039a3c4182  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
-7f566077f6ae  src/utils/mod.rs
+1756d1fa548c  src/utils/mod.rs
+36d44a041b21  tests/config_store.rs
 61734ffd9005  tests/chunker.rs
 9a7b901ec93e  tests/docx_extract.rs
 28139d62c849  tests/embedding_search.rs
@@ -61,7 +62,7 @@ a8d9e106e24a  src/speech/mod.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.11 (`tests/docx_extract.rs` added); logs below predate P1.5
+- Hashes re-bound at P1.12 (`tests/config_store.rs` added); logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
@@ -101,8 +102,7 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
 7. `embed_batch` is sequential.
 8. `single-instance` never checks `is_single()`; MCP socket path uses the
    caller PID under `/tmp`.
-9. Secrets: keyring store not initialized (`NoDefaultStore` until a native
-   store is registered); `open_ai_api_key` still stored in plain config JSON.
+9. Secrets: keyring and open_ai_* settings removed at P1.12; config.json is written with mode 0600 on Unix.
 10. `nom v2.2.1` (transitive) triggers a future-incompat warning.
 11. `extract_headings` keeps the extra `#` of levels 2-6 in `Heading.text`
     (`## B` gives `# B`) and counts `#tag` as a heading; unchanged in P1.8.

@@ -10,7 +10,7 @@ is explicit stubs (see *Limits*).
   export), XLM-RoBERTa tokenizer, sled storage + HNSW (fast-hnsw).
 - A corpus → chunk → embed → search integration test with measured thresholds
   (`tests/embedding_search.rs`).
-- CLI (`cargo run -- --help`), JSON settings, keyring for secrets, file
+- CLI (`cargo run -- --help`), JSON settings, file
   watcher skeleton, MCP bridge skeleton.
 
 ## Requirements (Arch Linux)

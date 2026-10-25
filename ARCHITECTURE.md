@@ -17,7 +17,7 @@ configuration, never by code.
 | File watcher + debounce | `core::watch` | **stub** — code exists, never exercised by a test, pipeline not wired | `src/core/watch.rs`; no test references it |
 | Extraction (docx/pdf/txt) | `utils` | **partial/broken** — XML entities not decoded (`strip_xml_tags`), PDF parsing can panic | `src/utils/mod.rs:44` ; audit probe output |
 | LLM generation (llama.cpp) | `llm` | **never executed** — no model ever loaded; sampler chain incomplete; 512-token batch cap | `VERIFICATION.md` issue 6 |
-| OpenAI-compatible provider | `llm` | **never executed** — no timeout, no status check, no true streaming | same |
+
 | MCP / JSON-RPC bridge | `mcp` | **stub** — handlers defined, not wired to index/LLM; socket path uses caller PID | `src/mcp/mod.rs` (`socket_path`) |
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
@@ -59,7 +59,7 @@ trait QueryExpander: Send + Sync {
     fn expand(&self, query: &str) -> Result<Vec<String>>;
 }
 
-/// Answer generation (P5). Adapters: llama.cpp first; OpenAI-compatible optional.
+/// Answer generation (P5). Adapter: llama.cpp.
 trait Generator: Send + Sync {
     fn generate(&self, prompt: Prompt) -> Result<Answer>;
     // Answer { text, sources: Vec<ChunkRef> }
@@ -128,7 +128,6 @@ extractions must be visible instead of silently polluting retrieval.
 | `MAIEUTIK_DOWNLOAD_MODELS` | build-time downloader (off by default) | in place |
 | `MAIEUTIK_RERANKER_MODEL` / `_TOKENIZER` | Reranker | P4 |
 | `MAIEUTIK_LLM_MODEL` | Generator | P5 |
-| `MAIEUTIK_OPENAI_API_KEY` | OpenAI provider (keyring preferred) | phase 4 |
 | `MAIEUTIK_LAYA_URL` | Judge sidecar | P7 |
 
 ## Decisions taken by the owner

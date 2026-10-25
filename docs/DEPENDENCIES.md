@@ -15,7 +15,7 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `ort` | dependencies | src, tests | 2.6 | features réduites (S17) : `default-features = false`, sans `tls-native`/`download-binaries`/`copy-dylibs` — openssl-sorti du graphe |
 | `llama-cpp-2` | dependencies | src | 0.8 |  |
 | `sherpa-onnx` | dependencies | UNUSED | 0.4 | liaison statique + téléchargement au build ; réservé P8. **fait (P1.5-15)** : `optional = true`, feature `stt` |
-| `reqwest` | dependencies, build-dependencies | src, build.rs | 5.5 | **fait (P1.5-13)** : `default-features = false` sur les deux déclarations, `rustls-tls` ajouté au build-dep — plus d'openssl via reqwest |
+| `reqwest` | build-dependencies | build.rs | 5.5 | **fait (P1.5-13)** : `default-features = false` sur les deux déclarations, `rustls-tls` ajouté au build-dep — plus d'openssl via reqwest ; dépendance runtime **RETIRÉE (P1.12-3)**, build-dep conservé |
 | `jsonrpsee` | dependencies | src | 0.0 |  |
 | `comrak` | dependencies | UNUSED | 3.4 | **RETIRÉ (P1.5-S3)** |
 | `tracing-subscriber` | dependencies | src | 3.5 |  |
@@ -36,7 +36,7 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `parking_lot` | dependencies | UNUSED | 0.6 |  |
 | `async-trait` | dependencies | src | 1.4 |  |
 | `dirs` | dependencies | src | 0.1 |  |
-| `keyring` | dependencies | src | 0.1 |  |
+| `keyring` | dependencies | src | 0.1 | **RETIRÉ (P1.12-3)** |
 | `walkdir` | dependencies | UNUSED | 0.5 |  |
 | `sled` | dependencies | src | 4.2 |  |
 | `fast-hnsw` | dependencies | src | 0.7 |  |
