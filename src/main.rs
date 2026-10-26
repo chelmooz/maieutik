@@ -150,11 +150,20 @@ async fn run(cli: Cli) -> Result<i32> {
         return Ok(not_implemented(label));
     }
 
-    // Single instance check (cross-platform lock file)
-    let lock = single_instance::SingleInstance::new("maieutik").ok();
-    if lock.is_none() {
-        info!("Another instance is already running");
-        return Ok(0); // Exit silently
+    // Verrou d'instance unique. `SingleInstance::new` réussit même quand le
+    // verrou est déjà détenu par un autre processus : seul `is_single()` dit
+    // si ce processus est le propriétaire. Le verrou doit rester vivant
+    // jusqu'à la fin de `run`, sinon il est libéré immédiatement.
+    let _lock = match single_instance::SingleInstance::new("maieutik") {
+        Ok(lock) => lock,
+        Err(e) => {
+            eprintln!("Verrou d'instance indisponible : {e}");
+            return Ok(EXIT_UNAVAILABLE);
+        }
+    };
+    if !_lock.is_single() {
+        eprintln!("Une autre instance de Maieutik est déjà en cours d'exécution.");
+        return Ok(EXIT_UNAVAILABLE);
     }
 
     // Load settings
