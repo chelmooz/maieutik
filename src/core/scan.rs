@@ -74,11 +74,17 @@ pub fn collect_files(settings: &AppSettings) -> (Vec<PathBuf>, Vec<(PathBuf, Str
             match entry {
                 Ok(e) => {
                     let p = e.path();
-                    if e.file_type().is_file()
-                        && is_extension_allowed(p, settings)
-                        && is_within_size_limit(p, settings)
-                    {
-                        files.push(p.to_path_buf());
+                    if e.file_type().is_file() && is_extension_allowed(p, settings) {
+                        match is_within_size_limit(p, settings) {
+                            Ok(true) => files.push(p.to_path_buf()),
+                            // Trop gros : ignoré, comme avant.
+                            Ok(false) => {}
+                            // Métadonnées illisibles : fail-closed, compté
+                            // comme échec plutôt qu'accepté en silence.
+                            Err(err) => {
+                                errors.push((p.to_path_buf(), format!("taille illisible : {err}")))
+                            }
+                        }
                     }
                 }
                 Err(err) => {

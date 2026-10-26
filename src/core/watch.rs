@@ -167,12 +167,45 @@ pub fn is_extension_allowed(path: &Path, settings: &AppSettings) -> bool {
     }
 }
 
-/// Check the file size limit.
-pub fn is_within_size_limit(path: &Path, settings: &AppSettings) -> bool {
-    if let Ok(meta) = std::fs::metadata(path) {
-        let max_bytes = (settings.max_file_size as u64) * 1024 * 1024;
-        meta.len() <= max_bytes
-    } else {
-        true // if can't read, allow
+/// Contrôle de la limite de taille (Mo dans les réglages). Fail-closed : un
+/// fichier dont les métadonnées sont illisibles est une erreur, jamais une
+/// autorisation implicite — l'appelant rejette et diagnostique.
+pub fn is_within_size_limit(path: &Path, settings: &AppSettings) -> Result<bool> {
+    let meta = std::fs::metadata(path)?;
+    let max_bytes = (settings.max_file_size as u64) * 1024 * 1024;
+    Ok(meta.len() <= max_bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn settings(max_mb: usize) -> AppSettings {
+        AppSettings {
+            max_file_size: max_mb,
+            ..AppSettings::default()
+        }
+    }
+
+    #[test]
+    fn size_limit_fails_closed_on_unreadable_path() {
+        let missing = PathBuf::from("/chemin/absent/garanti/note.md");
+        assert!(is_within_size_limit(&missing, &settings(10)).is_err());
+    }
+
+    #[test]
+    fn size_limit_accepts_file_within_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("a.md");
+        std::fs::write(&file, "hello").unwrap();
+        assert!(is_within_size_limit(&file, &settings(10)).unwrap());
+    }
+
+    #[test]
+    fn size_limit_rejects_file_above_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("a.md");
+        std::fs::write(&file, "hello").unwrap();
+        assert!(!is_within_size_limit(&file, &settings(0)).unwrap());
     }
 }
