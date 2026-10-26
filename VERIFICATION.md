@@ -19,11 +19,11 @@ a622ac8a2f56  src/config/mod.rs
 0dff8653e983  src/core/indexer/mod.rs
 af2b9a17c0f5  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
-3d85f7df3109  src/core/scan.rs
-8ad1c4ffa09f  src/core/watch.rs
-1ef2d10176a7  src/lib.rs
+e1201d0062b3  src/core/scan.rs
+35ead6838350  src/core/watch.rs
+fdbf27c28cc5  src/lib.rs
 57be2d0e1c96  src/llm/mod.rs
-23f522b0b7c0  src/main.rs
+ab3bee902c27  src/main.rs
 9d039a3c4182  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
@@ -36,6 +36,8 @@ a8d9e106e24a  src/speech/mod.rs
 e0e7eedd1b8f  tests/index_scan.rs
 9e6548501da4  tests/index_search.rs
 477daacd58c2  tests/cli_exit_codes.rs
+4ae38f5b1297  tests/single_instance.rs
+5eba94868486  tests/watcher_reindex.rs
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -66,7 +68,9 @@ e0e7eedd1b8f  tests/index_scan.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.15 (`src/main.rs`, `src/core/scan.rs`, `tests/index_scan.rs` changed; `tests/cli_exit_codes.rs` added); logs below predate P1.5
+- Hashes re-bound at P1.16 (`src/main.rs`, `src/lib.rs`, `src/core/scan.rs`,
+  `src/core/watch.rs` changed; `tests/single_instance.rs` and
+  `tests/watcher_reindex.rs` added); logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
@@ -88,8 +92,12 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
 
 ## Known issues (open)
 
-1. **Watcher does not re-index**: it has a re-index TODO and only handles
-   deletions. The `index` CLI command is implemented (`core::scan`).
+1. ~~**Watcher does not re-index**~~ **Fixed in P1.16**: created, modified and
+   rename-target files are re-indexed via `core::scan::index_path`
+   (validated: extension, size fail-closed), rename sources are purged and
+   removal errors are logged (`tests/watcher_reindex.rs`). Events can still
+   be lost if the process is down when they occur — no startup reconciliation
+   yet: run `maieutik index` after downtime.
 2. ~~Chunker panic on non-ASCII text and wrong heading offsets on CRLF files~~
    **Fixed in P1.8**: chunk size and overlap are counted in characters, byte
    offsets are always valid, and heading offsets are exact on CRLF files
@@ -104,7 +112,9 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
    `n_ctx` check; blocking the tokio runtime; `special=true` tokenization of
    user content (prompt-injection surface).
 7. `embed_batch` is sequential.
-8. `single-instance` never checks `is_single()`; MCP socket path uses the
+8. ~~`single-instance` never checks `is_single()`~~ **Fixed in P1.16**: the
+   lock is enforced via `is_single()` and a second instance exits with code 4
+   (`tests/single_instance.rs`). Still open: the MCP socket path uses the
    caller PID under `/tmp`.
 9. Secrets: keyring and open_ai_* settings removed at P1.12; config.json is written with mode 0600 on Unix.
 10. `nom v2.2.1` (transitive) triggers a future-incompat warning.

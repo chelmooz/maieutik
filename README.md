@@ -17,7 +17,7 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
 | Extraction pdf | Présente, non vérifiée | `src/utils/mod.rs` |
 | Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
-| Surveillance de fichiers | Partielle : la suppression est traitée, la création et la modification sont journalisées sans réindexation | `src/core/watch.rs`, `src/lib.rs` |
+| Surveillance de fichiers | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; testée sans modèle. Un événement survenu pendant un arrêt du processus n'est pas rattrapé : relancer `maieutik index` | `src/core/watch.rs`, `src/lib.rs`, `tests/watcher_reindex.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
 | Pont MCP / JSON-RPC | Stub | `src/mcp/mod.rs` |
@@ -39,7 +39,7 @@ flowchart TD
     EMB["TextEmbedder (trait)"]
     HASH["HashEmbedder<br/>tests et CI"]
     ONNX["Embedder ONNX BGE-M3<br/>core::ort_env"]
-    WATCHER["Watcher notify<br/>suppression seule"]
+    WATCHER["Watcher notify<br/>création, modification,<br/>suppression, renommage"]
     GEN["Génération<br/>llama.cpp, jamais exécutée"]
     JUDGE["Jugement<br/>Laya, sidecar HTTP"]
 
@@ -59,13 +59,13 @@ flowchart TD
     IDX --> EMB
     EMB --> HASH
     EMB --> ONNX
-    WATCHER -.-> FILTER
-    WATCHER -.-> IDX
+    WATCHER --> FILTER
+    WATCHER --> IDX
     CLI -.-> GEN
     GEN -.-> JUDGE
 
     classDef planned stroke-dasharray: 5 5
-    class WATCHER,GEN,JUDGE,MCP,SPEECH,UI planned
+    class GEN,JUDGE,MCP,SPEECH,UI planned
 ```
 
 Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu.
@@ -141,7 +141,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 
 ## Limites connues
 
-- Réindexation continue : le watcher ne réindexe pas les fichiers créés ou modifiés.
+- Surveillance : un événement de fichier survenu pendant un arrêt de Maieutik n'est pas rattrapé au redémarrage (pas de réconciliation au démarrage) ; relancer `maieutik index` pour réaligner l'index.
 - `chat` et `model` sont factices : message sur stderr, code 3.
 - La génération n'a jamais chargé de modèle dans cet environnement.
 - Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.
