@@ -15,11 +15,14 @@ use anyhow::Result;
 use crate::config::store::{config_path, load_settings, save_settings};
 use crate::config::AppSettings;
 use crate::core::indexer::{Embedder, VectorIndex};
-use crate::core::watch::{DebouncedProcessor, FileWatcher, WatchEvent};
-use std::path::PathBuf;
+use crate::core::scan::index_path;
+use crate::core::watch::{
+    is_extension_allowed, is_within_size_limit, DebouncedProcessor, FileWatcher, WatchEvent,
+};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 #[derive(Debug)]
 pub struct AppState {
@@ -71,20 +74,24 @@ pub async fn run_watcher(state: Arc<AppState>) -> Result<()> {
             match event {
                 WatchEvent::Created(path) | WatchEvent::Modified(path) => {
                     info!("File changed: {}", path.display());
-                    // TODO: re-index file
+                    reindex(&state_clone, &path).await;
                 }
                 WatchEvent::Removed(path) => {
                     info!("File removed: {}", path.display());
                     if let Some(idx) = &state_clone.vector_index {
-                        let _ = idx.remove_file(&path).await;
+                        if let Err(e) = idx.remove_file(&path).await {
+                            warn!("remove failed {}: {e:#}", path.display());
+                        }
                     }
                 }
                 WatchEvent::Renamed { from, to } => {
                     info!("File renamed: {} -> {}", from.display(), to.display());
                     if let Some(idx) = &state_clone.vector_index {
-                        let _ = idx.remove_file(&from).await;
-                        // TODO: re-index at new path
+                        if let Err(e) = idx.remove_file(&from).await {
+                            warn!("remove (rename source) failed {}: {e:#}", from.display());
+                        }
                     }
+                    reindex(&state_clone, &to).await;
                 }
             }
         }
@@ -97,6 +104,46 @@ pub async fn run_watcher(state: Arc<AppState>) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Réindexe un fichier suite à un événement du watcher. Validation d'abord
+/// (existence, extension, taille — fail-closed : un fichier à métadonnées
+/// illisibles est ignoré et signalé, jamais accepté en silence), puis
+/// remplacement atomique des enregistrements et reconstruction HNSW.
+/// Un fichier vidé de son texte purge ses anciens enregistrements ; une
+/// erreur d'extraction ne supprime jamais l'ancien contenu.
+async fn reindex(state: &AppState, path: &Path) {
+    if !path.is_file() {
+        debug!("plus un fichier ordinaire, ignoré : {}", path.display());
+        return;
+    }
+    let allowed = {
+        let settings = state.settings.read().await;
+        if !is_extension_allowed(path, &settings) {
+            false
+        } else {
+            match is_within_size_limit(path, &settings) {
+                Ok(within) => within,
+                Err(e) => {
+                    warn!("taille illisible, ignoré {} : {e:#}", path.display());
+                    return;
+                }
+            }
+        }
+    };
+    if !allowed {
+        debug!("extension ou taille hors limites, ignoré : {}", path.display());
+        return;
+    }
+    let Some(idx) = &state.vector_index else {
+        debug!("index indisponible, impossible de réindexer : {}", path.display());
+        return;
+    };
+    match index_path(idx, path).await {
+        Ok(true) => info!("réindexé : {}", path.display()),
+        Ok(false) => info!("sans texte, enregistrements purgés : {}", path.display()),
+        Err(e) => warn!("échec de réindexation {} : {e:#}", path.display()),
+    }
 }
 
 pub fn save_settings_if_changed(settings: &AppSettings) -> Result<()> {

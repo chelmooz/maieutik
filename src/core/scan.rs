@@ -170,3 +170,15 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
     index.store_file(path, &FileContent { chunks, ..base })?;
     Ok(has_text)
 }
+
+/// Indexe un fichier isolé puis reconstruit HNSW (chemin « watcher » : un
+/// événement à la fois, contrairement à `index_all` qui reconstruit une fois
+/// par lot). `Ok(true)` = au moins un chunk ; `Ok(false)` = fichier lu sans
+/// texte, dont les anciens enregistrements ont été purgés. L'appelant valide
+/// l'existence, l'extension et la taille avant l'appel.
+pub async fn index_path(index: &VectorIndex, path: &Path) -> Result<bool> {
+    let chunker = Chunker::new(CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS);
+    let has_text = index_one(index, &chunker, path)?;
+    index.build_hnsw().await?;
+    Ok(has_text)
+}
