@@ -151,3 +151,54 @@ fn search_without_model_exits_four() {
     assert_error_streams(&o);
     assert!(err(&o).contains("Index indisponible"), "stderr: {}", err(&o));
 }
+
+#[test]
+fn help_mentions_watch_mode() {
+    let t = tempfile::tempdir().unwrap();
+    let o = run(t.path(), None, &["--help"]);
+    assert_eq!(code(&o), 0, "stderr: {}", err(&o));
+    assert!(
+        out(&o).contains("--watch"),
+        "--help doit annoncer le mode service : {}",
+        out(&o)
+    );
+}
+
+/// `--watch` sans dossier configuré : refus immédiat (fail-closed), pas de
+/// service fantôme qui tourne sans rien surveiller.
+#[test]
+fn watch_without_folders_exits_four() {
+    let t = tempfile::tempdir().unwrap();
+    let o = run(t.path(), None, &["--watch"]);
+    assert_eq!(code(&o), 4, "stdout: {} stderr: {}", out(&o), err(&o));
+    assert_error_streams(&o);
+    assert!(err(&o).contains("Aucun dossier"), "stderr: {}", err(&o));
+}
+
+/// `--watch` avec des dossiers mais sans modèle : le service refuse de
+/// démarrer plutôt que de tourner en ne pouvant jamais réindexer.
+#[test]
+fn watch_with_folders_but_no_model_exits_four() {
+    let t = tempfile::tempdir().unwrap();
+    let docs = t.path().join("docs");
+    fs::create_dir_all(&docs).unwrap();
+    let o = run(t.path(), Some(&[docs.as_path()]), &["--watch"]);
+    assert_eq!(code(&o), 4, "stdout: {} stderr: {}", out(&o), err(&o));
+    assert_error_streams(&o);
+    assert!(err(&o).contains("Index indisponible"), "stderr: {}", err(&o));
+}
+
+/// `--watch` est un mode, pas un modificateur de sous-commande : la
+/// combinaison est une erreur d'usage, pas un service qui ignore la commande.
+#[test]
+fn watch_with_subcommand_exits_two() {
+    let t = tempfile::tempdir().unwrap();
+    let o = run(t.path(), None, &["--watch", "index"]);
+    assert_eq!(code(&o), 2, "stdout: {} stderr: {}", out(&o), err(&o));
+    assert_error_streams(&o);
+    assert!(
+        err(&o).contains("ne se combine pas"),
+        "stderr: {}",
+        err(&o)
+    );
+}
