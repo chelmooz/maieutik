@@ -112,6 +112,41 @@ impl LlamaModel {
     }
 }
 
+/// Taille maximale d'un lot de décodage, alignée sur `with_n_batch` du contexte.
+pub const N_BATCH: u32 = 512;
+
+/// Plan de décodage d'un prompt sous les contraintes du contexte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodePlan {
+    /// Nombre de tokens de prompt décodés par lot (jamais au-delà de `n_batch`).
+    pub chunk: usize,
+    /// Nombre de tokens réellement générables (jamais au-delà de la place restante).
+    pub max_tokens: u32,
+}
+
+/// Calcule le plan de décodage : découpage du prompt par lots de `n_batch` et
+/// plafonnement de la génération à la place restante du contexte.
+///
+/// `requested` est la valeur demandée par l'appelant ; `n_ctx` la taille du
+/// contexte du modèle. Un prompt qui occupe tout le contexte est refusé ici,
+/// avec un message explicite, plutôt que de laisser llama.cpp échouer au
+/// décodage.
+///
+/// NOTE (P1.20-1) : cette version est l'extraction fidèle du comportement
+/// historique — un seul lot, aucune validation. Les tests de ce module
+/// décrivent le contrat cible et échouent : c'est le commit rouge.
+pub fn plan_decode(
+    prompt_tokens: usize,
+    requested: u32,
+    _n_ctx: u32,
+    _n_batch: u32,
+) -> Result<DecodePlan> {
+    Ok(DecodePlan {
+        chunk: prompt_tokens,
+        max_tokens: requested,
+    })
+}
+
 pub struct LlamaSession<'b> {
     model: &'b llama_cpp_2::model::LlamaModel,
     ctx: llama_cpp_2::context::LlamaContext<'b>,
@@ -273,5 +308,73 @@ impl ChatCompletionProvider for LocalLlamaProvider {
         let model = self.model.lock().await;
         let mut session = LlamaSession::new(&model)?;
         session.stream_complete(&prompt, max_tokens, temp, on_token)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Contrat cible de `plan_decode`. Ces tests échouent tant que le
+    // découpage par lots et le plafonnement au contexte ne sont pas câblés.
+
+    #[test]
+    fn plan_rejects_empty_prompt() {
+        assert!(
+            plan_decode(0, 64, 4096, N_BATCH).is_err(),
+            "un prompt sans token doit être refusé, pas produire une réponse vide"
+        );
+    }
+
+    #[test]
+    fn plan_rejects_prompt_that_fills_context() {
+        // 4096 tokens dans un contexte de 4096 : plus une seule place pour
+        // générer. llama.cpp échouerait au décodage avec un message opaque.
+        let err = plan_decode(4096, 64, 4096, N_BATCH)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("4096"), "message inattendu : {err}");
+    }
+
+    #[test]
+    fn plan_rejects_prompt_above_context() {
+        assert!(plan_decode(5000, 64, 4096, N_BATCH).is_err());
+    }
+
+    #[test]
+    fn plan_caps_generation_to_remaining_context() {
+        let plan = plan_decode(1000, 4096, 4096, N_BATCH).unwrap();
+        assert_eq!(
+            plan.max_tokens, 3096,
+            "la génération doit être plafonnée à la place restante du contexte"
+        );
+    }
+
+    #[test]
+    fn plan_keeps_requested_when_it_fits() {
+        let plan = plan_decode(100, 128, 4096, N_BATCH).unwrap();
+        assert_eq!(plan.max_tokens, 128);
+    }
+
+    #[test]
+    fn plan_chunks_long_prompt_to_batch_limit() {
+        let plan = plan_decode(2000, 64, 4096, N_BATCH).unwrap();
+        assert_eq!(
+            plan.chunk, N_BATCH as usize,
+            "un prompt de 2000 tokens doit être décodé par lots de {N_BATCH}"
+        );
+    }
+
+    #[test]
+    fn plan_chunk_never_exceeds_prompt() {
+        let plan = plan_decode(10, 64, 4096, N_BATCH).unwrap();
+        assert_eq!(plan.chunk, 10);
+    }
+
+    #[test]
+    fn plan_covers_every_prompt_token() {
+        let plan = plan_decode(2000, 64, 4096, N_BATCH).unwrap();
+        let lots = 2000usize.div_ceil(plan.chunk);
+        assert_eq!(lots, 4, "2000 tokens par lots de 512 = 4 décodages");
     }
 }

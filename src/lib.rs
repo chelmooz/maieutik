@@ -106,6 +106,19 @@ pub async fn run_watcher(state: Arc<AppState>) -> Result<()> {
     Ok(())
 }
 
+/// Variante testable de [`run_watcher`] : la tâche doit rendre la main quand
+/// le futur `shutdown` se résout, après avoir vidé les événements en attente.
+///
+/// NOTE (P1.20-1) : délègue encore à [`run_watcher`] (comportement
+/// historique : aucune sortie) ; `tests/watcher_shutdown.rs` décrit le
+/// contrat cible et échoue — c'est le commit rouge.
+pub async fn run_watcher_with_shutdown<F>(state: Arc<AppState>, _shutdown: F) -> Result<()>
+where
+    F: std::future::Future<Output = ()>,
+{
+    run_watcher(state).await
+}
+
 /// Réindexe un fichier suite à un événement du watcher. Validation d'abord
 /// (existence, extension, taille — fail-closed : un fichier à métadonnées
 /// illisibles est ignoré et signalé, jamais accepté en silence), puis
