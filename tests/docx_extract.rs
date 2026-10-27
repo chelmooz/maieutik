@@ -14,7 +14,7 @@ fn make_zip(dir: &tempfile::TempDir, name: &str, entries: &[(&str, &str)]) -> Pa
     let mut writer = zip::ZipWriter::new(file);
     for (entry, body) in entries {
         writer
-            .start_file(*entry, zip::write::FileOptions::default())
+            .start_file(*entry, zip::write::SimpleFileOptions::default())
             .unwrap();
         writer.write_all(body.as_bytes()).unwrap();
     }
@@ -53,6 +53,25 @@ fn not_a_zip_is_an_error() {
     let path = dir.path().join("b.docx");
     std::fs::write(&path, "pas un zip").unwrap();
     assert!(extract_text(&path).is_err());
+}
+
+#[test]
+fn stored_entry_is_read_too() {
+    // Un DOCX peut contenir des entrées non compressées (Stored) : la lecture
+    // doit couvrir les deux méthodes, pas seulement Deflated.
+    let dir = tempfile::tempdir().unwrap();
+    let xml = "<w:document><w:body><w:p><w:r><w:t>stocke</w:t></w:r></w:p></w:body></w:document>";
+    let path = dir.path().join("a.docx");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut writer = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("word/document.xml", options).unwrap();
+    writer.write_all(xml.as_bytes()).unwrap();
+    writer.finish().unwrap();
+
+    let expected = format!("stocke{}", nl());
+    assert_eq!(extract_text(&path).unwrap(), expected);
 }
 
 #[test]
