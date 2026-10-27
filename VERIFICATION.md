@@ -11,8 +11,8 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-de22a46c8cdd  Cargo.lock
-cc41a4aee579  Cargo.toml
+70d2058787c6  Cargo.lock
+9135f2b76f0b  Cargo.toml
 d45e04e9e055  build.rs
 a622ac8a2f56  src/config/mod.rs
 229a0e521e41  src/config/store.rs
@@ -40,6 +40,8 @@ ae7766f9018c  tests/docx_extract.rs
 5eba94868486  tests/watcher_reindex.rs
 fe4639e27aa1  tests/force_recovery.rs
 b93c5b1332eb  tests/pdf_extraction.rs
+251fb2ddad73  docs/INSTALLATION.md
+7b5334c3b947  docs/UTILISATION.md
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -70,9 +72,9 @@ b93c5b1332eb  tests/pdf_extraction.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.18 (`Cargo.toml`, `Cargo.lock`, `tests/docx_extract.rs`,
-  `tests/index_scan.rs` changed — zip 0.6 -> 2.6.1 migration); logs below
-  predate P1.5 and were not replayed.
+- Hashes re-bound at P1.19 (`Cargo.toml`, `Cargo.lock` changed — stt removal,
+  zip 9.1.2 ; docs/INSTALLATION.md and docs/UTILISATION.md tracked and added
+  to the binding); logs below predate P1.5 and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
 and were **not** replayed on this tree; only the source hashes above are
