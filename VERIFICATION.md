@@ -75,6 +75,7 @@ cfd751855d2a  docs/UTILISATION.md
 | 1 | `cargo check --locked --all-targets` | **0 errors**, warnings only (`check.log`) |
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
+| 4 | `cargo test --locked --test embedding_search -- --ignored --nocapture --test-threads=1` (with model, replayed at P1.24) | exit 0 — 3 tests passed (15.08 s); top-1 distances identical to the archived log (see honesty notes) |
 
 - Hashes re-bound at P1.23 (`src/core/indexer/mod.rs`, `src/core/scan.rs`,
   `src/main.rs`, `docs/UTILISATION.md`, `tests/watch_service.rs`,
@@ -83,19 +84,27 @@ cfd751855d2a  docs/UTILISATION.md
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
-and were **not** replayed on this tree; only the source hashes above are
-re-bound at each lot.
+and were **not** replayed; only the source hashes above are re-bound at each
+lot. Exception: the embedder tests were replayed at P1.24 on this tree (row 4
+above, same CPU as the archived run), with identical output.
 
 ### Retrieval results and thresholds — honesty notes
 
-Top-1 Euclidean distances from `test-model-nocapture.log`:
-**0.8670 / 0.7834 / 0.7049** — measured at reference revision R0 and not
-replayed since the P1.5 cleanup (names, comments and an unused module changed).
+Top-1 Euclidean distances from `test-model-nocapture.log` (R0):
+**0.8670 / 0.7834 / 0.7049** — replayed at P1.24 on this tree:
+**identical** (same model files, same corpus, deterministic embeddings).
 
-- `MAX_MATCH_DISTANCE = 1.05` was calibrated on an earlier, smaller model and
-  is **not recalibrated for BGE-M3** (≈ cosine 0.45 — filters almost nothing).
-- `MIN_FILE_MARGIN = 0.15` is the binding assertion, based on **3 English
-  queries over 3 documents**.
+- An earlier revision of this file claimed `MAX_MATCH_DISTANCE = 1.05` had
+  been "calibrated on an earlier, smaller model" — that claim was wrong: the
+  test's own doc comment documents measurements taken **with BGE-M3**
+  (0.87 / 0.78 / 0.70), and the P1.24 replay reproduces them exactly. No
+  recalibration was needed.
+- On this corpus the threshold does discriminate: best **wrong-file**
+  distances measured at P1.24 are **1.0923 / 1.1823 / 1.0948** — all above
+  1.05 — while right answers sit at 0.70–0.87. It stays a loose guard in
+  general (≈ cosine 0.45); `MIN_FILE_MARGIN = 0.15` (measured margins at
+  P1.24: 0.2253 / 0.3989 / 0.3899) remains the binding assertion.
+- `MIN_FILE_MARGIN` is based on **3 English queries over 3 documents**.
 - The test corpus is **English only**; French/cross-lingual retrieval is
   **not tested yet** (planned: evaluation phase).
 

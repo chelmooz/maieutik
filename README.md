@@ -12,7 +12,7 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Parcours des dossiers (extensions, taille, liens symboliques ignorés) | Implémenté, testé | `src/core/scan.rs`, `src/core/watch.rs` |
 | Recherche (`search`) | Implémenté | `src/main.rs`, `src/core/indexer/mod.rs`, `tests/index_search.rs` |
 | Index vectoriel (sled + HNSW) | Implémenté, testé | `src/core/indexer/mod.rs`, `tests/index_replace.rs` |
-| Embedder ONNX BGE-M3 (1024 dimensions) | Implémenté ; tests avec modèle non rejoués depuis plusieurs lots | `src/core/indexer/mod.rs`, `src/core/ort_env.rs`, `tests/embedding_search.rs` |
+| Embedder ONNX BGE-M3 (1024 dimensions) | Implémenté ; tests avec modèle rejoués au P1.24 sur l'arbre courant (3 passés, distances identiques à la calibration) | `src/core/indexer/mod.rs`, `src/core/ort_env.rs`, `tests/embedding_search.rs` |
 | Faux embedder déterministe (tests, CI) | Implémenté | `src/core/indexer/mod.rs` (`HashEmbedder`) |
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
 | Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
@@ -150,14 +150,14 @@ cargo test --locked
 cargo test --locked -- --ignored --nocapture --test-threads=1
 ```
 
-`VERIFICATION.md` décrit ce qui a été exécuté et les empreintes des fichiers. Ses journaux avec modèle sont antérieurs à plusieurs lots et n'ont pas été rejoués.
+`VERIFICATION.md` décrit ce qui a été exécuté et les empreintes des fichiers. Ses journaux d'archive avec modèle prédatent le P1.5 ; le rejeu des tests d'embedder effectué au P1.24 y est consigné.
 
 ## Limites connues
 
 - Surveillance : au démarrage de `--watch`, les fichiers **disparus** pendant l'arrêt sont purgés et les fichiers **modifiés** pendant l'arrêt sont réindexés (empreinte taille + mtime). Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`, et un fichier indexé avant l'introduction de l'empreinte reste non vérifiable jusqu'à sa prochaine indexation. L'arrêt ordonné et le vidage des événements en attente ne concernent que `--watch` ; sans lui, le processus sort immédiatement et aucun gestionnaire de signal n'est installé (Ctrl-C garde son effet par défaut).
 - `chat` et `model` sont factices : message sur stderr, code 3.
 - La génération n'a jamais chargé de modèle dans cet environnement. Les limites de lot et de contexte sont vérifiées sur le plan de décodage (`plan_decode` : refus d'un prompt vide ou plus long que le contexte, plafonnement à la place restante, découpage par lots de `n_batch`), pas par une génération réelle.
-- Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.
+- Le test de retrieval avec modèle (`tests/embedding_search.rs`) couvre 3 requêtes anglaises sur 3 documents ; le retrieval français et interlingue n'est pas testé (phase d'évaluation à venir).
 - Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
 - Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Les avis `zstd`/`zstd-safe` et `zip` (0367 à 0369) sont **levés au P1.19** : retrait de `sherpa-onnx` (feature `stt` jamais activée, seul chemin zstd restant) et montée de la dépendance directe en `zip 9.1.2` (version corrigée). Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont) et l'avis sur `failure` (via `single-instance`), plus les quatre avis liés à `sled`/`bincode`/`tokenizers` en revue P3/P4.
 - Les sorties du modèle sont denses seulement : les sorties sparse et ColBERT de BGE-M3 sont absentes de l'export ONNX utilisé.
