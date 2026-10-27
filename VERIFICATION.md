@@ -19,11 +19,11 @@ a622ac8a2f56  src/config/mod.rs
 9e228225c891  src/core/indexer/mod.rs
 af2b9a17c0f5  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
-b2d316f7568a  src/core/scan.rs
+2c5dacae9b70  src/core/scan.rs
 3d85c972fb77  src/core/watch.rs
 41fd305a17b7  src/lib.rs
 43e08d9772de  src/llm/mod.rs
-d82f6e0b6fa0  src/main.rs
+7a7ccb798f8a  src/main.rs
 02b7820e7098  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
@@ -39,11 +39,12 @@ ae7766f9018c  tests/docx_extract.rs
 4ae38f5b1297  tests/single_instance.rs
 5eba94868486  tests/watcher_reindex.rs
 ecb78c064436  tests/watcher_shutdown.rs
-db8800cf2bea  tests/watch_service.rs
+25318c4749a6  tests/watch_service.rs
+6a27a969f5fd  tests/startup_reconcile.rs
 fe4639e27aa1  tests/force_recovery.rs
 b93c5b1332eb  tests/pdf_extraction.rs
 251fb2ddad73  docs/INSTALLATION.md
-c91bc7de2bc6  docs/UTILISATION.md
+d9ca47d08d48  docs/UTILISATION.md
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -74,10 +75,10 @@ c91bc7de2bc6  docs/UTILISATION.md
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.21 (`src/main.rs`, `tests/cli_exit_codes.rs`,
-  `docs/UTILISATION.md` changed; `tests/watch_service.rs` added — `--watch`
-  end-to-end test, ignored by default); logs below predate P1.5 and were not
-  replayed.
+- Hashes re-bound at P1.22 (`src/core/scan.rs`, `src/main.rs`,
+  `docs/UTILISATION.md`, `tests/watch_service.rs` changed;
+  `tests/startup_reconcile.rs` added — startup reconciliation); logs below
+  predate P1.5 and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
 and were **not** replayed on this tree; only the source hashes above are
