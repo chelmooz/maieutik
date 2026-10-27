@@ -26,7 +26,6 @@ cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
 vulkan = ["llama-cpp-2/vulkan"]
 full = ["cuda", "vulkan"]
-stt = ["dep:sherpa-onnx"]
 
 [dependencies]
 # Core
@@ -62,8 +61,9 @@ ort = { version = "2.0.0-rc.15", default-features = false, features = ["std", "n
 # LLM - llama.cpp bindings
 llama-cpp-2 = { version = "0.1", features = [] }  # features set via crate features
 
-# STT - sherpa-onnx
-sherpa-onnx = { version = "1.13", features = ["static"], optional = true }
+# STT - sherpa-onnx retiré au lot P1.19 : il amenait zip 2.6.1 + zstd/zstd-safe
+# (13 avis RUSTSec cumulés) pour une feature jamais activée. À réintroduire
+# avec une crate auditée si la voix revient au roadmap.
 
 # VAD - use ort directly (no silero_vad crate - incompatible with ort 2.x)
 
@@ -79,7 +79,7 @@ jsonrpsee = { version = "0.26", features = ["server", "client", "macros"] }
 
 # Document Processing
 pdf-extract = "0.12"
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 # Logging
 tracing = "0.1"

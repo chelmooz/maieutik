@@ -10,27 +10,9 @@ ignore = [
   # RUSTSEC-2026-0187 (lopdf 0.34 <- pdf-extract) LEVÉ au lot P1.17 :
   # pdf-extract 0.12.1 -> lopdf 0.42.0 ; régression par tests/pdf_extraction.rs.
   "RUSTSEC-2026-0192", # ttf-parser 0.25.1 <- lopdf 0.42 <- pdf-extract 0.12.1 ; crate non maintenue (avis de maintenance, pas de faille mémoire), amont, lopdf épingle =0.25.1 ; suivre les releases lopdf
-  # zstd 0.13.3 / zstd-safe 7.3.0 : uniquement via zip 2.6.1 <- sherpa-onnx-sys,
-  # feature `stt` désactivée par défaut, aucun code lié au build standard.
-  # L'ancien chemin zip 0.6.6 direct (zstd-safe 5.0.2) a été retiré au lot
-  # P1.18 (migration zip 2.x deflate-only) ; les avis zstd ne touchent plus
-  # que le chemin stt ci-dessous.
-  "RUSTSEC-2026-0391", # zstd 0.13.3 ; idem stt
-  "RUSTSEC-2026-0395", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0396", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0397", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0398", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0399", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0400", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0401", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0402", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0403", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0404", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0405", # zstd-safe 7.3.0 ; idem stt
-  "RUSTSEC-2026-0406", # zstd-safe 7.3.0 ; idem stt
-  # zip 2.6.1 reste vulnérable à 0367/0368/0369 : uniquement via sherpa-onnx-sys
-  # (feature stt) ; retrait de stt ou montée amont.
-  "RUSTSEC-2026-0367", # zip 2.6.1 <- sherpa-onnx-sys (stt) ; 0.5.13 et 0.6.6 retirés du graphe au P1.18
-  "RUSTSEC-2026-0368", # idem
-  "RUSTSEC-2026-0369", # idem
+  # LEVÉS au lot P1.19 : tous les avis zstd/zstd-safe (0391, 0395 à 0406) et
+  # zip (0367, 0368, 0369). sherpa-onnx (feature `stt`, jamais activée) retiré
+  # du graphe — il amenait zip 2.6.1 + zstd/zstd-safe 7.3.0 ; la dépendance
+  # directe zip est passée de 0.6.6 à 2.6.1 (P1.18) puis 9.1.2 (version
+  # corrigée des avis zip). zstd/zstd-safe : plus aucune copie dans le lock.
 ]

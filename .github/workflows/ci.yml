@@ -52,8 +52,8 @@ jobs:
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
 
-      # Audit bloquant : les exceptions (14 identifiants, phase de revue) sont
-      # déclarées dans .cargo/audit.toml ; tout nouvel avis rend la CI rouge.
+      # Audit bloquant : les exceptions (7 identifiants : failure x2, sled x3, bincode, ttf-parser ;
+      # zstd et zip ont été levés au P1.19) sont déclarées dans .cargo/audit.toml ; tout nouvel avis rend la CI rouge.
       - name: audit RUSTSEC (bloquant)
         run: |
           cargo install cargo-audit --locked --version 0.22.2

@@ -21,7 +21,7 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
 | Pont MCP / JSON-RPC | Stub | `src/mcp/mod.rs` |
-| Voix (VAD, reconnaissance vocale) | Stub | `src/speech/mod.rs` |
+| Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
 | Interface graphique | Stub : build sans interface | `src/ui/mod.rs` |
 | Reclassement, recherche lexicale avec fusion, jugement des réponses (Laya, sidecar HTTP), reconnaissance vocale | Prévu | `ARCHITECTURE.md` |
 
@@ -146,7 +146,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 - La génération n'a jamais chargé de modèle dans cet environnement.
 - Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.
 - Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
-- Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont), les avis `zstd`/`zstd-safe` (uniquement via le chemin `stt` désactivé par défaut — le chemin `zip 0.6` direct pour DOCX a été retiré au P1.18, migration `zip 2.x` deflate-only), et l'avis sur `failure` (via `single-instance`).
+- Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Les avis `zstd`/`zstd-safe` et `zip` (0367 à 0369) sont **levés au P1.19** : retrait de `sherpa-onnx` (feature `stt` jamais activée, seul chemin zstd restant) et montée de la dépendance directe en `zip 9.1.2` (version corrigée). Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont) et l'avis sur `failure` (via `single-instance`), plus les quatre avis liés à `sled`/`bincode`/`tokenizers` en revue P3/P4.
 - Les sorties du modèle sont denses seulement : les sorties sparse et ColBERT de BGE-M3 sont absentes de l'export ONNX utilisé.
 
 ## Licence et liens
