@@ -16,14 +16,14 @@
 d45e04e9e055  build.rs
 a622ac8a2f56  src/config/mod.rs
 229a0e521e41  src/config/store.rs
-9e228225c891  src/core/indexer/mod.rs
+1735e6f6525a  src/core/indexer/mod.rs
 af2b9a17c0f5  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
-2c5dacae9b70  src/core/scan.rs
+898272ee6f98  src/core/scan.rs
 3d85c972fb77  src/core/watch.rs
 41fd305a17b7  src/lib.rs
 43e08d9772de  src/llm/mod.rs
-7a7ccb798f8a  src/main.rs
+92455a999a8c  src/main.rs
 02b7820e7098  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
@@ -39,12 +39,13 @@ ae7766f9018c  tests/docx_extract.rs
 4ae38f5b1297  tests/single_instance.rs
 5eba94868486  tests/watcher_reindex.rs
 ecb78c064436  tests/watcher_shutdown.rs
-25318c4749a6  tests/watch_service.rs
-6a27a969f5fd  tests/startup_reconcile.rs
+1f7959d99cfd  tests/watch_service.rs
+b83b8d12d01d  tests/startup_reconcile.rs
+2fbecdfc524f  tests/file_fingerprint.rs
 fe4639e27aa1  tests/force_recovery.rs
 b93c5b1332eb  tests/pdf_extraction.rs
 251fb2ddad73  docs/INSTALLATION.md
-d9ca47d08d48  docs/UTILISATION.md
+cfd751855d2a  docs/UTILISATION.md
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -75,10 +76,11 @@ d9ca47d08d48  docs/UTILISATION.md
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.22 (`src/core/scan.rs`, `src/main.rs`,
-  `docs/UTILISATION.md`, `tests/watch_service.rs` changed;
-  `tests/startup_reconcile.rs` added — startup reconciliation); logs below
-  predate P1.5 and were not replayed.
+- Hashes re-bound at P1.23 (`src/core/indexer/mod.rs`, `src/core/scan.rs`,
+  `src/main.rs`, `docs/UTILISATION.md`, `tests/watch_service.rs`,
+  `tests/startup_reconcile.rs` changed; `tests/file_fingerprint.rs` added —
+  file fingerprint and drift detection at startup); logs below predate P1.5
+  and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
 and were **not** replayed on this tree; only the source hashes above are
