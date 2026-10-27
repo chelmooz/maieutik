@@ -208,3 +208,63 @@ fn watch_startup_purges_files_deleted_while_stopped() {
         "le seul fichier restant devrait être trouvé :\n{out}"
     );
 }
+
+#[test]
+#[ignore = "exige le modèle BGE-M3 et onnxruntime (voir VERIFICATION.md)"]
+fn watch_startup_reindexes_files_modified_while_stopped() {
+    let sandbox = Sandbox::new(&[("a.md", FOX)]);
+
+    let indexed = sandbox.command().arg("index").output().unwrap();
+    assert_eq!(
+        indexed.status.code(),
+        Some(0),
+        "index initial : {}",
+        String::from_utf8_lossy(&indexed.stderr)
+    );
+    let before = sandbox
+        .command()
+        .args(["search", "quick brown fox", "--limit", "3"])
+        .output()
+        .unwrap();
+    assert_eq!(before.status.code(), Some(0));
+    let before = stdout_of(&before);
+    assert!(before.contains("a.md"), "précondition non indexée :\n{before}");
+
+    // Modification pendant l'arrêt : aucun événement ne sera jamais émis.
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    fs::write(sandbox.docs().join("a.md"), RUST).unwrap();
+
+    let service = sandbox.start_watch();
+    let log = sandbox.log();
+    assert!(
+        log.contains("Réconciliation : 1 fichier(s) modifié(s) pendant l'arrêt réindexé(s)."),
+        "la réconciliation n'a pas réindexé le fichier modifié :\n{log}"
+    );
+    assert!(log.contains("a.md"), "fichier réindexé non journalisé :\n{log}");
+
+    assert_eq!(service.stop(), 0, "arrêt sale :\n{}", sandbox.log());
+
+    // Preuve visible côté utilisateur : la recherche remonte le NOUVEAU
+    // contenu, plus l'ancien.
+    let after = sandbox
+        .command()
+        .args(["search", "quick brown fox", "--limit", "3"])
+        .output()
+        .unwrap();
+    assert_eq!(after.status.code(), Some(0));
+    let after = stdout_of(&after);
+    assert!(
+        !after.contains("lazy dog"),
+        "l'ancien contenu est encore cherchable :\n{after}"
+    );
+    let rust = sandbox
+        .command()
+        .args(["search", "rust cargo compiler", "--limit", "3"])
+        .output()
+        .unwrap();
+    let rust = stdout_of(&rust);
+    assert!(
+        rust.contains("borrow checker"),
+        "le nouveau contenu n'est pas cherchable :\n{rust}"
+    );
+}

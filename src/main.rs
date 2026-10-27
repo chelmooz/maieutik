@@ -272,6 +272,12 @@ async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
                 for path in &report.kept_unreadable {
                     warn!("Réconciliation : métadonnées illisibles, entrée conservée : {path}");
                 }
+                for path in &report.kept_unverified {
+                    warn!(
+                        "Réconciliation : empreinte inconnue, entrée conservée : {path} \
+                         (réindexée au prochain 'maieutik index')"
+                    );
+                }
                 for (path, err) in &report.failed {
                     warn!("Réconciliation : purge impossible {path} : {err}");
                 }
@@ -279,6 +285,12 @@ async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
                     info!(
                         "Réconciliation : {} fichier(s) disparu(s) purgé(s) de l'index.",
                         report.removed.len()
+                    );
+                }
+                if !report.reindexed.is_empty() {
+                    info!(
+                        "Réconciliation : {} fichier(s) modifié(s) pendant l'arrêt réindexé(s).",
+                        report.reindexed.len()
                     );
                 }
             }
