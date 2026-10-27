@@ -5,6 +5,7 @@ use crate::core::indexer::{extract_headings, Chunker, VectorIndex};
 use crate::core::watch::{is_extension_allowed, is_within_size_limit};
 use crate::utils::extract_text;
 use anyhow::Result;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 use walkdir::WalkDir;
@@ -102,10 +103,12 @@ pub fn collect_files(settings: &AppSettings) -> (Vec<PathBuf>, Vec<(PathBuf, Str
     (files, errors, roots_ok)
 }
 
-/// Indexe tous les fichiers trouvés. `force` purge d'abord l'index (retire aussi
-/// les fichiers disparus) ; sinon chaque fichier trouvé est remplacé sur place.
-/// Une erreur sur un fichier est journalisée et comptée, jamais fatale, et ne
-/// purge pas l'ancien contenu du fichier. HNSW est reconstruit une seule fois.
+/// Indexe tous les fichiers trouvés. `force` ajoute une phase de
+/// réconciliation : chaque fichier trouvé est remplacé sur place, puis les
+/// fichiers absents du corpus sont retirés de l'index. Une erreur sur un
+/// fichier est journalisée et comptée, jamais fatale, et ne purge pas
+/// l'ancien contenu du fichier — y compris en mode `force`, qui ne vide
+/// jamais l'index d'un bloc. HNSW est reconstruit une seule fois.
 /// Si aucun dossier n'est lisible, on s'arrête avant toute purge : un `force`
 /// ne doit jamais vider l'index à cause d'un disque ou d'un dossier absent.
 pub async fn index_all(
@@ -127,20 +130,37 @@ pub async fn index_all(
     if roots_ok == 0 {
         return Ok(report);
     }
-    if force {
-        index.clear().await?;
-    }
     let chunker = Chunker::new(CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS);
-    for path in files {
-        match index_one(index, &chunker, &path) {
+    for path in &files {
+        match index_one(index, &chunker, path) {
             Ok(true) => report.indexed += 1,
             Ok(false) => {
                 warn!("no text {}", path.display());
-                report.no_text.push(path);
+                report.no_text.push(path.to_path_buf());
             }
             Err(e) => {
                 warn!("index error {}: {:#}", path.display(), e);
-                report.failed.push((path, format!("{e:#}")));
+                report.failed.push((path.to_path_buf(), format!("{e:#}")));
+            }
+        }
+    }
+    // Réconciliation du mode force : retirer de l'index les fichiers absents
+    // du corpus. Les fichiers présents mais en échec d'extraction gardent
+    // leurs anciens enregistrements (comptés dans `report.failed`).
+    if force {
+        let present: HashSet<String> = files
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
+        for stored in index.stored_file_paths()? {
+            if !present.contains(&stored) {
+                info!("force purge {}", stored);
+                if let Err(e) = index.purge_file(&stored) {
+                    warn!("purge error {stored}: {e:#}");
+                    report
+                        .failed
+                        .push((PathBuf::from(&stored), format!("purge : {e:#}")));
+                }
             }
         }
     }

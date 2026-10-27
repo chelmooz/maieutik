@@ -464,19 +464,31 @@ impl VectorIndex {
         Ok(())
     }
 
-    /// Purge tous les vecteurs (`index --force`) et invalide HNSW.
-    pub async fn clear(&self) -> Result<()> {
-        self.vectors_tree.clear()?;
-        *self.hnsw.write().await = None;
+    /// Remove all chunks for a file
+    pub async fn remove_file(&self, file_path: &Path) -> Result<()> {
+        self.purge_file(&file_path.to_string_lossy())?;
+        self.rebuild_hnsw_if_needed().await?;
         Ok(())
     }
 
-    /// Remove all chunks for a file
-    pub async fn remove_file(&self, file_path: &Path) -> Result<()> {
-        let path_str = file_path.to_string_lossy().to_string();
-        replace_file_records(&self.vectors_tree, &path_str, &[])?;
-        self.rebuild_hnsw_if_needed().await?;
-        Ok(())
+    /// Retire les enregistrements d'un fichier SANS reconstruire HNSW.
+    /// Pour une purge par lot (réconciliation de `index --force`) :
+    /// l'appelant reconstruit l'index une fois à la fin.
+    pub fn purge_file(&self, file_path: &str) -> Result<()> {
+        replace_file_records(&self.vectors_tree, file_path, &[])
+    }
+
+    /// Chemins de fichiers distincts présents dans l'index, tels que
+    /// stockés (clés de `replace_file_records`). Sert à la réconciliation
+    /// de `index --force` : comparer l'index au corpus présent sur disque.
+    pub fn stored_file_paths(&self) -> Result<Vec<String>> {
+        let mut seen = std::collections::HashSet::new();
+        for item in self.vectors_tree.iter() {
+            let (_, val) = item?;
+            let record: VectorRecord = bincode::deserialize(&val)?;
+            seen.insert(record.file_path);
+        }
+        Ok(seen.into_iter().collect())
     }
 
     async fn rebuild_hnsw_if_needed(&self) -> Result<()> {
