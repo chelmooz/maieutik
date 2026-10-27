@@ -11,8 +11,8 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-59cfcc582582  Cargo.lock
-47cc3d8fc557  Cargo.toml
+de22a46c8cdd  Cargo.lock
+cc41a4aee579  Cargo.toml
 d45e04e9e055  build.rs
 a622ac8a2f56  src/config/mod.rs
 229a0e521e41  src/config/store.rs
@@ -30,10 +30,10 @@ a8d9e106e24a  src/speech/mod.rs
 1756d1fa548c  src/utils/mod.rs
 36d44a041b21  tests/config_store.rs
 61734ffd9005  tests/chunker.rs
-9a7b901ec93e  tests/docx_extract.rs
+ae7766f9018c  tests/docx_extract.rs
 28139d62c849  tests/embedding_search.rs
 4d1e2c21e798  tests/index_replace.rs
-e0e7eedd1b8f  tests/index_scan.rs
+077770b9bbb3  tests/index_scan.rs
 9e6548501da4  tests/index_search.rs
 477daacd58c2  tests/cli_exit_codes.rs
 4ae38f5b1297  tests/single_instance.rs
@@ -70,10 +70,9 @@ b93c5b1332eb  tests/pdf_extraction.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.17 (`Cargo.toml`, `Cargo.lock`, `src/core/scan.rs`,
-  `src/core/indexer/mod.rs`, `src/mcp/mod.rs` changed; `tests/force_recovery.rs`
-  and `tests/pdf_extraction.rs` added); logs below predate P1.5
-  and were not replayed.
+- Hashes re-bound at P1.18 (`Cargo.toml`, `Cargo.lock`, `tests/docx_extract.rs`,
+  `tests/index_scan.rs` changed — zip 0.6 -> 2.6.1 migration); logs below
+  predate P1.5 and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
 and were **not** replayed on this tree; only the source hashes above are
