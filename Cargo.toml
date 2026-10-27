@@ -78,7 +78,7 @@ jsonrpsee = { version = "0.26", features = ["server", "client", "macros"] }
 # wgpu = { version = "21", features = ["vulkan-portability"], optional = true }
 
 # Document Processing
-pdf-extract = "0.7"
+pdf-extract = "0.12"
 zip = "0.6"
 
 # Logging

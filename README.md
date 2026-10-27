@@ -15,7 +15,7 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Embedder ONNX BGE-M3 (1024 dimensions) | Implémenté ; tests avec modèle non rejoués depuis plusieurs lots | `src/core/indexer/mod.rs`, `src/core/ort_env.rs`, `tests/embedding_search.rs` |
 | Faux embedder déterministe (tests, CI) | Implémenté | `src/core/indexer/mod.rs` (`HashEmbedder`) |
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
-| Extraction pdf | Présente, non vérifiée | `src/utils/mod.rs` |
+| Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
 | Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
 | Surveillance de fichiers | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; testée sans modèle. Un événement survenu pendant un arrêt du processus n'est pas rattrapé : relancer `maieutik index` | `src/core/watch.rs`, `src/lib.rs`, `tests/watcher_reindex.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle | `src/llm/mod.rs` |
@@ -146,7 +146,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 - La génération n'a jamais chargé de modèle dans cet environnement.
 - Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.
 - Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
-- Extraction pdf : les avis de sécurité sur `lopdf` (via `pdf-extract`) et sur `failure` (via `single-instance`) sont ignorés de façon documentée dans `.cargo/audit.toml`, avec revue prévue.
+- Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont), les avis `zstd`/`zstd-safe` d'octobre 2026 (via `zip 0.6` direct pour DOCX — levés au lot zip P3 — et via le chemin `stt` désactivé par défaut), et l'avis sur `failure` (via `single-instance`).
 - Les sorties du modèle sont denses seulement : les sorties sparse et ColBERT de BGE-M3 sont absentes de l'export ONNX utilisé.
 
 ## Licence et liens
