@@ -104,8 +104,8 @@ impl LlamaModel {
     pub fn create_context(&self) -> Result<llama_cpp_2::context::LlamaContext<'_>> {
         let params = LlamaContextParams::default()
             .with_n_ctx(std::num::NonZeroU32::new(self.n_ctx))
-            .with_n_batch(512)
-            .with_n_ubatch(512);
+            .with_n_batch(N_BATCH)
+            .with_n_ubatch(N_BATCH);
         self.model
             .new_context(&LLAMA_BACKEND, params)
             .map_err(|e| anyhow::anyhow!("create context: {e}"))
@@ -131,19 +131,28 @@ pub struct DecodePlan {
 /// contexte du modèle. Un prompt qui occupe tout le contexte est refusé ici,
 /// avec un message explicite, plutôt que de laisser llama.cpp échouer au
 /// décodage.
-///
-/// NOTE (P1.20-1) : cette version est l'extraction fidèle du comportement
-/// historique — un seul lot, aucune validation. Les tests de ce module
-/// décrivent le contrat cible et échouent : c'est le commit rouge.
 pub fn plan_decode(
     prompt_tokens: usize,
     requested: u32,
-    _n_ctx: u32,
-    _n_batch: u32,
+    n_ctx: u32,
+    n_batch: u32,
 ) -> Result<DecodePlan> {
+    if prompt_tokens == 0 {
+        anyhow::bail!("prompt vide : aucun token à décoder");
+    }
+    if n_batch == 0 {
+        anyhow::bail!("lot de décodage de taille nulle (n_batch = 0)");
+    }
+    let prompt = u32::try_from(prompt_tokens).unwrap_or(u32::MAX);
+    if prompt >= n_ctx {
+        anyhow::bail!(
+            "prompt trop long : {prompt} tokens pour un contexte de {n_ctx} ; \
+             réduire la conversation ou augmenter n_ctx"
+        );
+    }
     Ok(DecodePlan {
-        chunk: prompt_tokens,
-        max_tokens: requested,
+        chunk: prompt_tokens.min(n_batch as usize),
+        max_tokens: requested.min(n_ctx - prompt),
     })
 }
 
@@ -171,26 +180,36 @@ impl<'b> LlamaSession<'b> {
     ) -> Result<()> {
         let vocab = self.model.vocab();
         let tokens = vocab.tokenize(prompt.as_bytes(), true, true);
-        if tokens.is_empty() {
-            return Ok(());
-        }
+        // Taille réelle du contexte et du lot, telles que llama.cpp les a
+        // ouvertes : un prompt plus long que le contexte est refusé ici avec
+        // un message explicite au lieu d'échouer au décodage.
+        let plan = plan_decode(tokens.len(), max_tokens, self.ctx.n_ctx(), self.ctx.n_batch())?;
 
-        let mut batch = llama_cpp_2::llama_batch::LlamaBatch::new(512, 1);
+        let mut batch = llama_cpp_2::llama_batch::LlamaBatch::new(plan.chunk, 1);
         let last = tokens.len() - 1;
-        for (i, token) in tokens.iter().enumerate() {
-            batch
-                .add(*token, i as i32, &[0], i == last)
-                .map_err(|e| anyhow::anyhow!("batch add: {e}"))?;
+        for (chunk_index, chunk) in tokens.chunks(plan.chunk).enumerate() {
+            batch.clear();
+            let base = chunk_index * plan.chunk;
+            for (offset, token) in chunk.iter().enumerate() {
+                let pos = base + offset;
+                batch
+                    .add(*token, pos as i32, &[0], pos == last)
+                    .map_err(|e| anyhow::anyhow!("batch add (position {pos}): {e}"))?;
+            }
+            self.ctx
+                .decode(&mut batch)
+                .map_err(|e| anyhow::anyhow!("decode du prompt (lot {chunk_index}): {e}"))?;
         }
-        self.ctx
-            .decode(&mut batch)
-            .map_err(|e| anyhow::anyhow!("decode: {e}"))?;
 
         let mut sampler = llama_cpp_2::sampling::LlamaSampler::temp(temp);
         let mut n_cur = tokens.len() as i32;
         let mut generated = 0u32;
 
-        while generated < max_tokens {
+        while generated < plan.max_tokens {
+            if n_cur >= self.ctx.n_ctx() as i32 {
+                debug!("contexte plein à {n_cur} tokens : génération arrêtée");
+                break;
+            }
             let token = sampler.sample(&self.ctx, -1);
             sampler.accept(token);
             if vocab.is_eog(token) {
