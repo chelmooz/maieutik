@@ -11,20 +11,20 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-0318e584fa1a  Cargo.lock
-f47019fdecca  Cargo.toml
+59cfcc582582  Cargo.lock
+47cc3d8fc557  Cargo.toml
 d45e04e9e055  build.rs
 a622ac8a2f56  src/config/mod.rs
 229a0e521e41  src/config/store.rs
-0dff8653e983  src/core/indexer/mod.rs
+9e228225c891  src/core/indexer/mod.rs
 af2b9a17c0f5  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
-e1201d0062b3  src/core/scan.rs
+b2d316f7568a  src/core/scan.rs
 35ead6838350  src/core/watch.rs
 fdbf27c28cc5  src/lib.rs
 57be2d0e1c96  src/llm/mod.rs
 ab3bee902c27  src/main.rs
-9d039a3c4182  src/mcp/mod.rs
+02b7820e7098  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
 1756d1fa548c  src/utils/mod.rs
@@ -38,6 +38,8 @@ e0e7eedd1b8f  tests/index_scan.rs
 477daacd58c2  tests/cli_exit_codes.rs
 4ae38f5b1297  tests/single_instance.rs
 5eba94868486  tests/watcher_reindex.rs
+fe4639e27aa1  tests/force_recovery.rs
+b93c5b1332eb  tests/pdf_extraction.rs
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -68,9 +70,9 @@ e0e7eedd1b8f  tests/index_scan.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.16 (`src/main.rs`, `src/lib.rs`, `src/core/scan.rs`,
-  `src/core/watch.rs` changed; `tests/single_instance.rs` and
-  `tests/watcher_reindex.rs` added); logs below predate P1.5
+- Hashes re-bound at P1.17 (`Cargo.toml`, `Cargo.lock`, `src/core/scan.rs`,
+  `src/core/indexer/mod.rs`, `src/mcp/mod.rs` changed; `tests/force_recovery.rs`
+  and `tests/pdf_extraction.rs` added); logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
@@ -114,8 +116,10 @@ replayed since the P1.5 cleanup (names, comments and an unused module changed).
 7. `embed_batch` is sequential.
 8. ~~`single-instance` never checks `is_single()`~~ **Fixed in P1.16**: the
    lock is enforced via `is_single()` and a second instance exits with code 4
-   (`tests/single_instance.rs`). Still open: the MCP socket path uses the
-   caller PID under `/tmp`.
+   (`tests/single_instance.rs`). ~~MCP socket path uses the caller PID under
+   `/tmp`~~ **Fixed in P1.17**: `prepare_socket_path` only removes a stale
+   socket (never a regular file) and `socket_path()` lives under the user's
+   private runtime directory (`tests` in `src/mcp/mod.rs`).
 9. Secrets: keyring and open_ai_* settings removed at P1.12; config.json is written with mode 0600 on Unix.
 10. `nom v2.2.1` (transitive) triggers a future-incompat warning.
 11. `extract_headings` keeps the extra `#` of levels 2-6 in `Heading.text`
