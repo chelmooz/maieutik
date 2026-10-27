@@ -156,15 +156,20 @@ async fn modified_file_is_reindexed_at_startup() {
     assert_eq!(report.reindexed.len(), 1, "bilan inattendu : {report:?}");
     assert!(report.reindexed[0].ends_with("a.md"), "{report:?}");
 
-    // Le contenu réindexé est le nouveau : l'ancien ne doit plus remonter…
+    // Le contenu réindexé est le nouveau : l'ancien texte ne doit plus
+    // remonter… (l'assertion porte sur le texte, pas le chemin : le fichier
+    // reste indexé, seul son contenu change)
     let hits = index.search("quick brown fox", 5).await.unwrap();
     assert!(
-        hits.iter().all(|(p, _, _)| !p.ends_with("a.md")),
+        hits.iter().all(|(_, text, _)| !text.contains("quick brown fox")),
         "l'ancien contenu est encore cherchable : {hits:?}"
     );
     // …et le nouveau doit être trouvé.
     let hits = index.search("rust cargo compiler", 5).await.unwrap();
-    assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
+    assert!(
+        hits.iter().any(|(_, text, _)| text.contains("rust cargo")),
+        "le nouveau contenu n'est pas cherchable : {hits:?}"
+    );
 
     // Idempotence : la réindexation a relevé la nouvelle empreinte, un
     // second démarrage ne doit plus rien réindexer.
@@ -245,6 +250,9 @@ async fn entry_without_recorded_fingerprint_is_kept_and_reported() {
         1,
         "l'entrée doit être conservée et signalée : {report:?}"
     );
+    // Entrée conservée = toujours cherchable (HNSW construit ici, car ce
+    // test n'est pas passé par index_all).
+    index.build_hnsw().await.unwrap();
     let hits = index.search("quick brown fox", 5).await.unwrap();
     assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
 }

@@ -7,7 +7,7 @@
 //! index existants : l'empreinte vit dans un arbre sleed séparé.
 
 use maieutik::config::{AppSettings, FileContent};
-use maieutik::core::indexer::{Chunker, FileFingerprint, HashEmbedder, VectorIndex};
+use maieutik::core::indexer::{FileFingerprint, HashEmbedder, VectorIndex};
 use maieutik::core::scan::index_all;
 use std::path::Path;
 use std::sync::Arc;

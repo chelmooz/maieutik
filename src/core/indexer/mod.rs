@@ -479,14 +479,20 @@ impl VectorIndex {
     /// `build_hnsw` une fois à la fin d'un lot.
     /// Écrit les chunks d'un fichier et l'empreinte de la version indexée.
     ///
-    /// NOTE (P1.23-1) : extraction fidèle du comportement actuel — l'empreinte
-    /// reçue n'est pas encore stockée. Les tests de `tests/file_fingerprint.rs`
-    /// décrivent le contrat cible et échouent : c'est le commit rouge.
+    /// Ordre d'écriture assumé : les vecteurs d'abord, l'empreinte ensuite.
+    /// Un arrêt entre les deux laisse l'ANCIENNE empreinte, et la prochaine
+    /// réconciliation réindexe (sur-consommation, jamais de contenu périmé
+    /// cru à jour). L'inverse — empreinte neuve, contenu ancien — est
+    /// impossible.
+    ///
+    /// Zéro chunk (fichier vidé) purge les enregistrements ET l'empreinte :
+    /// le fichier n'est plus suivi. `None` (empreinte inconnue) retire toute
+    /// empreinte précédente : « inconnu » ne doit pas ressembler à « vieux ».
     pub fn store_file(
         &self,
         file_path: &Path,
         content: &FileContent,
-        _fingerprint: Option<FileFingerprint>,
+        fingerprint: Option<FileFingerprint>,
     ) -> Result<()> {
         let chunks = &content.chunks;
         let path_str = file_path.to_string_lossy().to_string();
@@ -511,6 +517,15 @@ impl VectorIndex {
         }
 
         replace_file_records(&self.vectors_tree, &path_str, &records)?;
+        let key = path_str.as_bytes();
+        match fingerprint.filter(|_| !records.is_empty()) {
+            Some(fp) => {
+                self.file_meta_tree.insert(key, bincode::serialize(&fp)?)?;
+            }
+            None => {
+                self.file_meta_tree.remove(key)?;
+            }
+        }
         Ok(())
     }
 
@@ -525,7 +540,12 @@ impl VectorIndex {
     /// Pour une purge par lot (réconciliation de `index --force`) :
     /// l'appelant reconstruit l'index une fois à la fin.
     pub fn purge_file(&self, file_path: &str) -> Result<()> {
-        replace_file_records(&self.vectors_tree, file_path, &[])
+        replace_file_records(&self.vectors_tree, file_path, &[])?;
+        // Symétrique : purger un fichier sans purger son empreinte laisserait
+        // croire à une version connue lors d'une future indexation du même
+        // chemin.
+        self.file_meta_tree.remove(file_path.as_bytes())?;
+        Ok(())
     }
 
     /// Chemins de fichiers distincts présents dans l'index, tels que
@@ -553,9 +573,12 @@ impl VectorIndex {
     }
 
     /// Empreinte enregistrée pour un fichier, si l'index en connaît une.
-    pub fn fingerprint_of(&self, _file_path: &str) -> Result<Option<FileFingerprint>> {
-        let _ = &self.file_meta_tree;
-        Ok(None)
+    /// `None` : jamais indexé avec empreinte, ou purgé.
+    pub fn fingerprint_of(&self, file_path: &str) -> Result<Option<FileFingerprint>> {
+        Ok(self
+            .file_meta_tree
+            .get(file_path.as_bytes())?
+            .and_then(|bytes| bincode::deserialize(&bytes).ok()))
     }
 
     async fn rebuild_hnsw_if_needed(&self) -> Result<()> {

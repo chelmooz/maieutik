@@ -1,7 +1,7 @@
 //! Parcours des dossiers configurés et indexation par lot.
 
 use crate::config::{AppSettings, FileContent};
-use crate::core::indexer::{extract_headings, Chunker, VectorIndex};
+use crate::core::indexer::{extract_headings, Chunker, FileFingerprint, VectorIndex};
 use crate::core::watch::{is_extension_allowed, is_within_size_limit};
 use crate::utils::extract_text;
 use anyhow::Result;
@@ -178,6 +178,11 @@ pub async fn index_all(
 /// texte est quand même transmis à l'index (liste de chunks vide) afin de
 /// purger ses anciens enregistrements.
 fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool> {
+    // Empreinte AVANT la lecture : une écriture survenue pendant la lecture
+    // fait diverger la date enregistrée, et la prochaine réconciliation
+    // réindexe au lieu de croire le contenu à jour. Illisible -> None
+    // (inconnu), jamais une empreinte inventée.
+    let fingerprint = FileFingerprint::read(path).ok().flatten();
     let text = extract_text(path)?;
     let base = FileContent {
         path: path.to_path_buf(),
@@ -187,8 +192,7 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
     };
     let chunks = chunker.chunk(&base);
     let has_text = !chunks.is_empty();
-    // NOTE (P1.23-1) : l'empreinte n'est pas encore relevée ni stockée.
-    index.store_file(path, &FileContent { chunks, ..base }, None)?;
+    index.store_file(path, &FileContent { chunks, ..base }, fingerprint)?;
     Ok(has_text)
 }
 
@@ -218,20 +222,40 @@ pub struct ReconcileReport {
 /// sont signalées : une réconciliation ne détruit pas de contenu valide sur
 /// une ambiguïté. Une purge en échec n'interrompt pas les suivantes.
 ///
-/// Portée : l'existence du chemin et, quand l'index en connaît une,
-/// l'empreinte de la version indexée (taille + date de modification).
+/// Portée : l'existence du chemin et l'empreinte de la version indexée
+/// (taille + date de modification). Un fichier modifié pendant l'arrêt
+/// (aucun événement du watcher) est réindexé ; un fichier disparu est purgé.
 ///
-/// NOTE (P1.23-1) : extraction fidèle du comportement actuel — l'empreinte
-/// stockée n'est pas encore comparée, donc un fichier modifié pendant
-/// l'arrêt n'est pas détecté. Les tests de `tests/startup_reconcile.rs`
-/// décrivent le contrat cible et échouent : c'est le commit rouge.
+/// Règle fail-safe : sans empreinte comparable — index antérieur au stockage
+/// des empreintes, ou date indisponible — l'entrée est conservée et signalée
+/// (`kept_unverified`). Une réindexation en échec est comptée dans `failed`
+/// et n'interrompt pas les suivantes ; l'ancien contenu du fichier reste
+/// alors en place jusqu'au prochain démarrage ou `maieutik index`.
 /// Un dossier retiré de `settings.Folders` reste indexé : c'est
 /// `index --force` qui réconcilie avec le corpus configuré.
 pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
     let mut report = ReconcileReport::default();
-    for (stored, _recorded) in index.stored_files()? {
+    let chunker = Chunker::new(CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS);
+    for (stored, recorded) in index.stored_files()? {
         match std::fs::metadata(&stored) {
-            Ok(meta) if meta.is_file() => {}
+            Ok(meta) if meta.is_file() => match (recorded, FileFingerprint::from_metadata(&meta)) {
+                (Some(recorded), Some(current)) if recorded != current => {
+                    info!("réconciliation : modifié pendant l'arrêt, réindexé {stored}");
+                    match index_one(index, &chunker, Path::new(&stored)) {
+                        Ok(_) => report.reindexed.push(stored),
+                        Err(e) => report.failed.push((stored, format!("réindexation : {e:#}"))),
+                    }
+                }
+                // Empreintes identiques : rien à faire.
+                (Some(_), Some(_)) => {}
+                // Pas d'empreinte comparable : conserver, signaler.
+                _ => {
+                    warn!(
+                        "réconciliation : empreinte inconnue, entrée conservée {stored}"
+                    );
+                    report.kept_unverified.push(stored);
+                }
+            },
             Ok(_) => {
                 info!("réconciliation : plus un fichier ordinaire, purgé {stored}");
                 match index.purge_file(&stored) {
@@ -252,7 +276,7 @@ pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
             }
         }
     }
-    if !report.removed.is_empty() {
+    if !report.removed.is_empty() || !report.reindexed.is_empty() {
         index.build_hnsw().await?;
     }
     Ok(report)
