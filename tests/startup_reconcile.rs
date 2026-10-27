@@ -119,7 +119,7 @@ async fn unreadable_metadata_keeps_entry() {
     let chunker = Chunker::new(1200, 150);
     let chunks = chunker.chunk(&base);
     index
-        .store_file(&ghost, &FileContent { chunks, ..base })
+        .store_file(&ghost, &FileContent { chunks, ..base }, None)
         .unwrap();
     assert_eq!(index.stored_file_paths().unwrap().len(), 1);
 
@@ -130,4 +130,121 @@ async fn unreadable_metadata_keeps_entry() {
         1,
         "l'entrée ambiguë doit être conservée et signalée : {report:?}"
     );
+}
+
+/// Le temps que deux écritures successives aient des dates différentes, même
+/// sur un système de fichiers à résolution grossière.
+fn tick() {
+    std::thread::sleep(std::time::Duration::from_millis(20));
+}
+
+#[tokio::test]
+async fn modified_file_is_reindexed_at_startup() {
+    let data = tempfile::tempdir().unwrap();
+    let docs = tempfile::tempdir().unwrap();
+    std::fs::write(docs.path().join("a.md"), FOX).unwrap();
+    let index = open(data.path());
+    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    let hits = index.search("quick brown fox", 5).await.unwrap();
+    assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
+
+    // Modification pendant que le programme est arrêté : aucun événement.
+    tick();
+    std::fs::write(docs.path().join("a.md"), RUST).unwrap();
+
+    let report = reconcile_startup(&index).await.unwrap();
+    assert_eq!(report.reindexed.len(), 1, "bilan inattendu : {report:?}");
+    assert!(report.reindexed[0].ends_with("a.md"), "{report:?}");
+
+    // Le contenu réindexé est le nouveau : l'ancien ne doit plus remonter…
+    let hits = index.search("quick brown fox", 5).await.unwrap();
+    assert!(
+        hits.iter().all(|(p, _, _)| !p.ends_with("a.md")),
+        "l'ancien contenu est encore cherchable : {hits:?}"
+    );
+    // …et le nouveau doit être trouvé.
+    let hits = index.search("rust cargo compiler", 5).await.unwrap();
+    assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
+
+    // Idempotence : la réindexation a relevé la nouvelle empreinte, un
+    // second démarrage ne doit plus rien réindexer.
+    let report = reconcile_startup(&index).await.unwrap();
+    assert!(
+        report.reindexed.is_empty() && report.kept_unverified.is_empty(),
+        "réconciliation non idempotente : {report:?}"
+    );
+}
+
+#[tokio::test]
+async fn rewrite_of_identical_size_is_still_detected() {
+    let data = tempfile::tempdir().unwrap();
+    let docs = tempfile::tempdir().unwrap();
+    std::fs::write(docs.path().join("a.md"), FOX).unwrap();
+    let index = open(data.path());
+    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+
+    // Même taille, seul le dernier caractère change : la détection ne peut
+    // reposer que sur la date de modification.
+    tick();
+    let same_size = format!("{}R", &FOX[..FOX.len() - 1]);
+    assert_eq!(same_size.len(), FOX.len());
+    std::fs::write(docs.path().join("a.md"), same_size).unwrap();
+
+    let report = reconcile_startup(&index).await.unwrap();
+    assert_eq!(report.reindexed.len(), 1, "bilan inattendu : {report:?}");
+}
+
+#[tokio::test]
+async fn unchanged_file_is_not_reindexed() {
+    let data = tempfile::tempdir().unwrap();
+    let docs = tempfile::tempdir().unwrap();
+    std::fs::write(docs.path().join("a.md"), FOX).unwrap();
+    let index = open(data.path());
+    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+
+    let report = reconcile_startup(&index).await.unwrap();
+    assert!(
+        report.reindexed.is_empty()
+            && report.removed.is_empty()
+            && report.kept_unverified.is_empty()
+            && report.kept_unreadable.is_empty()
+            && report.failed.is_empty(),
+        "bilan inattendu : {report:?}"
+    );
+}
+
+#[tokio::test]
+async fn entry_without_recorded_fingerprint_is_kept_and_reported() {
+    let data = tempfile::tempdir().unwrap();
+    let docs = tempfile::tempdir().unwrap();
+    let file = docs.path().join("a.md");
+    std::fs::write(&file, FOX).unwrap();
+    let index = open(data.path());
+
+    // Index antérieur au stockage des empreintes : le fichier est présent,
+    // son contenu est indexé, mais aucune empreinte n'est enregistrée.
+    let base = FileContent {
+        path: file.clone(),
+        headings: Vec::new(),
+        text: FOX.to_string(),
+        chunks: Vec::new(),
+    };
+    let chunks = Chunker::new(1200, 150).chunk(&base);
+    index
+        .store_file(&file, &FileContent { chunks, ..base }, None)
+        .unwrap();
+
+    let report = reconcile_startup(&index).await.unwrap();
+    assert!(report.removed.is_empty(), "bilan inattendu : {report:?}");
+    assert!(
+        report.reindexed.is_empty(),
+        "sans empreinte enregistrée, réindexer serait détruire sur une conjecture : {report:?}"
+    );
+    assert_eq!(
+        report.kept_unverified.len(),
+        1,
+        "l'entrée doit être conservée et signalée : {report:?}"
+    );
+    let hits = index.search("quick brown fox", 5).await.unwrap();
+    assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
 }

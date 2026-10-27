@@ -187,7 +187,8 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
     };
     let chunks = chunker.chunk(&base);
     let has_text = !chunks.is_empty();
-    index.store_file(path, &FileContent { chunks, ..base })?;
+    // NOTE (P1.23-1) : l'empreinte n'est pas encore relevée ni stockée.
+    index.store_file(path, &FileContent { chunks, ..base }, None)?;
     Ok(has_text)
 }
 
@@ -196,8 +197,14 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
 pub struct ReconcileReport {
     /// Chemins retirés de l'index (fichier disparu, ou plus un fichier ordinaire).
     pub removed: Vec<String>,
+    /// Chemins réindexés parce que leur empreinte ne correspond plus au disque
+    /// (fichier modifié pendant l'arrêt du service).
+    pub reindexed: Vec<String>,
     /// Chemins conservés faute de pouvoir statuer (métadonnées illisibles).
     pub kept_unreadable: Vec<String>,
+    /// Chemins conservés faute d'empreinte comparable : index antérieur au
+    /// stockage des empreintes, ou date de modification indisponible.
+    pub kept_unverified: Vec<String>,
     /// Purges qui ont échoué, par chemin.
     pub failed: Vec<(String, String)>,
 }
@@ -211,14 +218,18 @@ pub struct ReconcileReport {
 /// sont signalées : une réconciliation ne détruit pas de contenu valide sur
 /// une ambiguïté. Une purge en échec n'interrompt pas les suivantes.
 ///
-/// Portée volontairement limitée : l'existence du chemin, pas son contenu.
-/// Un fichier modifié pendant l'arrêt n'est pas détecté (l'index ne stocke
-/// aucune empreinte mtime/taille) : cela reste le rôle de `maieutik index`.
-/// Un dossier retiré de `settings.Folders` n'est pas purgé non plus : c'est
+/// Portée : l'existence du chemin et, quand l'index en connaît une,
+/// l'empreinte de la version indexée (taille + date de modification).
+///
+/// NOTE (P1.23-1) : extraction fidèle du comportement actuel — l'empreinte
+/// stockée n'est pas encore comparée, donc un fichier modifié pendant
+/// l'arrêt n'est pas détecté. Les tests de `tests/startup_reconcile.rs`
+/// décrivent le contrat cible et échouent : c'est le commit rouge.
+/// Un dossier retiré de `settings.Folders` reste indexé : c'est
 /// `index --force` qui réconcilie avec le corpus configuré.
 pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
     let mut report = ReconcileReport::default();
-    for stored in index.stored_file_paths()? {
+    for (stored, _recorded) in index.stored_files()? {
         match std::fs::metadata(&stored) {
             Ok(meta) if meta.is_file() => {}
             Ok(_) => {

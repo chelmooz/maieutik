@@ -16,6 +16,10 @@ use tracing::{info, warn};
 
 const VECTOR_TABLE: &str = "vectors";
 const META_TABLE: &str = "meta";
+/// Empreinte par fichier ({chemin: FileFingerprint}), séparée des vecteurs :
+/// ajouter un arbre est additif, alors que changer `VectorRecord` casserait
+/// la lecture bincode des index existants.
+const FILE_META_TABLE: &str = "file_meta";
 const SCHEMA_VERSION: i32 = 2;
 /// BGE-M3 (BAAI/bge-m3): XLM-RoBERTa-large backbone, 1024-dim dense vectors.
 /// The official ONNX export outputs `sentence_embedding` directly.
@@ -283,6 +287,38 @@ impl Default for IndexMeta {
     }
 }
 
+/// Empreinte d'un fichier au moment de son indexation : taille et date de
+/// dernière modification, telles que le système de fichiers les expose. Sert
+/// à détecter, au démarrage du service, un fichier **modifié pendant que
+/// Maieutik était arrêté** — cas qu'aucun événement du watcher ne couvre.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct FileFingerprint {
+    pub size: u64,
+    /// Nanosecondes depuis l'epoch UNIX.
+    pub mtime_ns: u128,
+}
+
+impl FileFingerprint {
+    /// `None` quand la date de modification n'est pas disponible : mieux vaut
+    /// « inconnu » (entrée conservée, signalée) qu'une empreinte fausse.
+    pub fn from_metadata(meta: &std::fs::Metadata) -> Option<Self> {
+        let modified = meta.modified().ok()?;
+        let since_epoch = modified.duration_since(std::time::UNIX_EPOCH).ok()?;
+        Some(Self {
+            size: meta.len(),
+            mtime_ns: since_epoch.as_nanos(),
+        })
+    }
+
+    /// Empreinte du fichier, à relever **avant** de lire son contenu : une
+    /// écriture survenue pendant la lecture fait alors diverger la date
+    /// enregistrée, et la prochaine réconciliation réindexe au lieu de croire
+    /// le contenu à jour.
+    pub fn read(path: &Path) -> std::io::Result<Option<Self>> {
+        Ok(Self::from_metadata(&std::fs::metadata(path)?))
+    }
+}
+
 /// Remplace atomiquement tous les enregistrements d'un fichier (un seul batch sled).
 ///
 /// Correspondance exacte sur `file_path` : le préfixe `chemin#` seul est ambigu
@@ -369,6 +405,7 @@ pub struct VectorIndex {
     db: Db,
     vectors_tree: sled::Tree,
     meta_tree: sled::Tree,
+    file_meta_tree: sled::Tree,
     hnsw: Arc<RwLock<Option<HnswIndex>>>,
     embedder: Arc<dyn TextEmbedder>,
     settings: Arc<RwLock<AppSettings>>,
@@ -379,6 +416,7 @@ impl VectorIndex {
         let db = sled::open(data_dir.join("vector_index"))?;
         let vectors_tree = db.open_tree(VECTOR_TABLE)?;
         let meta_tree = db.open_tree(META_TABLE)?;
+        let file_meta_tree = db.open_tree(FILE_META_TABLE)?;
 
         // Load or create metadata
         let meta: IndexMeta = if let Some(bytes) = meta_tree.get("meta")? {
@@ -404,6 +442,7 @@ impl VectorIndex {
             db,
             vectors_tree,
             meta_tree,
+            file_meta_tree,
             hnsw: Arc::new(RwLock::new(None)),
             embedder: Arc::new(embedder),
             settings,
@@ -430,14 +469,25 @@ impl VectorIndex {
     /// Upsert a file's chunks: embeddings first, then one atomic replace.
     /// Zero chunks (file emptied) purges the file's previous records.
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
-        self.store_file(file_path, content)?;
+        let fingerprint = FileFingerprint::read(file_path).ok().flatten();
+        self.store_file(file_path, content, fingerprint)?;
         self.rebuild_hnsw_if_needed().await?;
         Ok(())
     }
 
     /// Comme `upsert_file`, sans reconstruire HNSW : l'appelant lance
     /// `build_hnsw` une fois à la fin d'un lot.
-    pub fn store_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
+    /// Écrit les chunks d'un fichier et l'empreinte de la version indexée.
+    ///
+    /// NOTE (P1.23-1) : extraction fidèle du comportement actuel — l'empreinte
+    /// reçue n'est pas encore stockée. Les tests de `tests/file_fingerprint.rs`
+    /// décrivent le contrat cible et échouent : c'est le commit rouge.
+    pub fn store_file(
+        &self,
+        file_path: &Path,
+        content: &FileContent,
+        _fingerprint: Option<FileFingerprint>,
+    ) -> Result<()> {
         let chunks = &content.chunks;
         let path_str = file_path.to_string_lossy().to_string();
 
@@ -482,13 +532,30 @@ impl VectorIndex {
     /// stockés (clés de `replace_file_records`). Sert à la réconciliation
     /// de `index --force` : comparer l'index au corpus présent sur disque.
     pub fn stored_file_paths(&self) -> Result<Vec<String>> {
-        let mut seen = std::collections::HashSet::new();
+        Ok(self
+            .stored_files()?
+            .into_iter()
+            .map(|(path, _)| path)
+            .collect())
+    }
+
+    /// Chemins stockés, avec l'empreinte relevée au moment de leur
+    /// indexation (`None` = inconnue). Base de la réconciliation de démarrage.
+    pub fn stored_files(&self) -> Result<Vec<(String, Option<FileFingerprint>)>> {
+        let mut seen = std::collections::HashMap::new();
         for item in self.vectors_tree.iter() {
             let (_, val) = item?;
             let record: VectorRecord = bincode::deserialize(&val)?;
-            seen.insert(record.file_path);
+            let fingerprint = self.fingerprint_of(&record.file_path)?;
+            seen.insert(record.file_path, fingerprint);
         }
         Ok(seen.into_iter().collect())
+    }
+
+    /// Empreinte enregistrée pour un fichier, si l'index en connaît une.
+    pub fn fingerprint_of(&self, _file_path: &str) -> Result<Option<FileFingerprint>> {
+        let _ = &self.file_meta_tree;
+        Ok(None)
     }
 
     async fn rebuild_hnsw_if_needed(&self) -> Result<()> {
