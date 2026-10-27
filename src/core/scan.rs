@@ -202,14 +202,49 @@ pub struct ReconcileReport {
     pub failed: Vec<(String, String)>,
 }
 
-/// Réconciliation au démarrage d'un service de surveillance.
+/// Réconciliation au démarrage d'un service de surveillance : retire de
+/// l'index les chemins qui ne correspondent plus à un fichier ordinaire.
 ///
-/// NOTE (P1.22-1) : extraction fidèle du comportement actuel — le démarrage ne
-/// réconcilie rien. Les tests de `tests/startup_reconcile.rs` décrivent le
-/// contrat cible et échouent : c'est le commit rouge.
+/// Règle fail-safe : on ne purge que sur un constat sûr — chemin absent
+/// (`NotFound`), ou présent mais qui n'est plus un fichier ordinaire. Des
+/// métadonnées illisibles (permission, E/S, ENOTDIR) conservent l'entrée et
+/// sont signalées : une réconciliation ne détruit pas de contenu valide sur
+/// une ambiguïté. Une purge en échec n'interrompt pas les suivantes.
+///
+/// Portée volontairement limitée : l'existence du chemin, pas son contenu.
+/// Un fichier modifié pendant l'arrêt n'est pas détecté (l'index ne stocke
+/// aucune empreinte mtime/taille) : cela reste le rôle de `maieutik index`.
+/// Un dossier retiré de `settings.Folders` n'est pas purgé non plus : c'est
+/// `index --force` qui réconcilie avec le corpus configuré.
 pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
-    let _ = index;
-    Ok(ReconcileReport::default())
+    let mut report = ReconcileReport::default();
+    for stored in index.stored_file_paths()? {
+        match std::fs::metadata(&stored) {
+            Ok(meta) if meta.is_file() => {}
+            Ok(_) => {
+                info!("réconciliation : plus un fichier ordinaire, purgé {stored}");
+                match index.purge_file(&stored) {
+                    Ok(()) => report.removed.push(stored),
+                    Err(e) => report.failed.push((stored, format!("{e:#}"))),
+                }
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                info!("réconciliation : disparu, purgé {stored}");
+                match index.purge_file(&stored) {
+                    Ok(()) => report.removed.push(stored),
+                    Err(e) => report.failed.push((stored, format!("{e:#}"))),
+                }
+            }
+            Err(e) => {
+                warn!("réconciliation : métadonnées illisibles, entrée conservée {stored} : {e}");
+                report.kept_unreadable.push(stored);
+            }
+        }
+    }
+    if !report.removed.is_empty() {
+        index.build_hnsw().await?;
+    }
+    Ok(report)
 }
 
 /// Indexe un fichier isolé puis reconstruit HNSW (chemin « watcher » : un

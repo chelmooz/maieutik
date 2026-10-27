@@ -264,6 +264,30 @@ async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
         return Ok(index_unavailable());
     }
 
+    // Réconciliation de démarrage : les fichiers disparus pendant que le
+    // service était arrêté sont purgés avant de commencer à surveiller.
+    if let Some(idx) = &state.vector_index {
+        match maieutik::core::scan::reconcile_startup(idx).await {
+            Ok(report) => {
+                for path in &report.kept_unreadable {
+                    warn!("Réconciliation : métadonnées illisibles, entrée conservée : {path}");
+                }
+                for (path, err) in &report.failed {
+                    warn!("Réconciliation : purge impossible {path} : {err}");
+                }
+                if !report.removed.is_empty() {
+                    info!(
+                        "Réconciliation : {} fichier(s) disparu(s) purgé(s) de l'index.",
+                        report.removed.len()
+                    );
+                }
+            }
+            // Une réconciliation ratée est signalée mais n'empêche pas de
+            // surveiller : c'est une amélioration, pas un prérequis.
+            Err(e) => warn!("Réconciliation impossible : {e:#}"),
+        }
+    }
+
     info!(
         "Surveillance de {} dossier(s) ; SIGINT ou SIGTERM pour arrêter.",
         folders.len()
