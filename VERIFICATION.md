@@ -20,9 +20,9 @@ a622ac8a2f56  src/config/mod.rs
 af2b9a17c0f5  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 b2d316f7568a  src/core/scan.rs
-35ead6838350  src/core/watch.rs
-fdbf27c28cc5  src/lib.rs
-57be2d0e1c96  src/llm/mod.rs
+3d85c972fb77  src/core/watch.rs
+41fd305a17b7  src/lib.rs
+43e08d9772de  src/llm/mod.rs
 ab3bee902c27  src/main.rs
 02b7820e7098  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
@@ -38,6 +38,7 @@ ae7766f9018c  tests/docx_extract.rs
 477daacd58c2  tests/cli_exit_codes.rs
 4ae38f5b1297  tests/single_instance.rs
 5eba94868486  tests/watcher_reindex.rs
+ecb78c064436  tests/watcher_shutdown.rs
 fe4639e27aa1  tests/force_recovery.rs
 b93c5b1332eb  tests/pdf_extraction.rs
 251fb2ddad73  docs/INSTALLATION.md
@@ -72,9 +73,9 @@ b93c5b1332eb  tests/pdf_extraction.rs
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 
-- Hashes re-bound at P1.19 (`Cargo.toml`, `Cargo.lock` changed — stt removal,
-  zip 9.1.2 ; docs/INSTALLATION.md and docs/UTILISATION.md tracked and added
-  to the binding); logs below predate P1.5 and were not replayed.
+- Hashes re-bound at P1.20 (`src/core/watch.rs`, `src/lib.rs`, `src/llm/mod.rs`
+  changed; `tests/watcher_shutdown.rs` added); logs below predate P1.5 and
+  were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
 and were **not** replayed on this tree; only the source hashes above are
