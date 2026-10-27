@@ -191,6 +191,27 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
     Ok(has_text)
 }
 
+/// Bilan d'une réconciliation au démarrage.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct ReconcileReport {
+    /// Chemins retirés de l'index (fichier disparu, ou plus un fichier ordinaire).
+    pub removed: Vec<String>,
+    /// Chemins conservés faute de pouvoir statuer (métadonnées illisibles).
+    pub kept_unreadable: Vec<String>,
+    /// Purges qui ont échoué, par chemin.
+    pub failed: Vec<(String, String)>,
+}
+
+/// Réconciliation au démarrage d'un service de surveillance.
+///
+/// NOTE (P1.22-1) : extraction fidèle du comportement actuel — le démarrage ne
+/// réconcilie rien. Les tests de `tests/startup_reconcile.rs` décrivent le
+/// contrat cible et échouent : c'est le commit rouge.
+pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
+    let _ = index;
+    Ok(ReconcileReport::default())
+}
+
 /// Indexe un fichier isolé puis reconstruit HNSW (chemin « watcher » : un
 /// événement à la fois, contrairement à `index_all` qui reconstruit une fois
 /// par lot). `Ok(true)` = au moins un chunk ; `Ok(false)` = fichier lu sans
