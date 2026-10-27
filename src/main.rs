@@ -1,9 +1,9 @@
 //! Maieutik — Main entry point
 //!
 //! Codes de sortie :
-//!   0 succès complet
+//!   0 succès complet (ou arrêt propre demandé par un signal en `--watch`)
 //!   1 échec partiel (fichier sans texte, corpus vide, dossier partiel, échec de fichier)
-//!   2 usage invalide (clap)
+//!   2 usage invalide (clap, `--watch` combiné à une autre commande)
 //!   3 commande non implémentée (`chat`, `model`, `--mcp-stdio`)
 //!   4 environnement indisponible (modèle, index, `Folders` vide, dossiers absents)
 //! stdout ne porte que des résultats ; tous les diagnostics vont sur stderr.
@@ -11,13 +11,14 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use maieutik::config;
-use maieutik::{run_watcher, AppState};
+use maieutik::{run_watcher, run_watcher_with_shutdown, AppState};
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
+const EXIT_USAGE: i32 = 2;
 const EXIT_NOT_IMPLEMENTED: i32 = 3;
 const EXIT_UNAVAILABLE: i32 = 4;
 
@@ -30,6 +31,10 @@ struct Cli {
     /// Run MCP server over stdio (for Claude Desktop, etc.)
     #[arg(long = "mcp-stdio")]
     mcp_stdio: bool,
+
+    /// Watch folders and re-index on change, until SIGINT/SIGTERM
+    #[arg(long = "watch")]
+    watch: bool,
 
     /// Start hidden in tray
     #[arg(long = "tray")]
@@ -142,6 +147,13 @@ async fn main() -> Result<()> {
 }
 
 async fn run(cli: Cli) -> Result<i32> {
+    // `--watch` est un mode : il ne se combine ni avec une sous-commande ni
+    // avec le serveur MCP. Refus explicite avant toute initialisation.
+    if cli.watch && (cli.command.is_some() || cli.mcp_stdio) {
+        eprintln!("--watch ne se combine pas avec une sous-commande ni avec --mcp-stdio.");
+        return Ok(EXIT_USAGE);
+    }
+
     // Commandes non implémentées : refus avant toute initialisation.
     if cli.mcp_stdio {
         return Ok(not_implemented("--mcp-stdio"));
@@ -202,8 +214,14 @@ async fn run(cli: Cli) -> Result<i32> {
         );
     }
 
-    // Start file watcher in background
+    // Mode service explicite : le watcher tourne au premier plan, piloté par
+    // le signal d'arrêt (voir `run_watcher_with_shutdown`).
     let state_arc = Arc::new(state);
+    if cli.watch {
+        return watch_mode(state_arc).await;
+    }
+
+    // Start file watcher in background
     let watcher_state = state_arc.clone();
     tokio::spawn(async move {
         if let Err(e) = run_watcher(watcher_state).await {
@@ -227,6 +245,79 @@ fn index_unavailable() -> i32 {
         "Index indisponible : modèle d'embedding introuvable ou illisible (voir les journaux)."
     );
     EXIT_UNAVAILABLE
+}
+
+/// Mode service (`maieutik --watch`) : garde le processus vivant, réindexe à
+/// chaque changement et sort en 0 sur SIGINT/SIGTERM après avoir vidé les
+/// événements en attente — c'est le seul appelant de
+/// `run_watcher_with_shutdown` dans le binaire.
+///
+/// Refus avant démarrage quand le service n'aurait rien à faire : sans
+/// dossier, ou sans index (impossible de réindexer sans modèle).
+async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
+    let folders = state.settings.read().await.folders.clone();
+    if folders.is_empty() {
+        eprintln!("Aucun dossier à surveiller : renseigne `Folders` dans config.json.");
+        return Ok(EXIT_UNAVAILABLE);
+    }
+    if state.vector_index.is_none() {
+        return Ok(index_unavailable());
+    }
+
+    info!(
+        "Surveillance de {} dossier(s) ; SIGINT ou SIGTERM pour arrêter.",
+        folders.len()
+    );
+    run_watcher_with_shutdown(state, shutdown_signal()).await?;
+    info!("Arrêt propre terminé.");
+
+    Ok(0)
+}
+
+/// Attend SIGINT ou SIGTERM. Si aucun gestionnaire ne peut être installé, le
+/// futur ne se résout jamais : le signal garde son effet par défaut au lieu
+/// de devenir un no-op silencieux.
+async fn shutdown_signal() {
+    #[cfg(unix)]
+    {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        match signal(SignalKind::terminate()) {
+            Ok(mut term) => {
+                tokio::select! {
+                    _ = term.recv() => info!("SIGTERM reçu, arrêt propre"),
+                    res = tokio::signal::ctrl_c() => match res {
+                        Ok(()) => info!("SIGINT reçu, arrêt propre"),
+                        Err(e) => {
+                            warn!("SIGINT indisponible : {e}");
+                            std::future::pending::<()>().await;
+                        }
+                    },
+                }
+            }
+            Err(e) => {
+                warn!("SIGTERM indisponible : {e}");
+                match tokio::signal::ctrl_c().await {
+                    Ok(()) => info!("SIGINT reçu, arrêt propre"),
+                    Err(e) => {
+                        warn!("SIGINT indisponible : {e}");
+                        std::future::pending::<()>().await;
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => info!("SIGINT reçu, arrêt propre"),
+            Err(e) => {
+                warn!("SIGINT indisponible : {e}");
+                std::future::pending::<()>().await;
+            }
+        }
+    }
 }
 
 async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<i32> {
