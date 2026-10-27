@@ -9,7 +9,7 @@ use jsonrpsee::proc_macros::rpc;
 use jsonrpsee::server::ServerBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
@@ -227,8 +227,11 @@ impl McpServer {
     /// Start server over Unix domain socket (Linux)
     pub async fn run_unix_socket(self: Arc<Self>, socket_path: &str) -> Result<()> {
         info!("Starting MCP server on Unix socket: {}", socket_path);
-        // Clean up any existing socket
-        let _ = std::fs::remove_file(socket_path);
+        // Un reliquat de socket d'une instance précédente peut être retiré ;
+        // tout autre fichier existant est une erreur, jamais une suppression.
+        let path = Path::new(socket_path);
+        framed::ensure_socket_dir()?;
+        prepare_socket_path(path)?;
 
         let listener = tokio::net::UnixListener::bind(socket_path)?;
         info!("MCP server listening on Unix socket: {}", socket_path);
@@ -287,6 +290,31 @@ impl McpServer {
     }
 }
 
+/// Prépare le chemin d'un socket Unix avant bind. Fail-closed : seule une
+/// entrée qui est elle-même un socket (reliquat d'une instance précédente)
+/// peut être retirée ; tout autre fichier existant est une erreur, jamais une
+/// suppression aveugle. Une entrée absente est normale.
+pub fn prepare_socket_path(path: &Path) -> Result<()> {
+    match std::fs::metadata(path) {
+        Ok(meta) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::FileTypeExt;
+                if meta.file_type().is_socket() {
+                    std::fs::remove_file(path)?;
+                    return Ok(());
+                }
+            }
+            Err(anyhow::anyhow!(
+                "le chemin du socket existe et n'est pas un socket : {}",
+                path.display()
+            ))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.into()),
+    }
+}
+
 /// Length-prefixed JSON framing for the local socket protocol.
 pub mod framed {
     use anyhow::Result;
@@ -313,11 +341,36 @@ pub mod framed {
         pub id: Option<serde_json::Value>,
     }
 
+    /// Chemin du socket MCP : répertoire privé de l'utilisateur, jamais le
+    /// `/tmp` partagé et monde-écrivable de l'ancien code.
     pub fn socket_path() -> String {
-        format!("/tmp/maieutik_mcp_{}.sock", std::process::id())
+        socket_dir()
+            .join(format!("maieutik_mcp_{}.sock", std::process::id()))
+            .to_string_lossy()
+            .into_owned()
     }
 
     pub const MAX_REQUEST_SIZE: usize = 1024 * 1024; // 1 MB
+
+    /// Répertoire hôte du socket, créé 0700 si absent (appelé par le serveur
+    /// avant bind ; le client se contente de `socket_path`).
+    pub fn ensure_socket_dir() -> Result<std::path::PathBuf> {
+        let dir = socket_dir();
+        std::fs::create_dir_all(&dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
+        }
+        Ok(dir)
+    }
+
+    fn socket_dir() -> std::path::PathBuf {
+        std::env::var_os("XDG_RUNTIME_DIR")
+            .map(std::path::PathBuf::from)
+            .or_else(|| dirs::cache_dir().map(|d| d.join("maieutik")))
+            .unwrap_or_else(std::env::temp_dir)
+    }
 
     pub async fn connect() -> Result<UnixStream> {
         UnixStream::connect(socket_path()).await.map_err(Into::into)
@@ -383,3 +436,63 @@ pub mod framed {
 
 // Re-export for server
 pub use framed::{RpcRequest, RpcResponse};
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prepare_accepts_a_missing_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("absent.sock");
+        prepare_socket_path(&missing).unwrap();
+    }
+
+    #[test]
+    fn prepare_refuses_and_keeps_a_regular_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("pas-un-socket.sock");
+        std::fs::write(&file, "contenu à préserver").unwrap();
+
+        let err = prepare_socket_path(&file)
+            .expect_err("un fichier ordinaire doit être refusé");
+        assert!(
+            err.to_string().contains("n'est pas un socket"),
+            "message : {err:#}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&file).unwrap(),
+            "contenu à préserver",
+            "le fichier ne doit pas être supprimé"
+        );
+    }
+
+    #[test]
+    fn prepare_removes_a_stale_socket() {
+        let dir = tempfile::tempdir().unwrap();
+        let stale = dir.path().join("reliquat.sock");
+        // Un bind Unix crée l'entrée socket ; le drop du listener la laisse
+        // en place (reliquat d'une instance précédente).
+        let listener = std::os::unix::net::UnixListener::bind(&stale).unwrap();
+        drop(listener);
+        assert!(stale.exists());
+
+        prepare_socket_path(&stale).unwrap();
+        assert!(!stale.exists(), "le socket mort doit être retiré");
+    }
+
+    #[test]
+    fn socket_path_is_never_in_shared_tmp() {
+        let path = std::path::PathBuf::from(framed::socket_path());
+        assert!(
+            !path.starts_with("/tmp"),
+            "le socket ne doit plus vivre sous /tmp : {}",
+            path.display()
+        );
+        assert!(
+            path.to_string_lossy().contains("maieutik"),
+            "chemin hors projet : {}",
+            path.display()
+        );
+    }
+}
