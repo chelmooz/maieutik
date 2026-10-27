@@ -17,8 +17,8 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
 | Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
 | Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
-| Surveillance de fichiers | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; testée sans modèle. Un événement survenu pendant un arrêt du processus n'est pas rattrapé : relancer `maieutik index` | `src/core/watch.rs`, `src/lib.rs`, `tests/watcher_reindex.rs` |
-| Génération (llama.cpp) | Stub : jamais exécutée avec un modèle | `src/llm/mod.rs` |
+| Surveillance de fichiers | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; arrêt ordonné (`run_watcher_with_shutdown`) qui vide les événements en attente au lieu de les perdre ; testée sans modèle. Un événement survenu pendant un arrêt du processus n'est pas rattrapé : relancer `maieutik index` | `src/core/watch.rs`, `src/lib.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs` |
+| Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
 | Pont MCP / JSON-RPC | Stub | `src/mcp/mod.rs` |
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
@@ -141,9 +141,9 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 
 ## Limites connues
 
-- Surveillance : un événement de fichier survenu pendant un arrêt de Maieutik n'est pas rattrapé au redémarrage (pas de réconciliation au démarrage) ; relancer `maieutik index` pour réaligner l'index.
+- Surveillance : un événement de fichier survenu pendant un arrêt de Maieutik n'est pas rattrapé au redémarrage (pas de réconciliation au démarrage) ; relancer `maieutik index` pour réaligner l'index. L'arrêt ordonné existe côté bibliothèque (`run_watcher_with_shutdown`, vidage des événements en attente) mais aucun gestionnaire de signal n'est branché dans `main` : le processus sort sans passer par lui.
 - `chat` et `model` sont factices : message sur stderr, code 3.
-- La génération n'a jamais chargé de modèle dans cet environnement.
+- La génération n'a jamais chargé de modèle dans cet environnement. Les limites de lot et de contexte sont vérifiées sur le plan de décodage (`plan_decode` : refus d'un prompt vide ou plus long que le contexte, plafonnement à la place restante, découpage par lots de `n_batch`), pas par une génération réelle.
 - Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.
 - Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
 - Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Les avis `zstd`/`zstd-safe` et `zip` (0367 à 0369) sont **levés au P1.19** : retrait de `sherpa-onnx` (feature `stt` jamais activée, seul chemin zstd restant) et montée de la dépendance directe en `zip 9.1.2` (version corrigée). Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont) et l'avis sur `failure` (via `single-instance`), plus les quatre avis liés à `sled`/`bincode`/`tokenizers` en revue P3/P4.
