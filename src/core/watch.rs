@@ -107,9 +107,17 @@ impl DebouncedProcessor {
         let mut interval = tokio::time::interval(Duration::from_millis(250));
         loop {
             tokio::select! {
-                Some(event) = self.rx.recv() => {
-                    self.on_event(event).await;
-                }
+                event = self.rx.recv() => match event {
+                    Some(event) => self.on_event(event).await,
+                    None => {
+                        // Tous les senders sont tombés : on vide ce qui reste
+                        // puis on rend la main, sinon la boucle survivrait
+                        // indéfiniment à son canal en ne faisant que tiquer.
+                        debug!("canal d'événements fermé : vidage puis arrêt du débounce");
+                        self.flush_all().await;
+                        break;
+                    }
+                },
                 _ = interval.tick() => {
                     self.flush_ready().await;
                 }
@@ -135,10 +143,26 @@ impl DebouncedProcessor {
             .collect();
         for path in ready {
             if let Some((event, _)) = self.pending.remove(&path) {
-                if let Err(e) = self.process_tx.send(event).await {
-                    warn!("Failed to send debounced event: {}", e);
-                }
+                self.emit(event).await;
             }
+        }
+    }
+
+    /// Émet sans attendre la fenêtre de débounce tout ce qui est en attente,
+    /// dans l'ordre d'arrivée. Appelé quand le canal se ferme : les derniers
+    /// changements ne doivent pas être perdus à l'arrêt.
+    async fn flush_all(&mut self) {
+        let pending = std::mem::take(&mut self.pending);
+        let mut events: Vec<(WatchEvent, tokio::time::Instant)> = pending.into_values().collect();
+        events.sort_by_key(|(_, ts)| *ts);
+        for (event, _) in events {
+            self.emit(event).await;
+        }
+    }
+
+    async fn emit(&self, event: WatchEvent) {
+        if let Err(e) = self.process_tx.send(event).await {
+            warn!("Failed to send debounced event: {}", e);
         }
     }
 }

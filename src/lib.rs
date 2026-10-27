@@ -57,18 +57,28 @@ impl AppState {
 }
 
 pub async fn run_watcher(state: Arc<AppState>) -> Result<()> {
+    run_watcher_with_shutdown(state, std::future::pending()).await
+}
+
+/// Variante arrêtable de [`run_watcher`] : au signal, la source est coupée,
+/// les événements encore en attente sont vidés (jamais perdus) et la tâche
+/// rend la main une fois les deux boucles terminées.
+pub async fn run_watcher_with_shutdown<F>(state: Arc<AppState>, shutdown: F) -> Result<()>
+where
+    F: std::future::Future<Output = ()>,
+{
     let (watch_tx, watch_rx) = mpsc::channel(100);
     let (process_tx, process_rx) = mpsc::channel(100);
 
-    let mut watcher = FileWatcher::new(state.settings.clone(), watch_tx)?;
+    let mut watcher = FileWatcher::new(state.settings.clone(), watch_tx.clone())?;
     watcher.watch().await?;
 
     let processor = DebouncedProcessor::new(watch_rx, process_tx);
-    let processor_handle = tokio::spawn(processor.run());
+    let mut processor_handle = tokio::spawn(processor.run());
 
     // Process debounced events
     let state_clone = state.clone();
-    let process_handle = tokio::spawn(async move {
+    let mut process_handle = tokio::spawn(async move {
         let mut rx = process_rx;
         while let Some(event) = rx.recv().await {
             match event {
@@ -97,26 +107,31 @@ pub async fn run_watcher(state: Arc<AppState>) -> Result<()> {
         }
     });
 
-    // Wait for shutdown signal
+    // Attente de l'arrêt demandé (ou d'une fin spontanée des boucles).
     tokio::select! {
-        _ = processor_handle => {},
-        _ = process_handle => {},
+        _ = shutdown => info!("arrêt du watcher demandé"),
+        _ = &mut processor_handle => warn!("le débounce s'est arrêté de lui-même"),
+        _ = &mut process_handle => warn!("le traitement des événements s'est arrêté de lui-même"),
+    }
+
+    // Arrêt ordonné : le watcher détient une copie du Sender, on le lâche en
+    // premier. Le débounce voit alors son canal fermé, vide ce qui reste en
+    // attente et rend la main ; sa fermeture libère le canal de traitement et
+    // la boucle de réindexation termine à son tour.
+    drop(watcher);
+    drop(watch_tx);
+    if !processor_handle.is_finished() {
+        if let Err(e) = processor_handle.await {
+            warn!("attente du débounce : {e}");
+        }
+    }
+    if !process_handle.is_finished() {
+        if let Err(e) = process_handle.await {
+            warn!("attente du traitement des événements : {e}");
+        }
     }
 
     Ok(())
-}
-
-/// Variante testable de [`run_watcher`] : la tâche doit rendre la main quand
-/// le futur `shutdown` se résout, après avoir vidé les événements en attente.
-///
-/// NOTE (P1.20-1) : délègue encore à [`run_watcher`] (comportement
-/// historique : aucune sortie) ; `tests/watcher_shutdown.rs` décrit le
-/// contrat cible et échoue — c'est le commit rouge.
-pub async fn run_watcher_with_shutdown<F>(state: Arc<AppState>, _shutdown: F) -> Result<()>
-where
-    F: std::future::Future<Output = ()>,
-{
-    run_watcher(state).await
 }
 
 /// Réindexe un fichier suite à un événement du watcher. Validation d'abord
