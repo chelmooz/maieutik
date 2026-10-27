@@ -23,7 +23,7 @@ Garde le processus au premier plan et surveille les dossiers de `settings.Folder
 - `--watch` est un mode, pas une option de commande : `maieutik --watch index` et `maieutik --watch --mcp-stdio` sont des erreurs d'usage (code 2).
 - Comme les autres commandes, il crée le verrou d'instance dans le dossier courant : un second `maieutik --watch` sort en 4.
 - Au démarrage, l'index est réconcilié : les fichiers supprimés pendant que le service était arrêté en sont retirés, donc ils ne remontent plus dans `search`. Un chemin dont les métadonnées sont illisibles est conservé et signalé : la réconciliation ne supprime rien sur une ambiguïté.
-- Un fichier **modifié** pendant l'arrêt n'est pas détecté (l'index ne stocke pas d'empreinte de date ou de taille) : relancer `maieutik index` pour le réaligner. Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`.
+- Un fichier **modifié** pendant l'arrêt est détecté au démarrage suivant et réindexé : l'index garde l'empreinte (taille + date de modification) de chaque version indexée. Un fichier indexé avant l'introduction de l'empreinte est conservé sans être vérifié jusqu'à sa prochaine indexation. Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`.
 
 ## index
 
