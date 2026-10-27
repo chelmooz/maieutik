@@ -17,7 +17,7 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
 | Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
 | Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
-| Surveillance de fichiers | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; arrêt ordonné (`run_watcher_with_shutdown`) qui vide les événements en attente au lieu de les perdre ; testée sans modèle. Un événement survenu pendant un arrêt du processus n'est pas rattrapé : relancer `maieutik index` | `src/core/watch.rs`, `src/lib.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs` |
+| Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et de bout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Un événement survenu pendant un arrêt du processus n'est pas rattrapé : relancer `maieutik index` | `src/core/watch.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/watch_service.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
 | Pont MCP / JSON-RPC | Stub | `src/mcp/mod.rs` |
@@ -79,6 +79,9 @@ maieutik index [--force]
 # Rechercher
 maieutik search "requête" [--limit 10]
 
+# Mode service : surveille les dossiers jusqu'à SIGINT/SIGTERM
+maieutik --watch
+
 # Factices : message sur stderr, code de sortie 3 (non implémentées)
 maieutik chat "message" [--file CHEMIN]
 maieutik model list | download NOM | remove NOM | status
@@ -86,24 +89,33 @@ maieutik model list | download NOM | remove NOM | status
 
 Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`). **Guide d'utilisation détaillé :** [docs/UTILISATION.md](docs/UTILISATION.md).
 
+### `--watch` (mode service)
+
+`maieutik --watch` garde le processus au premier plan, surveille `settings.Folders` et réindexe créations, modifications, suppressions et renommages. Il s'arrête sur `SIGINT` (Ctrl-C) ou `SIGTERM`, après avoir vidé les événements encore en attente dans la fenêtre de débounce (2 s) : un fichier modifié juste avant l'arrêt est réindexé, puis le processus sort en 0.
+
+- Sans `--watch`, le comportement est inchangé : une commande s'exécute et le processus sort.
+- `--watch` refuse de démarrer (code 4) s'il n'y a aucun dossier configuré ou si l'index est indisponible (modèle d'embedding absent ou illisible) : le service ne tourne pas s'il ne peut jamais réindexer.
+- `--watch` combiné à une sous-commande ou à `--mcp-stdio` est une erreur d'usage (code 2).
+- Le verrou d'instance unique s'applique : deux `--watch` simultanés ne peuvent pas tourner.
+
 ### `index`
 
 - Parcourt les dossiers configurés selon les extensions autorisées et la taille maximale, sans suivre les liens symboliques.
-- Un fichier en erreur est journalisé et compté, il n'arrête pas le lot. Son ancien contenu dans l'index n'est pas purgé, sauf avec `--force`. Un fichier sans texte extractible est signalé sur stderr (« sans texte : chemin ») et compté à part ; un corpus vide donne aussi le code 1. Le résumé final a la forme « N indexé(s), M sans texte, K échec(s) ».
+- Un fichier en erreur est journalisé et compté, il n'arrête pas le lot. Un fichier sans texte extractible est signalé sur stderr (« sans texte : chemin ») et compté à part ; un corpus vide donne aussi le code 1. Le résumé final a la forme « N indexé(s), M sans texte, K échec(s) ».
 - L'index HNSW est reconstruit une seule fois, à la fin du lot.
 - Sans `--force` : chaque fichier trouvé est remplacé sur place ; les fichiers disparus restent dans l'index.
-- Avec `--force` : l'index est purgé avant l'indexation, ce qui retire aussi les fichiers disparus. Un fichier en échec perd alors son ancien contenu.
+- Avec `--force` : chaque fichier trouvé remplace ses passages, puis les fichiers disparus sont retirés. L'index n'est jamais purgé d'un bloc : un fichier en échec d'extraction garde son ancien contenu et est compté comme échec.
 - Taille de chunk : 1200 caractères, recouvrement 150 (valeurs non calibrées).
 
 Codes de sortie :
 
 | Code | Signification |
 |---|---|
-| 0 | tout est indexé, aucun fichier sans texte, corpus non vide |
+| 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
-| 2 | erreur d'usage : sous-commande inconnue, `--limit 0` |
+| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
 | 3 | commande non implémentée : chat, model, mcp |
-| 4 | index indisponible : aucun dossier configuré, aucun dossier lisible, ou modèle d'embedding absent ou illisible |
+| 4 | index indisponible : aucun dossier configuré, aucun dossier lisible, ou modèle d'embedding absent ou illisible (cas de `index`, `search` et `--watch`) |
 
 ### `search`
 
@@ -141,7 +153,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 
 ## Limites connues
 
-- Surveillance : un événement de fichier survenu pendant un arrêt de Maieutik n'est pas rattrapé au redémarrage (pas de réconciliation au démarrage) ; relancer `maieutik index` pour réaligner l'index. L'arrêt ordonné existe côté bibliothèque (`run_watcher_with_shutdown`, vidage des événements en attente) mais aucun gestionnaire de signal n'est branché dans `main` : le processus sort sans passer par lui.
+- Surveillance : un événement de fichier survenu pendant un arrêt de Maieutik n'est pas rattrapé au redémarrage (pas de réconciliation au démarrage) ; relancer `maieutik index` pour réaligner l'index. L'arrêt ordonné et le vidage des événements en attente ne concernent que le mode `--watch` ; sans lui, le processus sort immédiatement et aucun gestionnaire de signal n'est installé (Ctrl-C garde son effet par défaut).
 - `chat` et `model` sont factices : message sur stderr, code 3.
 - La génération n'a jamais chargé de modèle dans cet environnement. Les limites de lot et de contexte sont vérifiées sur le plan de décodage (`plan_decode` : refus d'un prompt vide ou plus long que le contexte, plafonnement à la place restante, découpage par lots de `n_batch`), pas par une génération réelle.
 - Le seuil de distance des tests avec modèle (`tests/embedding_search.rs`) a été calibré sur un modèle antérieur, d'après `VERIFICATION.md`.

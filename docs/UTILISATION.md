@@ -10,6 +10,20 @@ Ce guide suppose que Maieutik est installé et configuré (voir [INSTALLATION.md
 
 `ORT_DYLIB_PATH` doit être défini dans le terminal où tu lances ces commandes (voir l'installation).
 
+## --watch (mode service)
+
+```sh
+maieutik --watch
+```
+
+Garde le processus au premier plan et surveille les dossiers de `settings.Folders` : une création, une modification, une suppression ou un renommage déclenche une réindexation du fichier (extension et taille vérifiées, un fichier illisible pour ses métadonnées est ignoré et signalé dans les journaux).
+
+- L'arrêt se fait par `Ctrl-C` (`SIGINT`) ou `SIGTERM`. Les événements détectés moins de 2 secondes avant le signal (fenêtre de regroupement) ne sont pas perdus : ils sont traités avant la sortie, puis le programme sort en 0.
+- Le service refuse de démarrer avec le code 4 s'il n'y a aucun dossier configuré, ou si l'index est indisponible (modèle d'embedding absent ou illisible) : il n'y a pas de mode dégradé qui tourne sans jamais pouvoir réindexer.
+- `--watch` est un mode, pas une option de commande : `maieutik --watch index` et `maieutik --watch --mcp-stdio` sont des erreurs d'usage (code 2).
+- Comme les autres commandes, il crée le verrou d'instance dans le dossier courant : un second `maieutik --watch` sort en 4.
+- Un événement survenu pendant que le programme était arrêté n'est pas rattrapé : relancer `maieutik index` pour réaligner l'index.
+
 ## index
 
 ```sh
@@ -32,9 +46,9 @@ Un fichier en échec n'arrête pas les autres.
 
 | Code | Signification |
 |---|---|
-| 0 | tout est indexé, aucun fichier sans texte, corpus non vide |
+| 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
-| 2 | erreur d'usage : sous-commande inconnue, `--limit 0` |
+| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
 | 3 | commande non implémentée : chat, model, mcp |
 | 4 | environnement indisponible : aucun dossier configuré, aucun dossier lisible, modèle d'embedding absent ou illisible, verrou d'instance non créable, ou une autre instance déjà en cours |
 
