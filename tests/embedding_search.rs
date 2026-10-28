@@ -23,8 +23,12 @@ const MAX_CHUNK_CHARS: usize = 220;
 
 /// A relevant match must be closer than this. Embeddings are L2-normalized, so
 /// Euclidean distance is `sqrt(2 - 2*cos)`: 0.0 is identical, ~1.41 orthogonal.
-/// Measured top-1 distances with BGE-M3 on this corpus: 0.87, 0.78, 0.70.
-const MAX_MATCH_DISTANCE: f32 = 1.05;
+/// Measured top-1 distances with BGE-M3 on this corpus: 0.87, 0.78, 0.70 —
+/// while the best match from a *wrong* file starts at 1.09. 0.95 sits between
+/// the two with margin on each side (0.08 above the worst right answer, 0.14
+/// below the best wrong answer). A value below 0.87 fails by design on the
+/// first query (verified: 0.80 rejects the 0.8670 match).
+const MAX_MATCH_DISTANCE: f32 = 0.95;
 
 /// The best result from another file must be at least this much farther away
 /// than the correct one. Measured margins with BGE-M3: 0.23, 0.40, 0.39.
