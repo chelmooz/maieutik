@@ -65,6 +65,7 @@ ort = { version = "2.0.0-rc.15", default-features = false, features = ["std", "n
 
 # LLM - llama.cpp bindings
 llama-cpp-2 = { version = "0.1", features = [] }  # features set via crate features
+rand = "0.8"
 
 # STT - sherpa-onnx retiré au lot P1.19 : il amenait zip 2.6.1 + zstd/zstd-safe
 # (13 avis RUSTSec cumulés) pour une feature jamais activée. À réintroduire

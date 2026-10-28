@@ -1,4 +1,6 @@
 //! Settings persistence — JSON file (mode 0600 on Unix)
+use std::process;
+
 
 use crate::config::AppSettings;
 use anyhow::{Context, Result};
@@ -103,12 +105,28 @@ pub fn load_settings() -> Result<AppSettings> {
     let text = fs::read_to_string(&path).with_context(|| format!("Reading {}", path.display()))?;
     let file: SettingsFile = serde_json::from_str(&text)
         .with_context(|| format!("Parsing JSON from {}", path.display()))?;
-    if file.version != SETTINGS_VERSION {
-        warn!(
-            "Config version mismatch (file={}, expected={}), migrating...",
-            file.version, SETTINGS_VERSION
-        );
-        // TODO: implement migration
+    
+    // Handle version migration
+    match file.version.cmp(&SETTINGS_VERSION) {
+        std::cmp::Ordering::Equal => {
+            // Current version - OK
+        }
+        std::cmp::Ordering::Less => {
+            // Old version - migrate
+            warn!(
+                "Config version {} is older than current {}, migrating...",
+                file.version, SETTINGS_VERSION
+            );
+            // TODO: implement actual migration logic per version
+            // For now, accept old config as-is with warning
+        }
+        std::cmp::Ordering::Greater => {
+            // Future version - reject
+            anyhow::bail!(
+                "Config version {} is newer than supported {}; please update Maieutik",
+                file.version, SETTINGS_VERSION
+            );
+        }
     }
     debug!("Loaded settings from {}", path.display());
     Ok(file.settings)
@@ -127,9 +145,16 @@ pub fn save_settings_to(path: &std::path::Path, settings: &AppSettings) -> Resul
         settings: settings.clone(),
     };
     let text = serde_json::to_string_pretty(&file)?;
-    let tmp = path.with_extension("json.tmp");
-    // Un .tmp résiduel garderait ses anciennes permissions : on le retire.
-    let _ = fs::remove_file(&tmp);
+    
+    // Generate unique temporary filename to avoid races:
+    // config.json.<pid>.<counter>.<random>.tmp
+    static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    use rand::Rng;
+    let counter = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let rand_suffix: u64 = rand::thread_rng().gen();
+    let tmp_name = format!("{}.{}.{}.{}.tmp", path.file_name().unwrap().to_string_lossy(), process::id(), counter, rand_suffix);
+    let tmp = path.with_file_name(tmp_name);
+    
     let mut opts = fs::OpenOptions::new();
     opts.write(true).create_new(true);
     #[cfg(unix)]
