@@ -4,8 +4,7 @@
 
 use anyhow::Result;
 use llama_cpp_2::{
-    context::params::LlamaContextParams,
-    llama_backend::LlamaBackend,
+    context::params::LlamaContextParams, llama_backend::LlamaBackend,
     model::params::LlamaModelParams,
 };
 use once_cell::sync::Lazy;
@@ -15,9 +14,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
-static LLAMA_BACKEND: Lazy<LlamaBackend> = Lazy::new(|| {
-    LlamaBackend::init().expect("Failed to initialize llama.cpp backend")
-});
+static LLAMA_BACKEND: Lazy<LlamaBackend> =
+    Lazy::new(|| LlamaBackend::init().expect("Failed to initialize llama.cpp backend"));
 
 /// Callback invoked for each streamed token. Returning `false` stops generation.
 pub type TokenCallback = Box<dyn for<'a> FnMut(&'a str) -> bool + Send + 'static>;
@@ -53,10 +51,7 @@ impl ChatModelSpec {
     }
 
     pub fn all() -> Vec<ChatModelSpec> {
-        vec![
-            ChatModelSpec::small(),
-            ChatModelSpec::large(),
-        ]
+        vec![ChatModelSpec::small(), ChatModelSpec::large()]
     }
 
     pub fn select(total_memory: u64) -> ChatModelSpec {
@@ -183,7 +178,12 @@ impl<'b> LlamaSession<'b> {
         // Taille réelle du contexte et du lot, telles que llama.cpp les a
         // ouvertes : un prompt plus long que le contexte est refusé ici avec
         // un message explicite au lieu d'échouer au décodage.
-        let plan = plan_decode(tokens.len(), max_tokens, self.ctx.n_ctx(), self.ctx.n_batch())?;
+        let plan = plan_decode(
+            tokens.len(),
+            max_tokens,
+            self.ctx.n_ctx(),
+            self.ctx.n_batch(),
+        )?;
 
         let mut batch = llama_cpp_2::llama_batch::LlamaBatch::new(plan.chunk, 1);
         let last = tokens.len() - 1;
@@ -315,14 +315,25 @@ impl LocalLlamaProvider {
 
 #[async_trait::async_trait]
 impl ChatCompletionProvider for LocalLlamaProvider {
-    async fn complete(&self, messages: &[qwen_format::ChatMessage], max_tokens: u32, temp: f32) -> Result<String> {
+    async fn complete(
+        &self,
+        messages: &[qwen_format::ChatMessage],
+        max_tokens: u32,
+        temp: f32,
+    ) -> Result<String> {
         let prompt = qwen_format::format_chat(messages);
         let model = self.model.lock().await;
         let mut session = LlamaSession::new(&model)?;
         session.complete(&prompt, max_tokens, temp)
     }
 
-    async fn stream_complete(&self, messages: &[qwen_format::ChatMessage], max_tokens: u32, temp: f32, on_token: TokenCallback) -> Result<()> {
+    async fn stream_complete(
+        &self,
+        messages: &[qwen_format::ChatMessage],
+        max_tokens: u32,
+        temp: f32,
+        on_token: TokenCallback,
+    ) -> Result<()> {
         let prompt = qwen_format::format_chat(messages);
         let model = self.model.lock().await;
         let mut session = LlamaSession::new(&model)?;

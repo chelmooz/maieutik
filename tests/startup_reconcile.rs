@@ -68,7 +68,9 @@ async fn path_replaced_by_directory_is_purged() {
     let note = docs.path().join("a.md");
     std::fs::write(&note, FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
 
     // Le chemin existe encore, mais ce n'est plus un fichier ordinaire.
     std::fs::remove_file(&note).unwrap();
@@ -85,11 +87,16 @@ async fn present_files_are_kept() {
     let docs = tempfile::tempdir().unwrap();
     std::fs::write(docs.path().join("a.md"), FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
 
     let report = reconcile_startup(&index).await.unwrap();
     assert!(report.removed.is_empty(), "bilan inattendu : {report:?}");
-    assert!(report.kept_unreadable.is_empty(), "bilan inattendu : {report:?}");
+    assert!(
+        report.kept_unreadable.is_empty(),
+        "bilan inattendu : {report:?}"
+    );
     assert_eq!(index.stored_file_paths().unwrap().len(), 1);
     let hits = index.search("quick brown fox", 5).await.unwrap();
     assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
@@ -141,7 +148,9 @@ async fn modified_file_is_reindexed_at_startup() {
     let docs = tempfile::tempdir().unwrap();
     std::fs::write(docs.path().join("a.md"), FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
     let hits = index.search("quick brown fox", 5).await.unwrap();
     assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
 
@@ -158,7 +167,8 @@ async fn modified_file_is_reindexed_at_startup() {
     // reste indexé, seul son contenu change)
     let hits = index.search("quick brown fox", 5).await.unwrap();
     assert!(
-        hits.iter().all(|(_, text, _)| !text.contains("quick brown fox")),
+        hits.iter()
+            .all(|(_, text, _)| !text.contains("quick brown fox")),
         "l'ancien contenu est encore cherchable : {hits:?}"
     );
     // …et le nouveau doit être trouvé.
@@ -183,7 +193,9 @@ async fn rewrite_of_identical_size_is_still_detected() {
     let docs = tempfile::tempdir().unwrap();
     std::fs::write(docs.path().join("a.md"), FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
 
     // Même taille, seul le dernier caractère change : la détection ne peut
     // reposer que sur la date de modification.
@@ -202,7 +214,9 @@ async fn unchanged_file_is_not_reindexed() {
     let docs = tempfile::tempdir().unwrap();
     std::fs::write(docs.path().join("a.md"), FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
 
     let report = reconcile_startup(&index).await.unwrap();
     assert!(

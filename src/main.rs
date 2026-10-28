@@ -120,7 +120,11 @@ fn parse_limit(raw: &str) -> Result<usize, String> {
 /// `with_log_level` d'ort est sans effet avec la feature `tracing` : le filtre
 /// se pose ici, dans le subscriber.
 fn init_logging(debug: bool) -> Result<()> {
-    let default_filter = if debug { "debug,ort=warn" } else { "info,ort=warn" };
+    let default_filter = if debug {
+        "debug,ort=warn"
+    } else {
+        "info,ort=warn"
+    };
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_filter));
     tracing_subscriber::fmt()
@@ -170,7 +174,11 @@ async fn run(cli: Cli) -> Result<i32> {
     if cli.mcp_stdio {
         // Lance le serveur MCP sur stdio — ne retourne que si la connexion se ferme.
         let server = Arc::new(maieutik::mcp::McpServer::new());
-        if let Err(e) = server.run_stdio().await { eprintln!("Erreur serveur MCP: {e}"); return Ok(EXIT_UNAVAILABLE); } return Ok(0);
+        if let Err(e) = server.run_stdio().await {
+            eprintln!("Erreur serveur MCP: {e}");
+            return Ok(EXIT_UNAVAILABLE);
+        }
+        return Ok(0);
     }
     if let Some(label) = cli.command.as_ref().and_then(not_implemented_label) {
         return Ok(not_implemented(label));

@@ -78,7 +78,10 @@ impl Sandbox {
                     root.file_name().unwrap_or_default().to_string_lossy()
                 ),
             )
-            .env("MAIEUTIK_EMBEDDER_MODEL", env_var("MAIEUTIK_EMBEDDER_MODEL"))
+            .env(
+                "MAIEUTIK_EMBEDDER_MODEL",
+                env_var("MAIEUTIK_EMBEDDER_MODEL"),
+            )
             .env(
                 "MAIEUTIK_EMBEDDER_TOKENIZER",
                 env_var("MAIEUTIK_EMBEDDER_TOKENIZER"),
@@ -98,7 +101,10 @@ impl Sandbox {
             .stderr(Stdio::from(log))
             .spawn()
             .expect("lancement de maieutik --watch");
-        let service = Service { child, reaped: false };
+        let service = Service {
+            child,
+            reaped: false,
+        };
 
         let deadline = Instant::now() + Duration::from_secs(180);
         loop {
@@ -160,12 +166,19 @@ fn watch_starts_flushes_pending_event_and_exits_zero_on_sigterm() {
 
     // Événement créé juste avant le signal : il est encore dans la fenêtre
     // de débounce (2 s) et ne peut être traité que par le vidage d'arrêt.
-    fs::write(sandbox.docs().join("b.md"), "note ajoutee au dernier moment\n").unwrap();
+    fs::write(
+        sandbox.docs().join("b.md"),
+        "note ajoutee au dernier moment\n",
+    )
+    .unwrap();
 
     let code = service.stop();
     let log = sandbox.log();
     assert_eq!(code, 0, "arrêt sale :\n{log}");
-    assert!(log.contains("SIGTERM reçu"), "signal non journalisé :\n{log}");
+    assert!(
+        log.contains("SIGTERM reçu"),
+        "signal non journalisé :\n{log}"
+    );
     assert!(
         log.contains("Arrêt propre terminé"),
         "arrêt non terminé :\n{log}"
@@ -198,7 +211,10 @@ fn watch_startup_purges_files_deleted_while_stopped() {
         log.contains("Réconciliation : 1 fichier(s) disparu(s)"),
         "la réconciliation de démarrage n'a pas purgé le fichier disparu :\n{log}"
     );
-    assert!(log.contains("b.md"), "fichier purgé non journalisé :\n{log}");
+    assert!(
+        log.contains("b.md"),
+        "fichier purgé non journalisé :\n{log}"
+    );
 
     assert_eq!(service.stop(), 0, "arrêt sale :\n{}", sandbox.log());
 
@@ -239,7 +255,10 @@ fn watch_startup_reindexes_files_modified_while_stopped() {
         .unwrap();
     assert_eq!(before.status.code(), Some(0));
     let before = stdout_of(&before);
-    assert!(before.contains("a.md"), "précondition non indexée :\n{before}");
+    assert!(
+        before.contains("a.md"),
+        "précondition non indexée :\n{before}"
+    );
 
     // Modification pendant l'arrêt : aucun événement ne sera jamais émis.
     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -251,7 +270,10 @@ fn watch_startup_reindexes_files_modified_while_stopped() {
         log.contains("Réconciliation : 1 fichier(s) modifié(s) pendant l'arrêt réindexé(s)."),
         "la réconciliation n'a pas réindexé le fichier modifié :\n{log}"
     );
-    assert!(log.contains("a.md"), "fichier réindexé non journalisé :\n{log}");
+    assert!(
+        log.contains("a.md"),
+        "fichier réindexé non journalisé :\n{log}"
+    );
 
     assert_eq!(service.stop(), 0, "arrêt sale :\n{}", sandbox.log());
 

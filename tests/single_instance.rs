@@ -89,7 +89,11 @@ fn first_instance_is_not_refused() {
     // (il échoue ensuite pour une raison sans rapport : pas de dossier).
     let sandbox = tempfile::tempdir().unwrap();
     let out = run(sandbox.path(), &instance_name("free"), &["index"]);
-    assert_ne!(code(&out), 0, "sans modèle ni dossier, la sortie est non nulle");
+    assert_ne!(
+        code(&out),
+        0,
+        "sans modèle ni dossier, la sortie est non nulle"
+    );
     assert!(
         !err(&out).contains("déjà en cours d'exécution"),
         "aucun message de second instance sans verrou détenu ; obtenu : {}",

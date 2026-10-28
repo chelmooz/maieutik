@@ -27,7 +27,10 @@ fn ids(tree: &sled::Tree) -> Vec<String> {
 }
 
 fn open_tree(dir: &tempfile::TempDir) -> sled::Tree {
-    sled::open(dir.path().join("db")).unwrap().open_tree("vectors").unwrap()
+    sled::open(dir.path().join("db"))
+        .unwrap()
+        .open_tree("vectors")
+        .unwrap()
 }
 
 #[test]

@@ -1,9 +1,9 @@
 //! Vector index — ONNX embeddings (BGE-M3) + sled + HNSW (fast-hnsw).
 
-use anyhow::Result;
 use crate::config::{Chunk, FileContent};
-use fast_hnsw::{Builder, Hnsw};
+use anyhow::Result;
 use fast_hnsw::distance::Euclidean;
+use fast_hnsw::{Builder, Hnsw};
 use ort::session::Session;
 use ort::value::Tensor;
 use std::collections::HashMap;
@@ -77,9 +77,8 @@ impl Embedder {
             .map(|outlet| outlet.name().to_string())
             .collect();
 
-        let mut tokenizer = Tokenizer::from_file(tokenizer_path).map_err(|e| {
-            anyhow::anyhow!("load tokenizer {}: {e}", tokenizer_path.display())
-        })?;
+        let mut tokenizer = Tokenizer::from_file(tokenizer_path)
+            .map_err(|e| anyhow::anyhow!("load tokenizer {}: {e}", tokenizer_path.display()))?;
         // BGE-M3's tokenizer.json ships without truncation; enforce the model's
         // context window (8192) so an oversized chunk fails by truncation, not
         // by an ORT shape error.
@@ -172,9 +171,7 @@ impl Embedder {
             // `sentence_embedding` — the export already pooled for us.
             [1, hidden] | [hidden] if *hidden == EMBEDDING_DIM => data.to_vec(),
             // Raw hidden states: BGE-M3's dense recipe is the CLS token.
-            [1, seq, hidden] if *seq > 0 && *hidden == EMBEDDING_DIM => {
-                data[..*hidden].to_vec()
-            }
+            [1, seq, hidden] if *seq > 0 && *hidden == EMBEDDING_DIM => data[..*hidden].to_vec(),
             other => anyhow::bail!(
                 "unexpected embedding output shape {other:?} (expected [1, {EMBEDDING_DIM}])"
             ),
@@ -201,7 +198,6 @@ impl Embedder {
         texts.iter().map(|t| self.embed(t)).collect()
     }
 }
-
 
 /// Port d'embedding : le vrai modèle ONNX ou un double de test.
 pub trait TextEmbedder: Send + Sync + std::fmt::Debug {
@@ -260,10 +256,9 @@ impl TextEmbedder for HashEmbedder {
     }
 }
 
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct VectorRecord {
-    pub id: String,           // file_path#chunk_idx
+    pub id: String, // file_path#chunk_idx
     pub file_path: String,
     pub chunk_index: usize,
     pub text: String,
@@ -276,7 +271,7 @@ pub struct VectorRecord {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IndexMeta {
-    pub id: String,           // "meta"
+    pub id: String, // "meta"
     pub schema_version: i32,
     pub model_id: String,
     pub dimensions: usize,
@@ -354,7 +349,6 @@ pub fn replace_file_records(
     tree.apply_batch(batch)?;
     Ok(())
 }
-
 
 /// Wrapper for fast-hnsw index with ID mapping
 pub struct HnswIndex {
@@ -448,27 +442,33 @@ impl VectorIndex {
         };
 
         // Verify schema/model compatibility
-        if meta.schema_version != SCHEMA_VERSION || meta.model_id != MODEL_ID || meta.dimensions != EMBEDDING_DIM {
+        if meta.schema_version != SCHEMA_VERSION
+            || meta.model_id != MODEL_ID
+            || meta.dimensions != EMBEDDING_DIM
+        {
             // RUST-003: Instead of clearing data, move vectors to a backup for recovery
-            let backup_tree_name = format!("vectors_backup_{}", std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs());
-            
+            let backup_tree_name = format!(
+                "vectors_backup_{}",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+            );
+
             warn!(
                 "Index schema/model mismatch — moving vectors to backup. \
                  Re-indexing is NOT automatic: it must be triggered separately. \
                  Backup tree: {}",
                 backup_tree_name
             );
-            
+
             // Create backup tree and move all vectors
             let backup_tree = db.open_tree(&backup_tree_name)?;
             for item in vectors_tree.iter() {
                 let (key, val) = item?;
                 backup_tree.insert(key, val)?;
             }
-            
+
             vectors_tree.clear()?;
             let new_meta = IndexMeta::default();
             meta_tree.insert("meta", bincode::serialize(&new_meta)?)?;
@@ -626,7 +626,9 @@ impl VectorIndex {
     pub async fn search(&self, query: &str, k: usize) -> Result<Vec<(String, String, f32)>> {
         let query_emb = self.embedder.embed(query)?;
         let hnsw = self.hnsw.read().await;
-        let hnsw = hnsw.as_ref().ok_or_else(|| anyhow::anyhow!("HNSW not built"))?;
+        let hnsw = hnsw
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("HNSW not built"))?;
 
         let results = hnsw.search(&query_emb, k);
         let mut out = Vec::new();
@@ -666,7 +668,10 @@ pub struct Chunker {
 
 impl Chunker {
     pub fn new(max_chunk_chars: usize, overlap_chars: usize) -> Self {
-        Self { max_chunk_chars, overlap_chars }
+        Self {
+            max_chunk_chars,
+            overlap_chars,
+        }
     }
 
     pub fn chunk(&self, content: &FileContent) -> Vec<Chunk> {

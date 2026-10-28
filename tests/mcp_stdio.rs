@@ -20,7 +20,8 @@ fn start_mcp_stdio() -> (Command, std::process::Child) {
 
 fn send_request(child: &mut std::process::Child, req: serde_json::Value) -> serde_json::Value {
     let stdin = child.stdin.as_mut().expect("stdin");
-    let line = serde_json::to_string(&req).unwrap() + "
+    let line = serde_json::to_string(&req).unwrap()
+        + "
 ";
     stdin.write_all(line.as_bytes()).unwrap();
     stdin.flush().unwrap();
@@ -51,7 +52,11 @@ async fn stdio_transport_responds_to_health_check() {
         }
     });
     let resp = send_request(&mut child, init);
-    assert!(resp.get("result").is_some(), "initialize doit réussir: {:?}", resp);
+    assert!(
+        resp.get("result").is_some(),
+        "initialize doit réussir: {:?}",
+        resp
+    );
 
     // Send health.check
     let health = serde_json::json!({
@@ -61,7 +66,11 @@ async fn stdio_transport_responds_to_health_check() {
         "params": {}
     });
     let resp = send_request(&mut child, health);
-    assert!(resp.get("result").is_some(), "health.check doit réussir: {:?}", resp);
+    assert!(
+        resp.get("result").is_some(),
+        "health.check doit réussir: {:?}",
+        resp
+    );
     assert_eq!(resp["result"]["version"], env!("CARGO_PKG_VERSION"));
 
     // Cleanup
@@ -80,7 +89,11 @@ async fn stdio_transport_rejects_unknown_method() {
         "params": {}
     });
     let resp = send_request(&mut child, req);
-    assert!(!resp["error"].is_null(), "méthode inconnue doit échouer: {:?}", resp);
+    assert!(
+        !resp["error"].is_null(),
+        "méthode inconnue doit échouer: {:?}",
+        resp
+    );
 
     child.kill().unwrap();
 }

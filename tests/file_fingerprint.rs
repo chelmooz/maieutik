@@ -37,7 +37,9 @@ async fn indexing_records_the_disk_fingerprint() {
     let file = docs.path().join("a.md");
     std::fs::write(&file, FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
 
     let stored = index.stored_files().unwrap();
     assert_eq!(stored.len(), 1, "{stored:?}");
@@ -56,7 +58,9 @@ async fn rewrite_then_reindex_rotates_the_fingerprint() {
     let file = docs.path().join("a.md");
     std::fs::write(&file, FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
     let before = index
         .fingerprint_of(&file.to_string_lossy())
         .unwrap()
@@ -64,7 +68,9 @@ async fn rewrite_then_reindex_rotates_the_fingerprint() {
 
     std::thread::sleep(std::time::Duration::from_millis(20));
     std::fs::write(&file, format!("{FOX} and more")).unwrap();
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
 
     let after = index
         .fingerprint_of(&file.to_string_lossy())
@@ -81,7 +87,9 @@ async fn purge_drops_the_fingerprint_with_the_records() {
     let file = docs.path().join("a.md");
     std::fs::write(&file, FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
     let path = file.to_string_lossy().to_string();
     assert!(index.fingerprint_of(&path).unwrap().is_some());
 
@@ -103,7 +111,9 @@ async fn empty_file_keeps_no_stale_fingerprint_entry() {
     let file = docs.path().join("a.md");
     std::fs::write(&file, FOX).unwrap();
     let index = open(data.path());
-    index_all(&index, &settings_for(docs.path()), false).await.unwrap();
+    index_all(&index, &settings_for(docs.path()), false)
+        .await
+        .unwrap();
     let path = file.to_string_lossy().to_string();
 
     // Un fichier vidé produit zéro chunk : ses enregistrements sont purgés

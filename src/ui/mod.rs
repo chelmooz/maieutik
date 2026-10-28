@@ -5,8 +5,8 @@
 //! watcher). `run_ui` stays as the single entry point the binary calls.
 
 pub mod egui_app {
-    use anyhow::Result;
     use crate::AppState;
+    use anyhow::Result;
     use std::sync::Arc;
 
     pub async fn run_ui(_state: Arc<AppState>) -> Result<()> {

@@ -1,6 +1,9 @@
 //! Réglages : compatibilité des anciens fichiers et permissions (sans modèle).
 
-use maieutik::config::store::{save_settings_to, settings_dir, data_dir, models_dir, embedder_model_path, embedder_tokenizer_path};
+use maieutik::config::store::{
+    data_dir, embedder_model_path, embedder_tokenizer_path, models_dir, save_settings_to,
+    settings_dir,
+};
 use maieutik::config::AppSettings;
 
 #[test]

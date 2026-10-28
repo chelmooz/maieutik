@@ -19,8 +19,9 @@ pub struct SpeechModelPaths {
 
 impl Default for SpeechModelPaths {
     fn default() -> Self {
-        let base = crate::config::store::models_dir()
-            .expect("Impossible de déterminer le répertoire des modèles : home directory introuvable");
+        let base = crate::config::store::models_dir().expect(
+            "Impossible de déterminer le répertoire des modèles : home directory introuvable",
+        );
         Self {
             encoder: base.join("parakeet-encoder.fp16.onnx"),
             decoder: base.join("parakeet-decoder.int8.onnx"),
@@ -128,7 +129,9 @@ impl SpeechService {
     }
 
     pub async fn start_session(&self) -> Result<SpeechSession> {
-        Ok(SpeechSession { vad: self.vad.clone() })
+        Ok(SpeechSession {
+            vad: self.vad.clone(),
+        })
     }
 }
 
@@ -145,9 +148,9 @@ impl SpeechSession {
 
 /// Meeting transcription controller (stub)
 pub mod meeting {
-    use anyhow::Result;
     use crate::llm::ChatCompletionProvider;
     use crate::speech::SpeechService;
+    use anyhow::Result;
     use std::path::Path;
     use std::sync::Arc;
     use tracing::info;

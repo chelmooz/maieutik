@@ -5,13 +5,12 @@
 pub mod config;
 pub mod core;
 pub mod llm;
-pub mod speech;
 pub mod mcp;
+pub mod speech;
 
 pub mod ui;
 pub mod utils;
 
-use anyhow::Result;
 use crate::config::store::{load_settings, save_settings};
 use crate::config::AppSettings;
 use crate::core::indexer::{Embedder, VectorIndex};
@@ -19,6 +18,7 @@ use crate::core::scan::index_path;
 use crate::core::watch::{
     is_extension_allowed, is_within_size_limit, DebouncedProcessor, FileWatcher, WatchEvent,
 };
+use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -160,11 +160,17 @@ async fn reindex(state: &AppState, path: &Path) {
         }
     };
     if !allowed {
-        debug!("extension ou taille hors limites, ignoré : {}", path.display());
+        debug!(
+            "extension ou taille hors limites, ignoré : {}",
+            path.display()
+        );
         return;
     }
     let Some(idx) = &state.vector_index else {
-        debug!("index indisponible, impossible de réindexer : {}", path.display());
+        debug!(
+            "index indisponible, impossible de réindexer : {}",
+            path.display()
+        );
         return;
     };
     match index_path(idx, path).await {

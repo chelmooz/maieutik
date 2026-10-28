@@ -29,10 +29,13 @@ async fn main() {
     let docs: Vec<FileContent> = (0..n)
         .map(|i| make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000))
         .collect();
-    
+
     println!("Inserting {} docs...", n);
     for (i, doc) in docs.iter().enumerate() {
-        index.upsert_file(Path::new(&format!("doc{}.md", i)), doc).await.unwrap();
+        index
+            .upsert_file(Path::new(&format!("doc{}.md", i)), doc)
+            .await
+            .unwrap();
     }
     println!("Building HNSW...");
     index.build_hnsw().await.unwrap();

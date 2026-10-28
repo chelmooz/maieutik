@@ -1,7 +1,7 @@
 //! File watcher with debouncing.
 
-use anyhow::Result;
 use crate::config::AppSettings;
+use anyhow::Result;
 use notify::event::ModifyKind;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::collections::HashMap;
@@ -29,7 +29,10 @@ pub enum WatchEvent {
 }
 
 impl FileWatcher {
-    pub fn new(settings: Arc<tokio::sync::RwLock<AppSettings>>, tx: mpsc::Sender<WatchEvent>) -> Result<Self> {
+    pub fn new(
+        settings: Arc<tokio::sync::RwLock<AppSettings>>,
+        tx: mpsc::Sender<WatchEvent>,
+    ) -> Result<Self> {
         let tx_for_events = tx.clone();
         let watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             let event = match res {
@@ -138,7 +141,8 @@ impl DebouncedProcessor {
 
     async fn flush_ready(&mut self) {
         let now = tokio::time::Instant::now();
-        let ready: Vec<_> = self.pending
+        let ready: Vec<_> = self
+            .pending
             .iter()
             .filter(|(_, (_, ts))| now.duration_since(*ts) >= self.debounce)
             .map(|(p, _)| p.clone())
@@ -187,7 +191,10 @@ pub fn is_path_watched(path: &Path, settings: &AppSettings) -> bool {
 pub fn is_extension_allowed(path: &Path, settings: &AppSettings) -> bool {
     if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
         let ext = format!(".{}", ext.to_lowercase());
-        settings.extensions.iter().any(|e| e.eq_ignore_ascii_case(&ext))
+        settings
+            .extensions
+            .iter()
+            .any(|e| e.eq_ignore_ascii_case(&ext))
     } else {
         false
     }

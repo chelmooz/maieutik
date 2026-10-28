@@ -136,21 +136,51 @@ pub struct AppSettings {
 fn default_extensions() -> Vec<String> {
     vec![".txt".into(), ".md".into(), ".docx".into(), ".pdf".into()]
 }
-fn default_theme() -> String { "Dark".into() }
-fn default_splitter() -> f64 { 400.0 }
-fn default_h_splitter() -> f64 { 200.0 }
-fn default_graph_width() -> f64 { 630.0 }
-fn default_chat_width() -> f64 { 400.0 }
-fn default_true() -> bool { true }
-fn default_top_matches() -> usize { 10 }
-fn default_max_file_size() -> usize { 10 }
-fn default_edge_bands() -> Vec<EdgeBandSettings> { EdgeBandSettings::defaults() }
-fn default_tts_rate() -> i32 { 0 }
-fn default_tts_volume() -> i32 { 100 }
-fn default_ask_hotkey() -> String { "Ctrl+Alt+Space".into() }
-fn default_dictate_hotkey() -> String { "Ctrl+Alt+Shift+Space".into() }
-fn default_meeting_lang() -> String { "en".into() }
-fn default_cloud_context() -> usize { 200_000 }
+fn default_theme() -> String {
+    "Dark".into()
+}
+fn default_splitter() -> f64 {
+    400.0
+}
+fn default_h_splitter() -> f64 {
+    200.0
+}
+fn default_graph_width() -> f64 {
+    630.0
+}
+fn default_chat_width() -> f64 {
+    400.0
+}
+fn default_true() -> bool {
+    true
+}
+fn default_top_matches() -> usize {
+    10
+}
+fn default_max_file_size() -> usize {
+    10
+}
+fn default_edge_bands() -> Vec<EdgeBandSettings> {
+    EdgeBandSettings::defaults()
+}
+fn default_tts_rate() -> i32 {
+    0
+}
+fn default_tts_volume() -> i32 {
+    100
+}
+fn default_ask_hotkey() -> String {
+    "Ctrl+Alt+Space".into()
+}
+fn default_dictate_hotkey() -> String {
+    "Ctrl+Alt+Shift+Space".into()
+}
+fn default_meeting_lang() -> String {
+    "en".into()
+}
+fn default_cloud_context() -> usize {
+    200_000
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -240,10 +270,26 @@ pub struct EdgeBandSettings {
 impl EdgeBandSettings {
     pub fn defaults() -> Vec<Self> {
         vec![
-            Self { color: "#FF6B6B".into(), thickness: 2.0, label: "Strong".into() },
-            Self { color: "#4ECDC4".into(), thickness: 1.5, label: "Medium".into() },
-            Self { color: "#FFE66D".into(), thickness: 1.0, label: "Weak".into() },
-            Self { color: "#A8E6CF".into(), thickness: 0.5, label: "Hint".into() },
+            Self {
+                color: "#FF6B6B".into(),
+                thickness: 2.0,
+                label: "Strong".into(),
+            },
+            Self {
+                color: "#4ECDC4".into(),
+                thickness: 1.5,
+                label: "Medium".into(),
+            },
+            Self {
+                color: "#FFE66D".into(),
+                thickness: 1.0,
+                label: "Weak".into(),
+            },
+            Self {
+                color: "#A8E6CF".into(),
+                thickness: 0.5,
+                label: "Hint".into(),
+            },
         ]
     }
 }
@@ -293,11 +339,13 @@ pub struct FileItem {
 impl FileItem {
     pub fn from_path(path: PathBuf) -> anyhow::Result<Self> {
         let meta = std::fs::metadata(&path)?;
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_string();
-        let extension = path.extension()
+        let extension = path
+            .extension()
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_string();

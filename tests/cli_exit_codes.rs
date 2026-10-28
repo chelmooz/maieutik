@@ -161,7 +161,13 @@ fn mcp_stdio_runs_server_and_exits_on_stdin_close() {
     let o = child.wait_with_output().expect("attente fin");
 
     // Le serveur doit s'arrêter proprement (stdin fermé = fin de connexion)
-    assert_eq!(code_from_output(&o), 0, "stdout: {} stderr: {}", out(&o), err(&o));
+    assert_eq!(
+        code_from_output(&o),
+        0,
+        "stdout: {} stderr: {}",
+        out(&o),
+        err(&o)
+    );
 }
 
 fn code_from_output(o: &std::process::Output) -> i32 {
@@ -185,7 +191,11 @@ fn index_without_model_exits_four() {
     let o = run(t.path(), Some(&[docs.as_path()]), &["index"]);
     assert_eq!(code(&o), 4, "stdout: {} stderr: {}", out(&o), err(&o));
     assert_error_streams(&o);
-    assert!(err(&o).contains("Index indisponible"), "stderr: {}", err(&o));
+    assert!(
+        err(&o).contains("Index indisponible"),
+        "stderr: {}",
+        err(&o)
+    );
 }
 
 #[test]
@@ -194,7 +204,11 @@ fn search_without_model_exits_four() {
     let o = run(t.path(), None, &["search", "q"]);
     assert_eq!(code(&o), 4, "stdout: {} stderr: {}", out(&o), err(&o));
     assert_error_streams(&o);
-    assert!(err(&o).contains("Index indisponible"), "stderr: {}", err(&o));
+    assert!(
+        err(&o).contains("Index indisponible"),
+        "stderr: {}",
+        err(&o)
+    );
 }
 
 #[test]
@@ -230,7 +244,11 @@ fn watch_with_folders_but_no_model_exits_four() {
     let o = run(t.path(), Some(&[docs.as_path()]), &["--watch"]);
     assert_eq!(code(&o), 4, "stdout: {} stderr: {}", out(&o), err(&o));
     assert_error_streams(&o);
-    assert!(err(&o).contains("Index indisponible"), "stderr: {}", err(&o));
+    assert!(
+        err(&o).contains("Index indisponible"),
+        "stderr: {}",
+        err(&o)
+    );
 }
 
 /// `--watch` est un mode, pas un modificateur de sous-commande : la
@@ -241,9 +259,5 @@ fn watch_with_subcommand_exits_two() {
     let o = run(t.path(), None, &["--watch", "index"]);
     assert_eq!(code(&o), 2, "stdout: {} stderr: {}", out(&o), err(&o));
     assert_error_streams(&o);
-    assert!(
-        err(&o).contains("ne se combine pas"),
-        "stderr: {}",
-        err(&o)
-    );
+    assert!(err(&o).contains("ne se combine pas"), "stderr: {}", err(&o));
 }

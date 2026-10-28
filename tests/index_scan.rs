@@ -35,9 +35,14 @@ fn write(dir: &Path, name: &str, text: &str) {
 fn write_docx(dir: &Path, name: &str, text: &str) {
     let file = std::fs::File::create(dir.join(name)).unwrap();
     let mut zip = zip::ZipWriter::new(file);
-    zip.start_file("word/document.xml", zip::write::SimpleFileOptions::default())
-        .unwrap();
-    let xml = format!("<w:document><w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>");
+    zip.start_file(
+        "word/document.xml",
+        zip::write::SimpleFileOptions::default(),
+    )
+    .unwrap();
+    let xml = format!(
+        "<w:document><w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>"
+    );
     zip.write_all(xml.as_bytes()).unwrap();
     zip.finish().unwrap();
 }

@@ -27,11 +27,14 @@ fn benchmark_iteration(n: usize) {
     let docs: Vec<FileContent> = (0..n)
         .map(|i| make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000))
         .collect();
-    
+
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         for (i, doc) in docs.iter().enumerate() {
-            index.upsert_file(Path::new(&format!("doc{}.md", i)), doc).await.unwrap();
+            index
+                .upsert_file(Path::new(&format!("doc{}.md", i)), doc)
+                .await
+                .unwrap();
         }
         index.build_hnsw().await.unwrap();
     });

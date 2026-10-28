@@ -98,7 +98,12 @@ fn ascii_without_overlap_keeps_previous_chunks() {
         .collect();
     assert_eq!(
         got,
-        ["# T\nabcdefghijkl", "mnopqrstuvwxyz\n#", " T\nabcdefghijklm", "nopqrstuvwxyz\n"]
+        [
+            "# T\nabcdefghijkl",
+            "mnopqrstuvwxyz\n#",
+            " T\nabcdefghijklm",
+            "nopqrstuvwxyz\n"
+        ]
     );
 }
 

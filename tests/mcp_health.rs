@@ -18,7 +18,11 @@ async fn wait_for_socket(path: &std::path::Path) {
     while !path.exists() && Instant::now() < deadline {
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
-    assert!(path.exists(), "le serveur doit créer son socket : {}", path.display());
+    assert!(
+        path.exists(),
+        "le serveur doit créer son socket : {}",
+        path.display()
+    );
 }
 
 /// Ouvre le serveur sur un socket de bac à sable et retourne son chemin.
@@ -36,7 +40,9 @@ async fn server_on_sandbox_socket() -> (tempfile::TempDir, std::path::PathBuf) {
 }
 
 async fn request(sock: &std::path::Path, method: &str) -> RpcResponse {
-    let mut stream = UnixStream::connect(sock).await.expect("connexion au socket MCP");
+    let mut stream = UnixStream::connect(sock)
+        .await
+        .expect("connexion au socket MCP");
     framed::write_request(
         &mut stream,
         &RpcRequest {
@@ -58,7 +64,11 @@ async fn health_check_answers_ok_over_the_framed_socket() {
     let (_dir, sock) = server_on_sandbox_socket().await;
     let resp = request(&sock, "health.check").await;
 
-    assert!(resp.ok, "health.check doit réussir ; obtenu : {:?}", resp.error);
+    assert!(
+        resp.ok,
+        "health.check doit réussir ; obtenu : {:?}",
+        resp.error
+    );
     assert_eq!(resp.error, None, "aucune erreur attendue");
     let result = resp.result.expect("health.check renvoie un résultat");
     assert_eq!(
@@ -66,7 +76,11 @@ async fn health_check_answers_ok_over_the_framed_socket() {
         Some(env!("CARGO_PKG_VERSION")),
         "le résultat porte la version du binaire ; obtenu : {result}"
     );
-    assert_eq!(resp.id, Some(serde_json::json!(1)), "l'id fait l'aller-retour");
+    assert_eq!(
+        resp.id,
+        Some(serde_json::json!(1)),
+        "l'id fait l'aller-retour"
+    );
 }
 
 #[tokio::test]
@@ -76,9 +90,15 @@ async fn unknown_method_is_still_reported_as_not_implemented() {
     let (_dir, sock) = server_on_sandbox_socket().await;
     let resp = request(&sock, "chat.complete").await;
 
-    assert!(!resp.ok, "une méthode non branchée doit échouer ; obtenu : {resp:?}");
     assert!(
-        resp.error.as_deref().unwrap_or_default().contains("implément"),
+        !resp.ok,
+        "une méthode non branchée doit échouer ; obtenu : {resp:?}"
+    );
+    assert!(
+        resp.error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("implément"),
         "l'erreur doit le dire ; obtenu : {:?}",
         resp.error
     );

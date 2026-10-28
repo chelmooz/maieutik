@@ -21,9 +21,8 @@ static ORT_ENVIRONMENT: OnceLock<Result<Environment, String>> = OnceLock::new();
 pub fn ort_environment() -> Result<&'static Environment> {
     let env = ORT_ENVIRONMENT.get_or_init(|| {
         let builder = match crate::config::store::ort_dylib_path() {
-            Some(path) => ort::init_from(path).map_err(|e| {
-                format!("loading ONNX Runtime from ORT_DYLIB_PATH: {e}")
-            })?,
+            Some(path) => ort::init_from(path)
+                .map_err(|e| format!("loading ONNX Runtime from ORT_DYLIB_PATH: {e}"))?,
             None => ort::init(),
         };
         builder.build().map_err(|e| e.to_string())

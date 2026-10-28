@@ -243,16 +243,16 @@ pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
                     info!("réconciliation : modifié pendant l'arrêt, réindexé {stored}");
                     match index_one(index, &chunker, Path::new(&stored)) {
                         Ok(_) => report.reindexed.push(stored),
-                        Err(e) => report.failed.push((stored, format!("réindexation : {e:#}"))),
+                        Err(e) => report
+                            .failed
+                            .push((stored, format!("réindexation : {e:#}"))),
                     }
                 }
                 // Empreintes identiques : rien à faire.
                 (Some(_), Some(_)) => {}
                 // Pas d'empreinte comparable : conserver, signaler.
                 _ => {
-                    warn!(
-                        "réconciliation : empreinte inconnue, entrée conservée {stored}"
-                    );
+                    warn!("réconciliation : empreinte inconnue, entrée conservée {stored}");
                     report.kept_unverified.push(stored);
                 }
             },

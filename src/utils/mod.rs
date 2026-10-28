@@ -6,7 +6,11 @@ use std::path::Path;
 
 /// Extract text from various document formats
 pub fn extract_text(path: &Path) -> Result<String> {
-    let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("").to_lowercase();
+    let ext = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
     match ext.as_str() {
         "txt" | "md" | "markdown" => extract_plain(path),
         "docx" => extract_docx(path),
@@ -60,7 +64,8 @@ fn strip_xml_tags(xml: &str) -> String {
     }
     // Entités : amp en dernier, pour ne pas décoder deux fois.
     // D'abord les entités nommées XML standard, puis les entités numériques.
-    let mut out = out.replace("\x26lt;", "\x3c")
+    let mut out = out
+        .replace("\x26lt;", "\x3c")
         .replace("\x26gt;", "\x3e")
         .replace("\x26quot;", "\"")
         .replace("\x26apos;", "\'")
@@ -149,4 +154,3 @@ fn decode_numeric_entities(s: &str) -> String {
     }
     result
 }
-

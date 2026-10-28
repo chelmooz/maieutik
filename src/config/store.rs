@@ -1,9 +1,9 @@
 //! Settings persistence — JSON file (mode 0600 on Unix)
 
-use anyhow::{Context, Result};
 use crate::config::AppSettings;
-use serde::{Serialize, Deserialize};
+use anyhow::{Context, Result};
 use directories::ProjectDirs;
+use serde::{Deserialize, Serialize};
 use serde_json;
 use std::fs;
 use std::path::PathBuf;
@@ -28,7 +28,11 @@ pub fn data_dir() -> Result<PathBuf> {
     ProjectDirs::from("org", "maieutik", "Maieutik")
         .map(|dirs| dirs.data_dir().to_path_buf())
         .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share").join("maieutik")))
-        .ok_or_else(|| anyhow::anyhow!("Impossible de déterminer le répertoire de données : home directory introuvable"))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Impossible de déterminer le répertoire de données : home directory introuvable"
+            )
+        })
 }
 
 /// Returns the models directory, creating it if needed.
@@ -96,12 +100,14 @@ pub fn load_settings() -> Result<AppSettings> {
         info!("No config file at {}, using defaults", path.display());
         return Ok(AppSettings::default());
     }
-    let text = fs::read_to_string(&path)
-        .with_context(|| format!("Reading {}", path.display()))?;
+    let text = fs::read_to_string(&path).with_context(|| format!("Reading {}", path.display()))?;
     let file: SettingsFile = serde_json::from_str(&text)
         .with_context(|| format!("Parsing JSON from {}", path.display()))?;
     if file.version != SETTINGS_VERSION {
-        warn!("Config version mismatch (file={}, expected={}), migrating...", file.version, SETTINGS_VERSION);
+        warn!(
+            "Config version mismatch (file={}, expected={}), migrating...",
+            file.version, SETTINGS_VERSION
+        );
         // TODO: implement migration
     }
     debug!("Loaded settings from {}", path.display());

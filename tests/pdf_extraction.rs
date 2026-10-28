@@ -27,10 +27,18 @@ fn deeply_nested_pdf(depth: usize) -> Vec<u8> {
     out.extend_from_slice(b"\nendobj\n");
     let xref_off = out.len();
     out.extend_from_slice(
-        format!("xref\n0 2\n0000000000 65535 f \n{:010} 00000 n \n", obj1_off).as_bytes(),
+        format!(
+            "xref\n0 2\n0000000000 65535 f \n{:010} 00000 n \n",
+            obj1_off
+        )
+        .as_bytes(),
     );
     out.extend_from_slice(
-        format!("trailer\n<< /Size 2 /Root 1 0 R >>\nstartxref\n{}\n%%EOF\n", xref_off).as_bytes(),
+        format!(
+            "trailer\n<< /Size 2 /Root 1 0 R >>\nstartxref\n{}\n%%EOF\n",
+            xref_off
+        )
+        .as_bytes(),
     );
     out
 }
@@ -40,8 +48,12 @@ fn corrupted_pdf_is_handled_gracefully() {
     let dir = tempfile::tempdir().unwrap();
     let pdf = dir.path().join("corrupted.pdf");
     // Write invalid PDF content
-    std::fs::write(&pdf, b"%PDF-1.7
-not a valid pdf").unwrap();
+    std::fs::write(
+        &pdf,
+        b"%PDF-1.7
+not a valid pdf",
+    )
+    .unwrap();
     // Should return an error, not panic
     assert!(extract_text(&pdf).is_err());
 }

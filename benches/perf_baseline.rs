@@ -43,7 +43,9 @@ fn bench_indexing_10(c: &mut Criterion) {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
                     for (i, doc) in docs.iter().enumerate() {
-                        index.store_file(Path::new(&format!("doc{}.md", i)), doc, None).unwrap();
+                        index
+                            .store_file(Path::new(&format!("doc{}.md", i)), doc, None)
+                            .unwrap();
                     }
                     index.build_hnsw().await.unwrap();
                 });
@@ -69,7 +71,9 @@ fn bench_indexing_100(c: &mut Criterion) {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
                     for (i, doc) in docs.iter().enumerate() {
-                        index.store_file(Path::new(&format!("doc{}.md", i)), doc, None).unwrap();
+                        index
+                            .store_file(Path::new(&format!("doc{}.md", i)), doc, None)
+                            .unwrap();
                     }
                     index.build_hnsw().await.unwrap();
                 });
@@ -95,7 +99,9 @@ fn bench_indexing_1000(c: &mut Criterion) {
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 rt.block_on(async {
                     for (i, doc) in docs.iter().enumerate() {
-                        index.store_file(Path::new(&format!("doc{}.md", i)), doc, None).unwrap();
+                        index
+                            .store_file(Path::new(&format!("doc{}.md", i)), doc, None)
+                            .unwrap();
                     }
                     index.build_hnsw().await.unwrap();
                 });
@@ -112,7 +118,13 @@ fn bench_search_1(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         for i in 0..1000 {
-            index.store_file(Path::new(&format!("doc{}.md", i)), &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000), None).unwrap();
+            index
+                .store_file(
+                    Path::new(&format!("doc{}.md", i)),
+                    &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000),
+                    None,
+                )
+                .unwrap();
         }
         index.build_hnsw().await.unwrap();
     });
@@ -132,7 +144,13 @@ fn bench_search_5(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         for i in 0..1000 {
-            index.store_file(Path::new(&format!("doc{}.md", i)), &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000), None).unwrap();
+            index
+                .store_file(
+                    Path::new(&format!("doc{}.md", i)),
+                    &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000),
+                    None,
+                )
+                .unwrap();
         }
         index.build_hnsw().await.unwrap();
     });
@@ -152,7 +170,13 @@ fn bench_search_10(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         for i in 0..1000 {
-            index.store_file(Path::new(&format!("doc{}.md", i)), &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000), None).unwrap();
+            index
+                .store_file(
+                    Path::new(&format!("doc{}.md", i)),
+                    &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000),
+                    None,
+                )
+                .unwrap();
         }
         index.build_hnsw().await.unwrap();
     });
@@ -172,7 +196,13 @@ fn bench_search_50(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
     rt.block_on(async {
         for i in 0..1000 {
-            index.store_file(Path::new(&format!("doc{}.md", i)), &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000), None).unwrap();
+            index
+                .store_file(
+                    Path::new(&format!("doc{}.md", i)),
+                    &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000),
+                    None,
+                )
+                .unwrap();
         }
         index.build_hnsw().await.unwrap();
     });
@@ -192,7 +222,13 @@ fn bench_memory(c: &mut Criterion) {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             for i in 0..1000 {
-                index.store_file(Path::new(&format!("doc{}.md", i)), &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000), None).unwrap();
+                index
+                    .store_file(
+                        Path::new(&format!("doc{}.md", i)),
+                        &make_file_content(&format!("Document {}: {} {}", i, FOX, RUST), 1000),
+                        None,
+                    )
+                    .unwrap();
             }
             index.build_hnsw().await.unwrap();
         });

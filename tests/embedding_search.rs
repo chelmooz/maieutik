@@ -42,7 +42,9 @@ fn require_file(var: &str, default: fn() -> Result<PathBuf, anyhow::Error>, what
          This test needs the real BAAI/bge-m3 files; it will not pass without them.\n\
          Set {var}=/path/to/{what} (download from https://huggingface.co/BAAI/bge-m3,\n\
          onnx/{what} and tokenizer.json).\n",
-        path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "unknown".to_string()),
+        path.as_ref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "unknown".to_string()),
     );
     path.unwrap()
 }
@@ -264,8 +266,12 @@ fn embeddings_are_normalized_and_deterministic() {
         )
     });
 
-    let a = embedder.embed("memory safety without a garbage collector").unwrap();
-    let b = embedder.embed("memory safety without a garbage collector").unwrap();
+    let a = embedder
+        .embed("memory safety without a garbage collector")
+        .unwrap();
+    let b = embedder
+        .embed("memory safety without a garbage collector")
+        .unwrap();
 
     assert_eq!(a.len(), 1024, "BGE-M3 must produce 1024 dimensions");
     assert_eq!(a, b, "embeddings must be deterministic");

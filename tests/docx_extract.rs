@@ -48,7 +48,7 @@ fn malformed_xml_is_handled_gracefully() {
     let xml = "<w:document><w:body><w:p><w:r><w:t>unclosed";
     let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
     // Should not panic; returns what it can extract or an error
-    let _ = extract_text(&path);  // Just verify no panic
+    let _ = extract_text(&path); // Just verify no panic
 }
 
 #[test]
@@ -58,8 +58,8 @@ fn zip_bomb_is_rejected() {
     let path = dir.path().join("bomb.docx");
     let file = std::fs::File::create(&path).unwrap();
     let mut writer = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     writer.start_file("word/document.xml", options).unwrap();
     // Write 1MB of data - should complete without OOM
     writer.write_all(&vec![b'x'; 1_000_000]).unwrap();
@@ -101,8 +101,8 @@ fn stored_entry_is_read_too() {
     let path = dir.path().join("a.docx");
     let file = std::fs::File::create(&path).unwrap();
     let mut writer = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default()
-        .compression_method(zip::CompressionMethod::Stored);
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
     writer.start_file("word/document.xml", options).unwrap();
     writer.write_all(xml.as_bytes()).unwrap();
     writer.finish().unwrap();

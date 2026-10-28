@@ -232,9 +232,9 @@ impl McpServer {
     }
 
     async fn handle_stdio_connection(self: Arc<Self>) -> Result<()> {
-        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
         use tokio::io::stdin;
         use tokio::io::stdout;
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
         let mut reader = BufReader::new(stdin()).lines();
         let mut writer = stdout();
@@ -257,8 +257,12 @@ impl McpServer {
                     };
                     let json = serde_json::to_string(&error_resp)?;
                     writer.write_all(json.as_bytes()).await?;
-                    writer.write_all(b"
-").await?;
+                    writer
+                        .write_all(
+                            b"
+",
+                        )
+                        .await?;
                     writer.flush().await?;
                     continue;
                 }
@@ -270,8 +274,12 @@ impl McpServer {
             // Write response
             let json = serde_json::to_string(&response)?;
             writer.write_all(json.as_bytes()).await?;
-            writer.write_all(b"
-").await?;
+            writer
+                .write_all(
+                    b"
+",
+                )
+                .await?;
             writer.flush().await?;
         }
         Ok(())
@@ -300,7 +308,10 @@ impl McpServer {
         }
     }
 
-    async fn handle_unix_connection(self: Arc<Self>, mut stream: tokio::net::UnixStream) -> Result<()> {
+    async fn handle_unix_connection(
+        self: Arc<Self>,
+        mut stream: tokio::net::UnixStream,
+    ) -> Result<()> {
         use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
         loop {
@@ -535,8 +546,7 @@ mod tests {
         let file = dir.path().join("pas-un-socket.sock");
         std::fs::write(&file, "contenu à préserver").unwrap();
 
-        let err = prepare_socket_path(&file)
-            .expect_err("un fichier ordinaire doit être refusé");
+        let err = prepare_socket_path(&file).expect_err("un fichier ordinaire doit être refusé");
         assert!(
             err.to_string().contains("n'est pas un socket"),
             "message : {err:#}"
