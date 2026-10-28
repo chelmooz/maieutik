@@ -162,6 +162,10 @@ impl Embedder {
         let outputs = session.run(inputs)?;
 
         // rc.15: `try_extract_tensor` returns `(&Shape, &[f32])`.
+        // Validate outputs exist - ONNX model must produce at least one output.
+        if outputs.len() == 0 {
+            anyhow::bail!("ONNX model produced no outputs - expected at least one for embedding");
+        }
         let (shape, data) = outputs[0].try_extract_tensor::<f32>()?;
         let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
         let vec: Vec<f32> = match dims.as_slice() {
@@ -175,6 +179,13 @@ impl Embedder {
                 "unexpected embedding output shape {other:?} (expected [1, {EMBEDDING_DIM}])"
             ),
         };
+
+        // Validate vector values: no NaN or infinity
+        for x in &vec {
+            if !x.is_finite() {
+                anyhow::bail!("ONNX model produced non-finite embedding value: {}", x);
+            }
+        }
 
         // Normalize (cosine similarity via Euclidean distance on unit vectors).
         let norm: f32 = vec.iter().map(|x| x * x).sum::<f32>().sqrt();
