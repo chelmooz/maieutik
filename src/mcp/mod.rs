@@ -419,6 +419,7 @@ pub mod framed {
     pub struct RpcRequest {
         pub method: String,
         pub params: serde_json::Value,
+        #[serde(skip_serializing_if = "Option::is_none")]
         pub id: Option<serde_json::Value>,
     }
 
