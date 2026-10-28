@@ -405,7 +405,9 @@ impl std::fmt::Debug for HnswIndex {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct VectorIndex {
+    db: sled::Db,
     vectors_tree: sled::Tree,
     meta_tree: sled::Tree,
     file_meta_tree: sled::Tree,
@@ -418,8 +420,7 @@ impl VectorIndex {
     /// vecteurs. Aucun réglage n'est lu ici : les `Folders` et options de
     /// découpage appartiennent à `core::scan`.
     ///
-    /// La poignée `sled::Db` est locale : chaque `Tree` garde le contexte de
-    /// la base en vie, donc l'index reste utilisable après sa libération.
+    /// La base de données est maintenue dans le struct pour garder le verrou vivant.
     pub fn open(data_dir: &Path, embedder: impl TextEmbedder + 'static) -> Result<Self> {
         let db = sled::open(data_dir.join("vector_index"))?;
         let vectors_tree = db.open_tree(VECTOR_TABLE)?;
@@ -437,16 +438,33 @@ impl VectorIndex {
 
         // Verify schema/model compatibility
         if meta.schema_version != SCHEMA_VERSION || meta.model_id != MODEL_ID || meta.dimensions != EMBEDDING_DIM {
+            // RUST-003: Instead of clearing data, move vectors to a backup for recovery
+            let backup_tree_name = format!("vectors_backup_{}", std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs());
+            
             warn!(
-                "Index schema/model mismatch — purging stored vectors. \
-                 Re-indexing is NOT automatic: it must be triggered separately"
+                "Index schema/model mismatch — moving vectors to backup. \
+                 Re-indexing is NOT automatic: it must be triggered separately. \
+                 Backup tree: {}",
+                backup_tree_name
             );
+            
+            // Create backup tree and move all vectors
+            let backup_tree = db.open_tree(&backup_tree_name)?;
+            for item in vectors_tree.iter() {
+                let (key, val) = item?;
+                backup_tree.insert(key, val)?;
+            }
+            
             vectors_tree.clear()?;
             let new_meta = IndexMeta::default();
             meta_tree.insert("meta", bincode::serialize(&new_meta)?)?;
         }
 
         Ok(Self {
+            db,
             vectors_tree,
             meta_tree,
             file_meta_tree,
