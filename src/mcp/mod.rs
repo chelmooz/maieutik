@@ -2,6 +2,11 @@
 //!
 //! Transport: Unix domain socket (Linux) / stdio / TCP
 //! Payload: 4-byte little-endian length prefix + UTF-8 JSON.
+//!
+//! État : le transport Unix socket fonctionne (framing + boucle d'accept),
+//! et `health.check` est la seule méthode acheminée. Le trait `McpServer`
+//! décrit le contrat cible ; ses autres méthodes ne sont pas encore routées,
+//! et le transport stdio (`run_stdio`) reste un stub.
 
 use anyhow::Result;
 use jsonrpsee::core::RpcResult;
@@ -278,13 +283,28 @@ impl McpServer {
         Ok(())
     }
 
+    /// Achemine une requête encadrée. Une seule méthode est branchée :
+    /// `health.check`, l'acquittement du pont (version du binaire). Tout le
+    /// reste — y compris les méthodes du trait `McpServer` ci-dessus, qui
+    /// décrivent le contrat cible sans être acheminées — est refusé en
+    /// nommant la méthode, pour qu'un client distingue « pont vivant » et
+    /// « pont incomplet ».
     async fn dispatch(&self, request: RpcRequest) -> RpcResponse {
-        // TODO: implement actual method dispatch
-        RpcResponse {
-            ok: false,
-            result: None,
-            error: Some("Not implemented".to_string()),
-            id: request.id,
+        match request.method.as_str() {
+            "health.check" => RpcResponse {
+                ok: true,
+                result: Some(serde_json::json!({
+                    "version": env!("CARGO_PKG_VERSION"),
+                })),
+                error: None,
+                id: request.id,
+            },
+            other => RpcResponse {
+                ok: false,
+                result: None,
+                error: Some(format!("méthode inconnue ou non implémentée : {other}")),
+                id: request.id,
+            },
         }
     }
 }

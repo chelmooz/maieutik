@@ -24,7 +24,7 @@ af2b9a17c0f5  src/core/mod.rs
 b8008c24b2be  src/lib.rs
 8e4ce86d05a8  src/llm/mod.rs
 8965ab6ccd12  src/main.rs
-7db44f72bd9b  src/mcp/mod.rs
+19ae552f9162  src/mcp/mod.rs
 1c9c54b0a9cd  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
 c2dc2949d18c  src/utils/mod.rs
@@ -32,6 +32,7 @@ c2dc2949d18c  src/utils/mod.rs
 61734ffd9005  tests/chunker.rs
 ae7766f9018c  tests/docx_extract.rs
 82cdbbb9e228  tests/embedding_search.rs
+32aad17f2324  tests/mcp_health.rs
 4d1e2c21e798  tests/index_replace.rs
 efe23d72c897  tests/index_scan.rs
 09daa53bbdd7  tests/index_search.rs
@@ -79,8 +80,11 @@ acf5418511a6  docs/INSTALLATION.md
 | 5 | same command after tightening `MAX_MATCH_DISTANCE` to 0.95 (P1.25) | exit 0 — 3 tests passed (14.43 s); the same command at 0.80 fails by design on query 1 (`d=0.8670, above the 0.8 threshold`) |
 | 6 | `cargo audit --deny warnings` after bumping `single-instance` to 0.3.3 (P1.26) | exit 0 — 470 crates scanned, 5 documented exceptions; the two `failure` advisories (RUSTSEC-2019-0036, RUSTSEC-2020-0036) are gone because `failure` left the lock |
 | 7 | `cargo clippy --locked --all-targets` after the backlog cleanup (P1.27) | exit 0 — `grep -c "^warning"` falls from 29 to 1, and the surviving line is the build script's informational "Skipping model download" (not a lint); the full test suite passes with 96 tests |
+| 8 | `cargo test --locked --test mcp_health` (P1.28) | exit 0 — 2 tests passed: a real `run_unix_socket` server on a sandbox socket answers `health.check` with `ok` + the binary version over the framed protocol, and an unrouted method is refused by name. Before the fix both failed on `Some("Not implemented")` |
 
-- Hashes re-bound at P1.27 (15 files — clippy backlog cleared: `is_empty`
+- Hashes re-bound at P1.28 (`src/mcp/mod.rs` changed, `tests/mcp_health.rs`
+  added — `health.check` is the first routed MCP method); at P1.27
+  (15 files — clippy backlog cleared: `is_empty`
   added to `HnswIndex`, `VectorIndex::open` loses its unused `settings`
   parameter and `db` field, unused imports/impls removed; red commit first for
   `is_empty`); at P1.26 (`Cargo.toml`, `Cargo.lock`, `src/main.rs`,
@@ -154,7 +158,11 @@ Top-1 Euclidean distances from `test-model-nocapture.log` (R0):
    it is not a user-facing feature. ~~MCP socket path uses the caller PID under
    `/tmp`~~ **Fixed in P1.17**: `prepare_socket_path` only removes a stale
    socket (never a regular file) and `socket_path()` lives under the user's
-   private runtime directory (`tests` in `src/mcp/mod.rs`).
+   private runtime directory (`tests` in `src/mcp/mod.rs`). The server
+   routed nothing until P1.28: `dispatch` answered "Not implemented" to
+   every method. `health.check` is now the only routed one
+   (`tests/mcp_health.rs`); no binary command launches the server yet
+   (`--mcp-stdio` exits 3).
 9. Secrets: keyring and open_ai_* settings removed at P1.12; config.json is written with mode 0600 on Unix.
 10. ~~`nom v2.2.1` (transitive) triggers a future-incompat warning~~
    **Obsolete on this tree**: `nom` 2.2.1 no longer appears in `Cargo.lock`
