@@ -31,7 +31,7 @@ a8d9e106e24a  src/speech/mod.rs
 36d44a041b21  tests/config_store.rs
 61734ffd9005  tests/chunker.rs
 ae7766f9018c  tests/docx_extract.rs
-28139d62c849  tests/embedding_search.rs
+5cab4f62c4c1  tests/embedding_search.rs
 4d1e2c21e798  tests/index_replace.rs
 077770b9bbb3  tests/index_scan.rs
 9e6548501da4  tests/index_search.rs
@@ -76,11 +76,13 @@ cfd751855d2a  docs/UTILISATION.md
 | 2 | `cargo test --locked` (no model, default parallelism) | exit 0 — 1 unit test, 3 model tests ignored by design (`test-no-model.log`) |
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 | 4 | `cargo test --locked --test embedding_search -- --ignored --nocapture --test-threads=1` (with model, replayed at P1.24) | exit 0 — 3 tests passed (15.08 s); top-1 distances identical to the archived log (see honesty notes) |
+| 5 | same command after tightening `MAX_MATCH_DISTANCE` to 0.95 (P1.25) | exit 0 — 3 tests passed (14.43 s); the same command at 0.80 fails by design on query 1 (`d=0.8670, above the 0.8 threshold`) |
 
-- Hashes re-bound at P1.23 (`src/core/indexer/mod.rs`, `src/core/scan.rs`,
+- Hashes re-bound at P1.25 (`tests/embedding_search.rs` — `MAX_MATCH_DISTANCE`
+  tightened to 0.95); at P1.23 (`src/core/indexer/mod.rs`, `src/core/scan.rs`,
   `src/main.rs`, `docs/UTILISATION.md`, `tests/watch_service.rs`,
   `tests/startup_reconcile.rs` changed; `tests/file_fingerprint.rs` added —
-  file fingerprint and drift detection at startup); logs below predate P1.5
+  file fingerprint and drift detection at startup). Logs below predate P1.5
   and were not replayed.
 
 Raw logs accompany this document in the review archive. They predate P1.5
@@ -99,11 +101,13 @@ Top-1 Euclidean distances from `test-model-nocapture.log` (R0):
   test's own doc comment documents measurements taken **with BGE-M3**
   (0.87 / 0.78 / 0.70), and the P1.24 replay reproduces them exactly. No
   recalibration was needed.
-- On this corpus the threshold does discriminate: best **wrong-file**
-  distances measured at P1.24 are **1.0923 / 1.1823 / 1.0948** — all above
-  1.05 — while right answers sit at 0.70–0.87. It stays a loose guard in
-  general (≈ cosine 0.45); `MIN_FILE_MARGIN = 0.15` (measured margins at
-  P1.24: 0.2253 / 0.3989 / 0.3899) remains the binding assertion.
+- The threshold was **tightened from 1.05 to 0.95 at P1.25**: right answers
+  measured 0.8670 / 0.7834 / 0.7049, best **wrong-file** distances
+  1.0923 / 1.1823 / 1.0948, so 0.95 keeps ≥ 0.08 of margin above the worst
+  right answer and ≥ 0.14 below the best wrong one. A value below 0.87 fails
+  by design (verified at 0.80: `d=0.8670, above the 0.8 threshold`).
+  `MIN_FILE_MARGIN = 0.15` (measured margins at P1.24:
+  0.2253 / 0.3989 / 0.3899) remains the binding assertion.
 - `MIN_FILE_MARGIN` is based on **3 English queries over 3 documents**.
 - The test corpus is **English only**; French/cross-lingual retrieval is
   **not tested yet** (planned: evaluation phase).
