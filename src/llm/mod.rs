@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::task;
 use tracing::{debug, info};
 
 /// Returns the initialized llama.cpp backend, initializing on first access.
@@ -330,9 +331,16 @@ impl ChatCompletionProvider for LocalLlamaProvider {
         temp: f32,
     ) -> Result<String> {
         let prompt = qwen_format::format_chat(messages);
-        let model = self.model.lock().await;
-        let mut session = LlamaSession::new(&model)?;
-        session.complete(&prompt, max_tokens, temp)
+        let model = Arc::clone(&self.model);
+        
+        // Offload blocking inference to a blocking thread pool
+        task::spawn_blocking(move || {
+            let model_guard = model.blocking_lock();
+            let mut session = LlamaSession::new(&model_guard)?;
+            session.complete(&prompt, max_tokens, temp)
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("blocking task panicked: {e}"))?
     }
 
     async fn stream_complete(
@@ -343,9 +351,16 @@ impl ChatCompletionProvider for LocalLlamaProvider {
         on_token: TokenCallback,
     ) -> Result<()> {
         let prompt = qwen_format::format_chat(messages);
-        let model = self.model.lock().await;
-        let mut session = LlamaSession::new(&model)?;
-        session.stream_complete(&prompt, max_tokens, temp, on_token)
+        let model = Arc::clone(&self.model);
+        
+        // Offload blocking inference to a blocking thread pool
+        task::spawn_blocking(move || {
+            let model_guard = model.blocking_lock();
+            let mut session = LlamaSession::new(&model_guard)?;
+            session.stream_complete(&prompt, max_tokens, temp, on_token)
+        })
+        .await
+        .map_err(|e| anyhow::anyhow!("blocking task panicked: {e}"))?
     }
 }
 
