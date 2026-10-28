@@ -7,9 +7,7 @@
 use maieutik::mcp::McpServer;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
-use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::timeout;
 
 fn start_mcp_stdio() -> (Command, std::process::Child) {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_maieutik"));

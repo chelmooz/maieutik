@@ -221,10 +221,59 @@ impl McpServer {
         Self::default()
     }
 
-    /// Start server over stdio (for MCP clients like Claude Desktop)
+    /// Start server over stdio (for MCP clients like Claude Desktop, Odysseus).
+    ///
+    /// Lit les requêtes JSON-RPC 2.0 sur stdin (une ligne = une requête complète),
+    /// écrit les réponses sur stdout (une ligne = une réponse complète).
+    /// Aucune trame de longueur n'est utilisée (contrairement au socket Unix).
     pub async fn run_stdio(self: Arc<Self>) -> Result<()> {
         info!("Starting MCP server over stdio");
-        // Server setup pending — MCP transport not yet implemented
+        self.handle_stdio_connection().await
+    }
+
+    async fn handle_stdio_connection(self: Arc<Self>) -> Result<()> {
+        use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+        use tokio::io::stdin;
+        use tokio::io::stdout;
+
+        let mut reader = BufReader::new(stdin()).lines();
+        let mut writer = stdout();
+
+        while let Some(line) = reader.next_line().await? {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+
+            // Parse request
+            let request: RpcRequest = match serde_json::from_str(line) {
+                Ok(r) => r,
+                Err(e) => {
+                    let error_resp = RpcResponse {
+                        ok: false,
+                        result: None,
+                        error: Some(format!("Invalid JSON: {}", e)),
+                        id: None,
+                    };
+                    let json = serde_json::to_string(&error_resp)?;
+                    writer.write_all(json.as_bytes()).await?;
+                    writer.write_all(b"
+").await?;
+                    writer.flush().await?;
+                    continue;
+                }
+            };
+
+            // Dispatch
+            let response = self.dispatch(request).await;
+
+            // Write response
+            let json = serde_json::to_string(&response)?;
+            writer.write_all(json.as_bytes()).await?;
+            writer.write_all(b"
+").await?;
+            writer.flush().await?;
+        }
         Ok(())
     }
 
@@ -291,6 +340,20 @@ impl McpServer {
     /// « pont incomplet ».
     async fn dispatch(&self, request: RpcRequest) -> RpcResponse {
         match request.method.as_str() {
+            "initialize" => RpcResponse {
+                ok: true,
+                result: Some(serde_json::json!({
+                    "protocolVersion": "2025-11-25",
+                    "capabilities": {},
+                    "serverInfo": {
+                        "name": "maieutik",
+                        "version": env!("CARGO_PKG_VERSION")
+                    },
+                    "instructions": "Maieutik local-first notes with AI. Use health.check for liveness."
+                })),
+                error: None,
+                id: request.id,
+            },
             "health.check" => RpcResponse {
                 ok: true,
                 result: Some(serde_json::json!({

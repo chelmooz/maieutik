@@ -168,7 +168,9 @@ async fn run(cli: Cli) -> Result<i32> {
 
     // Commandes non implémentées : refus avant toute initialisation.
     if cli.mcp_stdio {
-        return Ok(not_implemented("--mcp-stdio"));
+        // Lance le serveur MCP sur stdio — ne retourne que si la connexion se ferme.
+        let server = Arc::new(maieutik::mcp::McpServer::new());
+        if let Err(e) = server.run_stdio().await { eprintln!("Erreur serveur MCP: {e}"); return Ok(EXIT_UNAVAILABLE); } return Ok(0);
     }
     if let Some(label) = cli.command.as_ref().and_then(not_implemented_label) {
         return Ok(not_implemented(label));

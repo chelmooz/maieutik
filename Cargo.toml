@@ -128,3 +128,19 @@ inherits = "release"
 strip = false
 debug = true
 panic = "unwind"
+[profile.release-no-lto]
+inherits = "release"
+lto = false
+strip = false
+debug = true
+panic = "unwind"
+[profile.release-lto-unwind]
+inherits = "release"
+lto = "fat"
+strip = false
+debug = true
+panic = "unwind"
+[profile.release-abort-debug]
+inherits = "release"
+strip = false
+debug = true

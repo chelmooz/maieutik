@@ -11,7 +11,7 @@
 
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 
 /// Nom de verrou propre à ce bac à sable : le socket abstrait de
 /// `single-instance` est global à la machine, deux tests parallèles qui
@@ -130,11 +130,42 @@ fn model_not_implemented_exits_three() {
 }
 
 #[test]
-fn mcp_stdio_not_implemented_exits_three() {
+fn mcp_stdio_runs_server_and_exits_on_stdin_close() {
     let t = tempfile::tempdir().unwrap();
-    let o = run(t.path(), None, &["--mcp-stdio"]);
-    assert_eq!(code(&o), 3, "stdout: {} stderr: {}", out(&o), err(&o));
-    assert_error_streams(&o);
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_maieutik"));
+    let work = t.path().join("work");
+    let home = t.path().join("home");
+    let cfg = t.path().join("cfg");
+    let data = t.path().join("data");
+    let cache = t.path().join("cache");
+    for d in [&work, &home, &cfg, &data, &cache] {
+        fs::create_dir_all(d).unwrap();
+    }
+    cmd.arg("--mcp-stdio")
+        .current_dir(&work)
+        .env_clear()
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", &cfg)
+        .env("XDG_DATA_HOME", &data)
+        .env("XDG_CACHE_HOME", &cache)
+        .env("MAIEUTIK_INSTANCE_NAME", instance_name(t.path()))
+        .env("MAIEUTIK_EMBEDDER_MODEL", t.path().join("absent.onnx"))
+        .env("MAIEUTIK_EMBEDDER_TOKENIZER", t.path().join("absent.json"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let mut child = cmd.spawn().expect("lancement maieutik --mcp-stdio");
+    // Close stdin immediately to trigger graceful shutdown
+    drop(child.stdin.take());
+    let o = child.wait_with_output().expect("attente fin");
+
+    // Le serveur doit s'arrêter proprement (stdin fermé = fin de connexion)
+    assert_eq!(code_from_output(&o), 0, "stdout: {} stderr: {}", out(&o), err(&o));
+}
+
+fn code_from_output(o: &std::process::Output) -> i32 {
+    o.status.code().expect("sortie par code")
 }
 
 #[test]
