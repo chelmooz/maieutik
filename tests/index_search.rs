@@ -1,7 +1,9 @@
 //! Indexation et recherche sans modèle ONNX : faux embedder déterministe.
 
 use maieutik::config::{AppSettings, FileContent};
-use maieutik::core::indexer::{extract_headings, Chunker, HashEmbedder, TextEmbedder, VectorIndex};
+use maieutik::core::indexer::{
+    extract_headings, Chunker, HashEmbedder, HnswIndex, TextEmbedder, VectorIndex,
+};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -83,4 +85,16 @@ async fn upsert_with_no_chunks_purges_the_file() {
         .await
         .unwrap();
     assert_eq!(index.stats().0, 0);
+}
+/// `is_empty` est le pendant de `len` : un index neuf n'a aucun vecteur, et le
+/// premier ajout le rend non vide. Les deux lectures doivent rester d'accord.
+#[test]
+fn hnsw_is_empty_until_the_first_vector() {
+    let mut index = HnswIndex::new(3);
+    assert!(index.is_empty(), "un index neuf ne contient aucun vecteur");
+    assert_eq!(index.len(), 0);
+
+    index.add("chunk-0".to_string(), &[1.0, 0.0, 0.0]).unwrap();
+    assert!(!index.is_empty(), "un vecteur ajoute rend l'index non vide");
+    assert_eq!(index.len(), 1);
 }
