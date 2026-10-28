@@ -11,8 +11,8 @@
 ## Source file binding (sha256, first 12 hex chars)
 
 ```
-70d2058787c6  Cargo.lock
-9135f2b76f0b  Cargo.toml
+de390db8d538  Cargo.lock
+d3e7931631cc  Cargo.toml
 d45e04e9e055  build.rs
 a622ac8a2f56  src/config/mod.rs
 229a0e521e41  src/config/store.rs
@@ -23,7 +23,7 @@ af2b9a17c0f5  src/core/mod.rs
 3d85c972fb77  src/core/watch.rs
 41fd305a17b7  src/lib.rs
 43e08d9772de  src/llm/mod.rs
-92455a999a8c  src/main.rs
+8965ab6ccd12  src/main.rs
 02b7820e7098  src/mcp/mod.rs
 a8d9e106e24a  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
@@ -35,17 +35,17 @@ ae7766f9018c  tests/docx_extract.rs
 4d1e2c21e798  tests/index_replace.rs
 077770b9bbb3  tests/index_scan.rs
 9e6548501da4  tests/index_search.rs
-997a0969cb10  tests/cli_exit_codes.rs
-4ae38f5b1297  tests/single_instance.rs
+b03abc7e7a34  tests/cli_exit_codes.rs
+9668d7632b67  tests/single_instance.rs
 5eba94868486  tests/watcher_reindex.rs
 ecb78c064436  tests/watcher_shutdown.rs
-1f7959d99cfd  tests/watch_service.rs
+f37b91078f63  tests/watch_service.rs
 b83b8d12d01d  tests/startup_reconcile.rs
 2fbecdfc524f  tests/file_fingerprint.rs
 fe4639e27aa1  tests/force_recovery.rs
 b93c5b1332eb  tests/pdf_extraction.rs
-251fb2ddad73  docs/INSTALLATION.md
-cfd751855d2a  docs/UTILISATION.md
+acf5418511a6  docs/INSTALLATION.md
+4ec7db00797c  docs/UTILISATION.md
 ```
 
 ## Embedder: BAAI/bge-m3
@@ -77,10 +77,16 @@ cfd751855d2a  docs/UTILISATION.md
 | 3 | `cargo test --locked -- --ignored --nocapture --test-threads=1` (with model) | exit 0 — 3 integration tests passed (14.1 s) (`test-model-nocapture.log`) |
 | 4 | `cargo test --locked --test embedding_search -- --ignored --nocapture --test-threads=1` (with model, replayed at P1.24) | exit 0 — 3 tests passed (15.08 s); top-1 distances identical to the archived log (see honesty notes) |
 | 5 | same command after tightening `MAX_MATCH_DISTANCE` to 0.95 (P1.25) | exit 0 — 3 tests passed (14.43 s); the same command at 0.80 fails by design on query 1 (`d=0.8670, above the 0.8 threshold`) |
+| 6 | `cargo audit --deny warnings` after bumping `single-instance` to 0.3.3 (P1.26) | exit 0 — 470 crates scanned, 5 documented exceptions; the two `failure` advisories (RUSTSEC-2019-0036, RUSTSEC-2020-0036) are gone because `failure` left the lock |
 
-- Hashes re-bound at P1.25 (`tests/embedding_search.rs` — `MAX_MATCH_DISTANCE`
-  tightened to 0.95); at P1.23 (`src/core/indexer/mod.rs`, `src/core/scan.rs`,
-  `src/main.rs`, `docs/UTILISATION.md`, `tests/watch_service.rs`,
+- Hashes re-bound at P1.26 (`Cargo.toml`, `Cargo.lock`, `src/main.rs`,
+  `tests/single_instance.rs`, `tests/cli_exit_codes.rs`, `tests/watch_service.rs`
+  — `single-instance` 0.1.2 → 0.3.3 changed the lock from a cwd-relative flock
+  file to a process-global abstract socket, so the lock name is now
+  overridable by `MAIEUTIK_INSTANCE_NAME` and the tests isolate their
+  sandboxes); at P1.25 (`tests/embedding_search.rs`); at P1.23
+  (`src/core/indexer/mod.rs`, `src/core/scan.rs`, `src/main.rs`,
+  `docs/UTILISATION.md`, `tests/watch_service.rs`,
   `tests/startup_reconcile.rs` changed; `tests/file_fingerprint.rs` added —
   file fingerprint and drift detection at startup). Logs below predate P1.5
   and were not replayed.
@@ -136,7 +142,12 @@ Top-1 Euclidean distances from `test-model-nocapture.log` (R0):
 7. `embed_batch` is sequential.
 8. ~~`single-instance` never checks `is_single()`~~ **Fixed in P1.16**: the
    lock is enforced via `is_single()` and a second instance exits with code 4
-   (`tests/single_instance.rs`). ~~MCP socket path uses the caller PID under
+   (`tests/single_instance.rs`). At P1.26 the crate was bumped to 0.3.3
+   (no more `failure`); its Linux lock is a **process-global** abstract socket
+   instead of a cwd-relative flock file — the same machine can no longer run
+   two instances from different directories, which matches the shared index
+   database. `MAIEUTIK_INSTANCE_NAME` exists so tests can isolate sandboxes;
+   it is not a user-facing feature. ~~MCP socket path uses the caller PID under
    `/tmp`~~ **Fixed in P1.17**: `prepare_socket_path` only removes a stale
    socket (never a regular file) and `socket_path()` lives under the user's
    private runtime directory (`tests` in `src/mcp/mod.rs`).

@@ -1,8 +1,10 @@
 # Exceptions d'audit : un avis present au lot P1.6, justifie, revu a la phase indiquee.
 [advisories]
 ignore = [
-  "RUSTSEC-2019-0036", # failure 0.1.8 <- single-instance ; amont
-  "RUSTSEC-2020-0036", # failure 0.1.8 <- single-instance ; amont
+  # LEVÉS au lot P1.26 : RUSTSEC-2019-0036 et RUSTSEC-2020-0036 visaient
+  # failure 0.1.8, tiré par single-instance 0.1.2. single-instance 0.3.3 ne
+  # dépend plus de failure (nix/thiserror/widestring) : plus aucune copie de
+  # failure dans le lock.
   "RUSTSEC-2024-0384", # instant 0.1.13 <- parking_lot 0.11 <- sled ; revue P3/P4 (remplacement par SQLite)
   "RUSTSEC-2024-0436", # paste 1.0.15 <- tokenizers ; amont
   "RUSTSEC-2025-0057", # fxhash 0.2.1 <- sled ; revue P3/P4 (remplacement par SQLite)

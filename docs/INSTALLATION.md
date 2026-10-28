@@ -72,6 +72,7 @@ Variables d'environnement reconnues :
 | `MAIEUTIK_EMBEDDER_MODEL` | chemin de `model.onnx` |
 | `MAIEUTIK_EMBEDDER_TOKENIZER` | chemin de `tokenizer.json` |
 | `MAIEUTIK_EMBEDDER_THREADS` | nombre de threads de calcul (défaut : parallélisme de la machine) |
+| `MAIEUTIK_INSTANCE_NAME` | nom du verrou d'instance unique (défaut : `maieutik`) ; à changer pour isoler deux bacs à sable sur le même poste |
 
 ## 5. Configuration
 

@@ -54,7 +54,7 @@ rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 | `tracing` | dependencies | src | 0.3 |  |
 | `self_update` | dependencies | UNUSED | 0.9 | **RETIRÉ (P1.5-S10)** |
 | `global-hotkey` | dependencies | UNUSED | 1.0 | **RETIRÉ (P1.5-S11)** |
-| `single-instance` | dependencies | src | 0.1 |  |
+| `single-instance` | dependencies | src | 0.1 | **P1.26** : 0.1.2 → 0.3.3, plus de `failure` (RUSTSEC-2019-0036 et RUSTSEC-2020-0036 levés) ; sous Linux le verrou est un socket abstrait global, isolable par `MAIEUTIK_INSTANCE_NAME` |
 | `hound` | dependencies | UNUSED | 0.4 |  |
 | `sha2` | dependencies | UNUSED | 1.7 |  |
 | `blake3` | dependencies | src | 0.8 |  |
