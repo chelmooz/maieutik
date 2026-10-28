@@ -83,3 +83,16 @@ async fn unknown_method_is_still_reported_as_not_implemented() {
         resp.error
     );
 }
+
+#[tokio::test]
+async fn connection_interruption_handled_gracefully() {
+    // Fermer la connexion brutalement : le serveur ne doit pas crasher
+    // (le test vérifie que l'accept loop continue).
+    let (_dir, sock) = server_on_sandbox_socket().await;
+    let _ = UnixStream::connect(&sock).await.expect("connexion");
+    // Envoyer une requête valide
+    let _ = request(&sock, "health.check").await;
+    // Le serveur doit continuer à accepter d'autres connexions
+    let resp = request(&sock, "health.check").await;
+    assert!(resp.ok, "serveur doit survivre à une interruption client");
+}
