@@ -79,8 +79,9 @@ acf5418511a6  docs/INSTALLATION.md
 | 4 | `cargo test --locked --test embedding_search -- --ignored --nocapture --test-threads=1` (with model, replayed at P1.24) | exit 0 — 3 tests passed (15.08 s); top-1 distances identical to the archived log (see honesty notes) |
 | 5 | same command after tightening `MAX_MATCH_DISTANCE` to 0.95 (P1.25) | exit 0 — 3 tests passed (14.43 s); the same command at 0.80 fails by design on query 1 (`d=0.8670, above the 0.8 threshold`) |
 | 6 | `cargo audit --deny warnings` after bumping `single-instance` to 0.3.3 (P1.26) | exit 0 — 470 crates scanned, 5 documented exceptions; the two `failure` advisories (RUSTSEC-2019-0036, RUSTSEC-2020-0036) are gone because `failure` left the lock |
-| 7 | `cargo clippy --locked --all-targets` after the backlog cleanup (P1.27) | exit 0 — `grep -c "^warning"` falls from 29 to 1, and the surviving line is the build script's informational "Skipping model download" (not a lint); the full test suite passes with 96 tests |
+| 7 | `cargo clippy --locked --all-targets` after the backlog cleanup (P1.27) | exit 0 — `grep -c "^warning"` falls from 29 to 1, and the surviving line is the build script's informational "Skipping model download" (not a lint); the full test suite passes with 98 tests (3 embedding tests ignored by design, require model) |
 | 8 | `cargo test --locked --test mcp_health` (P1.28) | exit 0 — 2 tests passed: a real `run_unix_socket` server on a sandbox socket answers `health.check` with `ok` + the binary version over the framed protocol, and an unrouted method is refused by name. Before the fix both failed on `Some("Not implemented")` |
+| 9 | `cargo test --locked` (P1.29-AUD01, no model) | exit 0 — 98 tests passed (unit + integration); 3 embedding tests ignored by design, require model |
 
 - Hashes re-bound at P1.28 (`src/mcp/mod.rs` changed, `tests/mcp_health.rs`
   added — `health.check` is the first routed MCP method); at P1.27

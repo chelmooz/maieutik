@@ -12,13 +12,13 @@ configuration, never by code.
 | ORT environment | `core::ort_env` | **tested** — shared process-wide environment, two sessions coexist | `tests/embedding_search.rs::two_embedders_share_one_ort_environment` (passes with the real model, see `VERIFICATION.md`) |
 | Embedder (BGE-M3 dense) | `core::indexer::Embedder` | **tested** — real ONNX model, 1024-dim, distances logged | same test file; `test-model-nocapture.log` |
 | Vector store + search | `core::indexer::VectorIndex` (sled + fast-hnsw) | **tested at small scale**; known limits: full HNSW rebuild per upsert, stale chunks kept when a file shrinks | `src/core/indexer/mod.rs` (`rebuild_hnsw_if_needed`, `upsert_file`) |
-| Chunker | `core::indexer::Chunker` | **broken** — panics on non-ASCII text with overlap > 0; heading offsets wrong on CRLF | `VERIFICATION.md` issue 2; probe output in the review archive |
-| Headings extraction | `core::indexer::extract_headings` | **broken on CRLF** (same issue) | same |
-| File watcher + debounce | `core::watch` | **stub** — code exists, never exercised by a test, pipeline not wired | `src/core/watch.rs`; no test references it |
-| Extraction (docx/pdf/txt) | `utils` | **partial/broken** — XML entities not decoded (`strip_xml_tags`), PDF parsing can panic | `src/utils/mod.rs:44` ; audit probe output |
+| Chunker | `core::indexer::Chunker` | **tested** — Unicode (emoji/CJK) and CRLF offsets correct; panic on overlap fixed (P1.8); property tests via `proptest` | `tests/chunker.rs` (10 tests: `reported_panic_case_does_not_panic`, `emoji_and_cjk_slices_match_offsets`, `crlf_heading_offsets_are_exact`, `heading_extraction_survives_crlf_with_multibyte`, size/overlap in chars) |
+| Headings extraction | `core::indexer::extract_headings` | **tested** — CRLF offsets exact; multibyte headings preserved | `tests/chunker.rs` (`crlf_heading_offsets_are_exact`, `heading_extraction_survives_crlf_with_multibyte`) |
+| File watcher + debounce | `core::watch` | **tested** — debouncing, extension/size filters (fail-closed); startup reconciliation purges vanished files and reindexes modified ones (fingerprint size+mtime); SIGINT/SIGTERM flushes pending events; E2E tested with model (`tests/watch_service.rs`) | `src/core/watch.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` (8 watcher tests) |
+| Extraction (docx/pdf/txt) | `utils` | **tested at small scale** — XML entities decoded once (`entities_are_decoded_once`); deeply nested PDF never kills process (`deeply_nested_pdf_never_kills_the_process`); not-a-ZIP handled (`not_a_zip_is_an_error`); missing docx XML is error (`missing_document_xml_is_an_error`); plain text works | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/pdf_extraction.rs` |
 | LLM generation (llama.cpp) | `llm` | **never executed** — no model ever loaded; sampler chain incomplete; 512-token batch cap | `VERIFICATION.md` issue 6 |
 
-| MCP / JSON-RPC bridge | `mcp` | **stub** — handlers defined, not wired to index/LLM; socket path uses caller PID | `src/mcp/mod.rs` (`socket_path`) |
+| MCP / JSON-RPC bridge | `mcp` | **transport tested, `health.check` routed, stdio stub** — Unix socket framing (4-byte LE + JSON), accept loop, socket in private runtime dir (0700); `health.check` answers version; other methods refused by name; `run_stdio` not implemented; no binary command launches server (`--mcp-stdio` exits 3) | `src/mcp/mod.rs`, `tests/mcp_health.rs` (2 tests: `health_check_answers_ok_over_the_framed_socket`, `unknown_method_is_still_reported_as_not_implemented`) |
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
 | GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:12` |
@@ -87,8 +87,8 @@ it, they never substitute a default success.
 
 ```
 fichier
-  → extraction (utils)                    [stub/broken — P3]
-  → chunk (Chunker)                       [broken — P3]
+  → extraction (utils)                    [tested at small scale — P3]
+  → chunk (Chunker)                       [tested — P3]
   → embed (Embedder)                      [tested]
   → index (VectorIndex: sled + HNSW)      [tested at small scale]
   → recherche dense (Retriever)           [tested at small scale]
@@ -99,11 +99,13 @@ fichier
   → jugement (Judge)                      [à faire — P7]
 ```
 
-**Wired today**: nothing end-to-end. The watcher → extraction → chunk → index
-chain is not connected (`run_watcher` leaves re-indexing unimplemented,
-`Commands::Index` is an empty stub), and nothing after the index exists. The only complete path is the test path:
-corpus → chunk → embed → index → dense search, exercised by
-`tests/embedding_search.rs`.
+**Wired today**: watcher → extraction → chunk → index IS connected and tested.
+
+- Startup reconciliation: vanished files purged, modified files reindexed (fingerprint), fingerprint recorded at index time (`vanished_file_is_purged_at_startup`, `modified_file_is_reindexed_at_startup`, `indexing_records_the_disk_fingerprint`).
+- Watch service E2E: SIGTERM flushes pending events, exits 0 (`watch_starts_flushes_pending_event_and_exits_zero_on_sigterm`); startup purges deleted and reindexes modified (`watch_startup_purges_files_deleted_while_stopped`, `watch_startup_reindexes_files_modified_while_stopped`).
+- Index upsert replaces previous chunks atomically; shrinking file drops stale chunks (`upsert_replaces_previous_chunks`, `shrinking_file_drops_stale_chunks`).
+
+The only path not yet wired end-to-end is `Commands::Index` (exits 4 without folders/model). Full corpus → chunk → embed → index → dense search is exercised by `tests/embedding_search.rs` (3 tests with real model, 14.43 s).
 
 ## Chunk metadata (P3)
 
