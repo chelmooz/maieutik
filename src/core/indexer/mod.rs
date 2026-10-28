@@ -277,6 +277,9 @@ pub struct IndexMeta {
     pub dimensions: usize,
     pub chunker_version: i32,
     pub model_size_bytes: Option<u64>,
+    /// When true, the index requires a full reindex (e.g. after schema/model mismatch).
+    /// Must be cleared only after a successful `index_all` / rebuild.
+    pub needs_reindex: bool,
 }
 
 impl Default for IndexMeta {
@@ -288,6 +291,7 @@ impl Default for IndexMeta {
             dimensions: EMBEDDING_DIM,
             chunker_version: 1,
             model_size_bytes: None,
+            needs_reindex: false,
         }
     }
 }
@@ -447,7 +451,7 @@ impl VectorIndex {
             || meta.dimensions != EMBEDDING_DIM
         {
             // RUST-003: Instead of clearing data, move vectors to a backup for recovery
-            let backup_tree_name = format!(
+            let _backup_tree_name = format!(
                 "vectors_backup_{}",
                 std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -455,22 +459,41 @@ impl VectorIndex {
                     .as_secs()
             );
 
+            // Create backup trees and move all vectors + file_meta
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let vectors_backup_name = format!("vectors_backup_{}", timestamp);
+            let file_meta_backup_name = format!("file_meta_backup_{}", timestamp);
+
             warn!(
-                "Index schema/model mismatch — moving vectors to backup. \
+                "Index schema/model mismatch — moving vectors and file_meta to backup. \
                  Re-indexing is NOT automatic: it must be triggered separately. \
-                 Backup tree: {}",
-                backup_tree_name
+                 Backup trees: {}, {}",
+                vectors_backup_name, file_meta_backup_name
             );
 
-            // Create backup tree and move all vectors
-            let backup_tree = db.open_tree(&backup_tree_name)?;
+            // Backup vectors
+            let vectors_backup = db.open_tree(&vectors_backup_name)?;
             for item in vectors_tree.iter() {
                 let (key, val) = item?;
-                backup_tree.insert(key, val)?;
+                vectors_backup.insert(key, val)?;
             }
 
+            // Backup file_meta
+            let file_meta_backup = db.open_tree(&file_meta_backup_name)?;
+            for item in file_meta_tree.iter() {
+                let (key, val) = item?;
+                file_meta_backup.insert(key, val)?;
+            }
+
+            // Clear active trees
             vectors_tree.clear()?;
-            let new_meta = IndexMeta::default();
+            file_meta_tree.clear()?;
+
+            // Set needs_reindex flag
+            let new_meta = IndexMeta { needs_reindex: true, ..IndexMeta::default() };
             meta_tree.insert("meta", bincode::serialize(&new_meta)?)?;
         }
 
@@ -654,6 +677,34 @@ impl VectorIndex {
             .and_then(|b| bincode::deserialize(&b).ok())
             .unwrap_or_default();
         (count, meta)
+    }
+
+    /// Returns true if the index requires a full reindex (e.g. after schema/model mismatch).
+    pub fn needs_reindex(&self) -> bool {
+        let meta: IndexMeta = self
+            .meta_tree
+            .get("meta")
+            .ok()
+            .flatten()
+            .and_then(|b| bincode::deserialize(&b).ok())
+            .unwrap_or_default();
+        meta.needs_reindex
+    }
+
+    /// Clears the needs_reindex flag after a successful full reindex.
+    /// Should be called only after a successful `index_all` or equivalent rebuild.
+    pub fn clear_needs_reindex(&self) -> Result<()> {
+        let mut meta: IndexMeta = self
+            .meta_tree
+            .get("meta")
+            .ok()
+            .flatten()
+            .and_then(|b| bincode::deserialize(&b).ok())
+            .unwrap_or_default();
+        meta.needs_reindex = false;
+        self.meta_tree.insert("meta", bincode::serialize(&meta)?)?;
+        self.meta_tree.flush()?;
+        Ok(())
     }
 }
 
