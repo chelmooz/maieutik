@@ -7,15 +7,21 @@ use llama_cpp_2::{
     context::params::LlamaContextParams, llama_backend::LlamaBackend,
     model::params::LlamaModelParams,
 };
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info};
 
-static LLAMA_BACKEND: Lazy<LlamaBackend> =
-    Lazy::new(|| LlamaBackend::init().expect("Failed to initialize llama.cpp backend"));
+/// Returns the initialized llama.cpp backend, initializing on first access.
+/// Returns an error if the backend fails to initialize (instead of panicking).
+fn get_backend() -> Result<&'static LlamaBackend> {
+    static BACKEND: std::sync::OnceLock<Result<LlamaBackend, String>> = std::sync::OnceLock::new();
+    
+    BACKEND.get_or_init(|| {
+        LlamaBackend::init().map_err(|e| format!("Failed to initialize llama.cpp backend: {e}"))
+    }).as_ref().map_err(|e| anyhow::anyhow!("{}", e))
+}
 
 /// Callback invoked for each streamed token. Returning `false` stops generation.
 pub type TokenCallback = Box<dyn for<'a> FnMut(&'a str) -> bool + Send + 'static>;
@@ -76,8 +82,9 @@ impl LlamaModel {
             .with_use_mmap(true)
             .with_use_mlock(false);
 
+        let backend = get_backend()?;
         let model = llama_cpp_2::model::LlamaModel::load_from_file(
-            &LLAMA_BACKEND,
+            backend,
             model_path,
             &model_params,
         )
@@ -97,12 +104,13 @@ impl LlamaModel {
     }
 
     pub fn create_context(&self) -> Result<llama_cpp_2::context::LlamaContext<'_>> {
+        let backend = get_backend()?;
         let params = LlamaContextParams::default()
             .with_n_ctx(std::num::NonZeroU32::new(self.n_ctx))
             .with_n_batch(N_BATCH)
             .with_n_ubatch(N_BATCH);
         self.model
-            .new_context(&LLAMA_BACKEND, params)
+            .new_context(backend, params)
             .map_err(|e| anyhow::anyhow!("create context: {e}"))
     }
 }
