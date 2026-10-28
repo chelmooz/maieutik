@@ -322,7 +322,7 @@ impl ChatCompletionProvider for LocalLlamaProvider {
         session.complete(&prompt, max_tokens, temp)
     }
 
-    async fn stream_complete(&self, messages: &[qwen_format::ChatMessage], max_tokens: u32, temp: f32, mut on_token: TokenCallback) -> Result<()> {
+    async fn stream_complete(&self, messages: &[qwen_format::ChatMessage], max_tokens: u32, temp: f32, on_token: TokenCallback) -> Result<()> {
         let prompt = qwen_format::format_chat(messages);
         let model = self.model.lock().await;
         let mut session = LlamaSession::new(&model)?;

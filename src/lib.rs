@@ -12,7 +12,7 @@ pub mod ui;
 pub mod utils;
 
 use anyhow::Result;
-use crate::config::store::{config_path, load_settings, save_settings};
+use crate::config::store::{load_settings, save_settings};
 use crate::config::AppSettings;
 use crate::core::indexer::{Embedder, VectorIndex};
 use crate::core::scan::index_path;
@@ -48,7 +48,7 @@ impl AppState {
     ) -> Result<()> {
         let embedder = Arc::new(Embedder::new(&model_path, &tokenizer_path)?);
         let data_dir = config::store::data_dir();
-        let vector_index = Arc::new(VectorIndex::open(&data_dir, self.settings.clone(), (*embedder).clone())?);
+        let vector_index = Arc::new(VectorIndex::open(&data_dir, (*embedder).clone())?);
         vector_index.build_hnsw().await?;
         self.embedder = Some(embedder);
         self.vector_index = Some(vector_index);

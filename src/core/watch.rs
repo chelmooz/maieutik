@@ -1,20 +1,22 @@
 //! File watcher with debouncing.
 
 use anyhow::Result;
-use crate::config::{FileItem, AppSettings};
+use crate::config::AppSettings;
 use notify::event::ModifyKind;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
-use tokio::time::sleep;
 use tracing::{debug, info, warn};
 
 pub struct FileWatcher {
     watcher: RecommendedWatcher,
     settings: Arc<tokio::sync::RwLock<AppSettings>>,
+    /// Gardé vivant pour le canal : si ce sender tombait, le `Receiver` du
+    /// service verrait la fin du canal et s'arrêterait sans erreur.
+    #[allow(dead_code)]
     tx: mpsc::Sender<WatchEvent>,
 }
 

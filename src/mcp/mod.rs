@@ -4,15 +4,13 @@
 //! Payload: 4-byte little-endian length prefix + UTF-8 JSON.
 
 use anyhow::Result;
-use jsonrpsee::core::{async_trait, RpcResult};
+use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
-use jsonrpsee::server::ServerBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 #[rpc(server, client, namespace = "maieutik")]
 pub trait McpServer {
@@ -205,16 +203,17 @@ pub struct SettingsSetParams {
 }
 
 /// JSON-RPC server — Unix socket / stdio / TCP.
+///
+/// Sans état pour l'instant : les paramètres reçus par `settings.set` sont
+/// encore validés sans être conservés. TODO: y brancher l'index, le LLM, etc.
+#[derive(Default)]
 pub struct McpServer {
-    settings: Arc<RwLock<HashMap<String, serde_json::Value>>>,
     // TODO: add file index, vector index, LLM, etc.
 }
 
 impl McpServer {
     pub fn new() -> Self {
-        Self {
-            settings: Arc::new(RwLock::new(HashMap::new())),
-        }
+        Self::default()
     }
 
     /// Start server over stdio (for MCP clients like Claude Desktop)
@@ -321,7 +320,6 @@ pub mod framed {
     use serde::{Deserialize, Serialize};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixStream;
-    use tracing::debug;
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct RpcRequest {

@@ -1,12 +1,11 @@
 //! Vector index — ONNX embeddings (BGE-M3) + sled + HNSW (fast-hnsw).
 
-use anyhow::{Context, Result};
-use crate::config::{Chunk, FileContent, AppSettings};
+use anyhow::Result;
+use crate::config::{Chunk, FileContent};
 use fast_hnsw::{Builder, Hnsw};
 use fast_hnsw::distance::Euclidean;
 use ort::session::Session;
 use ort::value::Tensor;
-use sled::{Db, IVec};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -390,6 +389,11 @@ impl HnswIndex {
     pub fn len(&self) -> usize {
         self.idx_to_id.len()
     }
+
+    /// Vrai tant qu'aucun vecteur n'a été ajouté (`len() == 0`).
+    pub fn is_empty(&self) -> bool {
+        self.idx_to_id.is_empty()
+    }
 }
 
 impl std::fmt::Debug for HnswIndex {
@@ -402,17 +406,21 @@ impl std::fmt::Debug for HnswIndex {
 
 #[derive(Debug)]
 pub struct VectorIndex {
-    db: Db,
     vectors_tree: sled::Tree,
     meta_tree: sled::Tree,
     file_meta_tree: sled::Tree,
     hnsw: Arc<RwLock<Option<HnswIndex>>>,
     embedder: Arc<dyn TextEmbedder>,
-    settings: Arc<RwLock<AppSettings>>,
 }
 
 impl VectorIndex {
-    pub fn open(data_dir: &Path, settings: Arc<RwLock<AppSettings>>, embedder: impl TextEmbedder + 'static) -> Result<Self> {
+    /// Ouvre (ou crée) l'index dans `data_dir` avec `embedder` pour les
+    /// vecteurs. Aucun réglage n'est lu ici : les `Folders` et options de
+    /// découpage appartiennent à `core::scan`.
+    ///
+    /// La poignée `sled::Db` est locale : chaque `Tree` garde le contexte de
+    /// la base en vie, donc l'index reste utilisable après sa libération.
+    pub fn open(data_dir: &Path, embedder: impl TextEmbedder + 'static) -> Result<Self> {
         let db = sled::open(data_dir.join("vector_index"))?;
         let vectors_tree = db.open_tree(VECTOR_TABLE)?;
         let meta_tree = db.open_tree(META_TABLE)?;
@@ -439,13 +447,11 @@ impl VectorIndex {
         }
 
         Ok(Self {
-            db,
             vectors_tree,
             meta_tree,
             file_meta_tree,
             hnsw: Arc::new(RwLock::new(None)),
             embedder: Arc::new(embedder),
-            settings,
         })
     }
 

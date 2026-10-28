@@ -12,11 +12,9 @@
 //! ```
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
-use maieutik::config::{FileContent, AppSettings};
+use maieutik::config::FileContent;
 use maieutik::core::indexer::{extract_headings, Chunker, Embedder, VectorIndex};
-use tokio::sync::RwLock;
 
 /// Chunk size used for the corpus. Chosen so each document yields two chunks.
 const MAX_CHUNK_CHARS: usize = 220;
@@ -69,8 +67,7 @@ fn build_index(dir: &Path) -> VectorIndex {
         )
     });
 
-    let settings = Arc::new(RwLock::new(AppSettings::default()));
-    VectorIndex::open(dir, settings, embedder).expect("open vector index")
+    VectorIndex::open(dir, embedder).expect("open vector index")
 }
 
 fn document(path: &str, text: &str) -> (PathBuf, FileContent) {

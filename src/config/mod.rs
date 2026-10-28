@@ -200,42 +200,33 @@ impl Default for AppSettings {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum FileSortColumn {
+    #[default]
     Name,
     Modified,
     Size,
     Type,
 }
 
-impl Default for FileSortColumn {
-    fn default() -> Self { FileSortColumn::Name }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum ThinkingLevel {
     None,
     Low,
+    #[default]
     Medium,
     High,
 }
 
-impl Default for ThinkingLevel {
-    fn default() -> Self { ThinkingLevel::Medium }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum ChatScope {
     CurrentFile,
+    #[default]
     WatchedFolders,
     AllNotes,
-}
-
-impl Default for ChatScope {
-    fn default() -> Self { ChatScope::WatchedFolders }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -277,17 +268,14 @@ impl Default for DriveSyncSettings {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum ConflictStrategy {
+    #[default]
     KeepLocal,
     KeepRemote,
     KeepBoth,
     Ask,
-}
-
-impl Default for ConflictStrategy {
-    fn default() -> Self { ConflictStrategy::KeepLocal }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

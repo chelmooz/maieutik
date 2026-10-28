@@ -5,19 +5,15 @@
 //! pour la source d'un renommage. Chaque test verrouille le comportement de
 //! ce seam, indépendamment de `notify` (débounce, latence FS).
 
-use maieutik::config::AppSettings;
 use maieutik::core::indexer::{HashEmbedder, VectorIndex};
 use maieutik::core::scan::index_path;
 use std::path::Path;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 const FOX: &str = "the quick brown fox jumps over the lazy dog near the river";
 const RUST: &str = "rust cargo compiler borrow checker lifetimes traits";
 
 fn open(dir: &Path) -> VectorIndex {
-    let settings = Arc::new(RwLock::new(AppSettings::default()));
-    VectorIndex::open(dir, settings, HashEmbedder::new()).unwrap()
+    VectorIndex::open(dir, HashEmbedder::new()).unwrap()
 }
 
 async fn hits_for(idx: &VectorIndex, query: &str) -> Vec<(String, String)> {

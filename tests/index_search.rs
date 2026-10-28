@@ -1,20 +1,17 @@
 //! Indexation et recherche sans modèle ONNX : faux embedder déterministe.
 
-use maieutik::config::{AppSettings, FileContent};
+use maieutik::config::FileContent;
 use maieutik::core::indexer::{
     extract_headings, Chunker, HashEmbedder, HnswIndex, TextEmbedder, VectorIndex,
 };
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 const FOX: &str = "the quick brown fox jumps over the lazy dog near the river";
 const RUST: &str = "rust cargo compiler borrow checker lifetimes traits";
 const BREAD: &str = "bread flour yeast oven baking sourdough starter";
 
 fn open(dir: &Path) -> VectorIndex {
-    let settings = Arc::new(RwLock::new(AppSettings::default()));
-    VectorIndex::open(dir, settings, HashEmbedder::new()).unwrap()
+    VectorIndex::open(dir, HashEmbedder::new()).unwrap()
 }
 
 fn content(path: &str, text: &str, max_chars: usize) -> FileContent {

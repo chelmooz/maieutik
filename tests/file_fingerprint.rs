@@ -10,14 +10,11 @@ use maieutik::config::{AppSettings, FileContent};
 use maieutik::core::indexer::{FileFingerprint, HashEmbedder, VectorIndex};
 use maieutik::core::scan::index_all;
 use std::path::Path;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 const FOX: &str = "the quick brown fox jumps over the lazy dog near the river";
 
 fn open(dir: &Path) -> VectorIndex {
-    let settings = Arc::new(RwLock::new(AppSettings::default()));
-    VectorIndex::open(dir, settings, HashEmbedder::new()).unwrap()
+    VectorIndex::open(dir, HashEmbedder::new()).unwrap()
 }
 
 fn settings_for(folder: &Path) -> AppSettings {

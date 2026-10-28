@@ -3,7 +3,6 @@
 use anyhow::Result;
 use std::io::Read;
 use std::path::Path;
-use tracing::{debug, warn};
 
 /// Extract text from various document formats
 pub fn extract_text(path: &Path) -> Result<String> {

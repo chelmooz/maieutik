@@ -6,7 +6,7 @@ use ort::value::Tensor;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tracing::{debug, info};
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct SpeechModelPaths {
@@ -17,8 +17,8 @@ pub struct SpeechModelPaths {
     pub vad_model: PathBuf,
 }
 
-impl SpeechModelPaths {
-    pub fn default() -> Self {
+impl Default for SpeechModelPaths {
+    fn default() -> Self {
         let base = crate::config::store::models_dir();
         Self {
             encoder: base.join("parakeet-encoder.fp16.onnx"),
@@ -28,7 +28,9 @@ impl SpeechModelPaths {
             vad_model: base.join("silero_vad.onnx"),
         }
     }
+}
 
+impl SpeechModelPaths {
     pub fn all_exist(&self) -> bool {
         self.encoder.exists()
             && self.decoder.exists()
@@ -143,14 +145,18 @@ impl SpeechSession {
 /// Meeting transcription controller (stub)
 pub mod meeting {
     use anyhow::Result;
-    use crate::llm::{ChatCompletionProvider, LocalLlamaProvider};
+    use crate::llm::ChatCompletionProvider;
     use crate::speech::SpeechService;
     use std::path::Path;
     use std::sync::Arc;
     use tracing::info;
 
     pub struct MeetingController {
+        // Réservés au branchement de la transcription de réunion (stub) :
+        // conservés pour que l'API de `new` reste celle prévue, pas encore lus.
+        #[allow(dead_code)]
         speech: Arc<SpeechService>,
+        #[allow(dead_code)]
         llm: Arc<dyn ChatCompletionProvider>,
         recording: bool,
     }
