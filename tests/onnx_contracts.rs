@@ -8,15 +8,21 @@ use maieutik::core::indexer::{HashEmbedder, TextEmbedder};
 #[test]
 fn embedder_rejects_zero_norm_vector() {
     let embedder = HashEmbedder::new();
-    
+
     // Empty string should produce zero vector - should be rejected per D2
     let result = embedder.embed("");
-    
+
     // D2 decision: reject zero-norm vectors with contextualized error
-    assert!(result.is_err(), "Empty string should produce zero-norm vector which should be rejected");
+    assert!(
+        result.is_err(),
+        "Empty string should produce zero-norm vector which should be rejected"
+    );
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("zero") || err.contains("norm") || err.contains("empty"), 
-        "Error should mention zero/norm/empty: {}", err);
+    assert!(
+        err.contains("zero") || err.contains("norm") || err.contains("empty"),
+        "Error should mention zero/norm/empty: {}",
+        err
+    );
 }
 
 /// A3.2 RED: Embedder should validate output shape (already partially done)
@@ -37,12 +43,12 @@ fn vad_validates_output_rank() {
     // This test would require mocking the ONNX session
     // For now, we verify the validation logic exists in the code
     // The actual test would inject invalid outputs via a mock session
-    
+
     // Check that SileroVad::process validates:
     // - h_shape and c_shape have rank 2
     // - h_dims[0], h_dims[1] are valid
     // - sp_data[0] is finite
-    
+
     // This is a compile-time check that the validation logic exists
     // The actual runtime test would require a test double for the ONNX session
     // Source code validation - see SileroVad::process for rank/dims validation

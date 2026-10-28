@@ -1,7 +1,7 @@
 //! Tests for config concurrent writes and migration (AUD-03).
 
-use maieutik::config::{AppSettings};
-use maieutik::config::store::{save_settings_to, load_settings};
+use maieutik::config::store::{load_settings, save_settings_to};
+use maieutik::config::AppSettings;
 use std::fs;
 use std::sync::{Arc, Barrier};
 use std::thread;
@@ -63,13 +63,18 @@ fn default_settings_json() -> String {
     "chat_scope": "WatchedFolders",
     "cloud_context_window": 200000
   }
-}"###.to_string()
+}"###
+        .to_string()
 }
 
 fn make_versioned_json(version: u32) -> String {
     let base = default_settings_json();
     // Replace version 1 with the desired version
-    base.replacen(r###""version": 1"###, &format!(r###""version": {}"###, version), 1)
+    base.replacen(
+        r###""version": 1"###,
+        &format!(r###""version": {}"###, version),
+        1,
+    )
 }
 
 /// A4.1 RED: Concurrent saves should not race (deterministic tmp name causes race)
@@ -105,7 +110,10 @@ fn config_concurrent_saves_no_race() {
 
     // Verify the config file was written correctly (read directly)
     let content = fs::read_to_string(&config_path).unwrap_or_else(|e| {
-        panic!("Config file not found or corrupted by concurrent writes: {}", e);
+        panic!(
+            "Config file not found or corrupted by concurrent writes: {}",
+            e
+        );
     });
     eprintln!("Config content length: {}", content.len());
     let loaded: serde_json::Value = serde_json::from_str(&content).unwrap_or_else(|_| {
@@ -113,9 +121,17 @@ fn config_concurrent_saves_no_race() {
     });
     // Check that the version is correct
     assert_eq!(loaded["version"], 1);
-    let extensions: Vec<String> = loaded["settings"]["Extensions"].as_array().unwrap_or_else(|| {
-        panic!("Extensions not an array: {:?}", loaded["settings"]["Extensions"]);
-    }).iter().map(|v| v.as_str().unwrap().to_string()).collect();
+    let extensions: Vec<String> = loaded["settings"]["Extensions"]
+        .as_array()
+        .unwrap_or_else(|| {
+            panic!(
+                "Extensions not an array: {:?}",
+                loaded["settings"]["Extensions"]
+            );
+        })
+        .iter()
+        .map(|v| v.as_str().unwrap().to_string())
+        .collect();
     assert_eq!(extensions, settings.extensions);
 }
 
@@ -124,29 +140,32 @@ fn config_concurrent_saves_no_race() {
 fn config_migration_old_version() {
     // Use the actual config path that load_settings() will read from
     let config_path = maieutik::config::store::config_path().unwrap();
-    
+
     // Backup existing config if it exists
     let backup = if config_path.exists() {
         Some(fs::read_to_string(&config_path).unwrap())
     } else {
         None
     };
-    
+
     // Write old version config (version 0)
     let old_json = make_versioned_json(0);
     fs::write(&config_path, old_json).unwrap();
-    
+
     let result = load_settings();
-    
+
     // Restore original config
     if let Some(backup) = backup {
         fs::write(&config_path, backup).unwrap();
     } else {
         let _ = fs::remove_file(&config_path);
     }
-    
+
     // Should handle old version gracefully (currently accepts with warning)
-    assert!(result.is_ok(), "Old version should be accepted with migration warning");
+    assert!(
+        result.is_ok(),
+        "Old version should be accepted with migration warning"
+    );
 }
 
 /// A4.3 RED: Config migration - future version should be rejected explicitly
@@ -154,31 +173,35 @@ fn config_migration_old_version() {
 fn config_migration_future_version_rejected() {
     // Use the actual config path that load_settings() will read from
     let config_path = maieutik::config::store::config_path().unwrap();
-    
+
     // Backup existing config if it exists
     let backup = if config_path.exists() {
         Some(fs::read_to_string(&config_path).unwrap())
     } else {
         None
     };
-    
+
     // Write future version config (version 999)
     let future_json = make_versioned_json(999);
     fs::write(&config_path, future_json).unwrap();
-    
+
     let result = load_settings();
-    
+
     // Restore original config
     if let Some(backup) = backup {
         fs::write(&config_path, backup).unwrap();
     } else {
         let _ = fs::remove_file(&config_path);
     }
-    
+
     // Should reject with clear error
     assert!(result.is_err(), "Future version should be rejected");
     let err = result.unwrap_err().to_string();
-    assert!(err.contains("version") || err.contains("newer"), "Error should mention version/newer: {}", err);
+    assert!(
+        err.contains("version") || err.contains("newer"),
+        "Error should mention version/newer: {}",
+        err
+    );
 }
 
 /// A4.4 RED: Config migration - invalid JSON should be rejected
@@ -186,26 +209,26 @@ fn config_migration_future_version_rejected() {
 fn config_invalid_json_rejected() {
     // Use the actual config path that load_settings() will read from
     let config_path = maieutik::config::store::config_path().unwrap();
-    
+
     // Backup existing config if it exists
     let backup = if config_path.exists() {
         Some(fs::read_to_string(&config_path).unwrap())
     } else {
         None
     };
-    
+
     // Write invalid JSON
     fs::write(&config_path, "{ invalid json }").unwrap();
-    
+
     let result = load_settings();
-    
+
     // Restore original config
     if let Some(backup) = backup {
         fs::write(&config_path, backup).unwrap();
     } else {
         let _ = fs::remove_file(&config_path);
     }
-    
+
     assert!(result.is_err(), "Invalid JSON should be rejected");
 }
 
@@ -241,10 +264,15 @@ fn config_no_leftover_tmp_files() {
 
     // Check for leftover .tmp files
     let entries: Vec<_> = fs::read_dir(dir.path()).unwrap().collect();
-    let tmp_files: Vec<_> = entries.iter()
+    let tmp_files: Vec<_> = entries
+        .iter()
         .filter_map(|e| e.as_ref().ok())
         .filter(|e| e.file_name().to_string_lossy().ends_with(".tmp"))
         .collect();
 
-    assert!(tmp_files.is_empty(), "Found leftover tmp files: {:?}", tmp_files);
+    assert!(
+        tmp_files.is_empty(),
+        "Found leftover tmp files: {:?}",
+        tmp_files
+    );
 }

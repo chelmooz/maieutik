@@ -136,51 +136,21 @@ pub struct AppSettings {
 fn default_extensions() -> Vec<String> {
     vec![".txt".into(), ".md".into(), ".docx".into(), ".pdf".into()]
 }
-fn default_theme() -> String {
-    "Dark".into()
-}
-fn default_splitter() -> f64 {
-    400.0
-}
-fn default_h_splitter() -> f64 {
-    200.0
-}
-fn default_graph_width() -> f64 {
-    630.0
-}
-fn default_chat_width() -> f64 {
-    400.0
-}
-fn default_true() -> bool {
-    true
-}
-fn default_top_matches() -> usize {
-    10
-}
-fn default_max_file_size() -> usize {
-    10
-}
-fn default_edge_bands() -> Vec<EdgeBandSettings> {
-    EdgeBandSettings::defaults()
-}
-fn default_tts_rate() -> i32 {
-    0
-}
-fn default_tts_volume() -> i32 {
-    100
-}
-fn default_ask_hotkey() -> String {
-    "Ctrl+Alt+Space".into()
-}
-fn default_dictate_hotkey() -> String {
-    "Ctrl+Alt+Shift+Space".into()
-}
-fn default_meeting_lang() -> String {
-    "en".into()
-}
-fn default_cloud_context() -> usize {
-    200_000
-}
+fn default_theme() -> String { "Dark".into() }
+fn default_splitter() -> f64 { 400.0 }
+fn default_h_splitter() -> f64 { 200.0 }
+fn default_graph_width() -> f64 { 630.0 }
+fn default_chat_width() -> f64 { 400.0 }
+fn default_true() -> bool { true }
+fn default_top_matches() -> usize { 10 }
+fn default_max_file_size() -> usize { 10 }
+fn default_edge_bands() -> Vec<EdgeBandSettings> { EdgeBandSettings::defaults() }
+fn default_tts_rate() -> i32 { 0 }
+fn default_tts_volume() -> i32 { 100 }
+fn default_ask_hotkey() -> String { "Ctrl+Alt+Space".into() }
+fn default_dictate_hotkey() -> String { "Ctrl+Alt+Shift+Space".into() }
+fn default_meeting_lang() -> String { "en".into() }
+fn default_cloud_context() -> usize { 200_000 }
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -230,6 +200,90 @@ impl Default for AppSettings {
     }
 }
 
+impl AppSettings {
+    /// Validates all settings and returns an error if any value is invalid.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        // Validate splitter positions (must be positive)
+        if self.splitter_position <= 0.0 {
+            anyhow::bail!("splitter_position must be positive, got {}", self.splitter_position);
+        }
+        if self.horizontal_splitter_position <= 0.0 {
+            anyhow::bail!("horizontal_splitter_position must be positive, got {}", self.horizontal_splitter_position);
+        }
+        if self.graph_drawer_width <= 0.0 {
+            anyhow::bail!("graph_drawer_width must be positive, got {}", self.graph_drawer_width);
+        }
+        if self.chat_column_width <= 0.0 {
+            anyhow::bail!("chat_column_width must be positive, got {}", self.chat_column_width);
+        }
+
+        // Validate size limits
+        if self.max_file_size == 0 {
+            anyhow::bail!("max_file_size must be greater than 0");
+        }
+        if self.top_matches_limit == 0 {
+            anyhow::bail!("top_matches_limit must be greater than 0");
+        }
+        if self.cloud_context_window == 0 {
+            anyhow::bail!("cloud_context_window must be greater than 0");
+        }
+        if self.cloud_context_window > 1_000_000 {
+            anyhow::bail!("cloud_context_window too large (max 1,000,000), got {}", self.cloud_context_window);
+        }
+
+        // Validate TTS settings
+        if self.tts_volume < 0 || self.tts_volume > 100 {
+            anyhow::bail!("tts_volume must be between 0 and 100, got {}", self.tts_volume);
+        }
+        if self.tts_rate < -500 || self.tts_rate > 500 {
+            anyhow::bail!("tts_rate must be between -500 and 500, got {}", self.tts_rate);
+        }
+
+        // Validate edge bands
+        for (i, band) in self.edge_bands.iter().enumerate() {
+            if band.thickness <= 0.0 {
+                anyhow::bail!("edge_bands[{}] thickness must be positive, got {}", i, band.thickness);
+            }
+            if !Self::is_valid_color(&band.color) {
+                anyhow::bail!("edge_bands[{}] has invalid color format: '{}' (expected hex like #RRGGBB or rgb(R,G,B))", i, band.color);
+            }
+        }
+
+        // Validate folders exist
+        for (i, folder) in self.folders.iter().enumerate() {
+            if !std::path::Path::new(folder).exists() {
+                anyhow::bail!("folder[{}] does not exist: {}", i, folder);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn is_valid_color(color: &str) -> bool {
+        // Accept hex colors: #RRGGBB, #RRGGBBAA
+        if color.starts_with('#') {
+            let hex = &color[1..];
+            return hex.len() == 6 || hex.len() == 8;
+        }
+        // Accept rgb(R,G,B) or rgba(R,G,B,A)
+        if color.starts_with("rgb(") && color.ends_with(')') {
+            let inner = &color[4..color.len()-1];
+            let parts: Vec<&str> = inner.split(',').collect();
+            if parts.len() == 3 || parts.len() == 4 {
+                return parts.iter().all(|p| {
+                    p.trim().parse::<u8>().map(|_| true).unwrap_or(false)
+                });
+            }
+        }
+        // Accept named colors (basic set)
+        let named_colors = ["red", "green", "blue", "black", "white", "yellow", "cyan", "magenta", "transparent"];
+        if named_colors.contains(&color.to_lowercase().as_str()) {
+            return true;
+        }
+        false
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub enum FileSortColumn {
@@ -270,26 +324,10 @@ pub struct EdgeBandSettings {
 impl EdgeBandSettings {
     pub fn defaults() -> Vec<Self> {
         vec![
-            Self {
-                color: "#FF6B6B".into(),
-                thickness: 2.0,
-                label: "Strong".into(),
-            },
-            Self {
-                color: "#4ECDC4".into(),
-                thickness: 1.5,
-                label: "Medium".into(),
-            },
-            Self {
-                color: "#FFE66D".into(),
-                thickness: 1.0,
-                label: "Weak".into(),
-            },
-            Self {
-                color: "#A8E6CF".into(),
-                thickness: 0.5,
-                label: "Hint".into(),
-            },
+            Self { color: "#FF6B6B".into(), thickness: 2.0, label: "Strong".into() },
+            Self { color: "#4ECDC4".into(), thickness: 1.5, label: "Medium".into() },
+            Self { color: "#FFE66D".into(), thickness: 1.0, label: "Weak".into() },
+            Self { color: "#A8E6CF".into(), thickness: 0.5, label: "Hint".into() },
         ]
     }
 }
@@ -387,3 +425,4 @@ pub struct Chunk {
     pub byte_start: usize,
     pub byte_end: usize,
 }
+
