@@ -210,8 +210,8 @@ async fn run(cli: Cli) -> Result<i32> {
     }
 
     // Initialize embedder (ONNX model + matching XLM-RoBERTa tokenizer)
-    let model_path = config::store::embedder_model_path();
-    let tokenizer_path = config::store::embedder_tokenizer_path();
+    let model_path = config::store::embedder_model_path()?;
+    let tokenizer_path = config::store::embedder_tokenizer_path()?;
     if model_path.exists() && tokenizer_path.exists() {
         if let Err(e) = state
             .initialize_indexer(model_path.clone(), tokenizer_path.clone())

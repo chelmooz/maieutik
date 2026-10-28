@@ -47,7 +47,7 @@ impl AppState {
         tokenizer_path: PathBuf,
     ) -> Result<()> {
         let embedder = Arc::new(Embedder::new(&model_path, &tokenizer_path)?);
-        let data_dir = config::store::data_dir();
+        let data_dir = config::store::data_dir()?;
         let vector_index = Arc::new(VectorIndex::open(&data_dir, (*embedder).clone())?);
         vector_index.build_hnsw().await?;
         self.embedder = Some(embedder);

@@ -19,7 +19,8 @@ pub struct SpeechModelPaths {
 
 impl Default for SpeechModelPaths {
     fn default() -> Self {
-        let base = crate::config::store::models_dir();
+        let base = crate::config::store::models_dir()
+            .expect("Impossible de déterminer le répertoire des modèles : home directory introuvable");
         Self {
             encoder: base.join("parakeet-encoder.fp16.onnx"),
             decoder: base.join("parakeet-decoder.int8.onnx"),

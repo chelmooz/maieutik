@@ -32,19 +32,19 @@ const MAX_MATCH_DISTANCE: f32 = 0.95;
 /// than the correct one. Measured margins with BGE-M3: 0.23, 0.40, 0.39.
 const MIN_FILE_MARGIN: f32 = 0.15;
 
-fn require_file(var: &str, default: fn() -> PathBuf, what: &str) -> PathBuf {
+fn require_file(var: &str, default: fn() -> Result<PathBuf, anyhow::Error>, what: &str) -> PathBuf {
     let path = std::env::var_os(var)
         .map(PathBuf::from)
-        .unwrap_or_else(default);
+        .or_else(|| default().ok());
     assert!(
-        path.is_file(),
+        path.as_ref().map(|p| p.is_file()).unwrap_or(false),
         "\n{what} not found at {}\n\
          This test needs the real BAAI/bge-m3 files; it will not pass without them.\n\
          Set {var}=/path/to/{what} (download from https://huggingface.co/BAAI/bge-m3,\n\
          onnx/{what} and tokenizer.json).\n",
-        path.display(),
+        path.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "unknown".to_string()),
     );
-    path
+    path.unwrap()
 }
 
 fn build_index(dir: &Path) -> VectorIndex {

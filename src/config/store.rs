@@ -7,46 +7,58 @@ use directories::ProjectDirs;
 use serde_json;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use tracing::{debug, info, warn};
 
-static SETTINGS_DIR: OnceLock<PathBuf> = OnceLock::new();
-
-pub fn settings_dir() -> &'static PathBuf {
-    SETTINGS_DIR.get_or_init(|| {
-        ProjectDirs::from("org", "maieutik", "Maieutik")
-            .map(|dirs| dirs.config_dir().to_path_buf())
-            .unwrap_or_else(|| dirs::home_dir().unwrap().join(".config").join("maieutik"))
-    })
+/// Returns the settings directory, creating it if needed.
+///
+/// Errors if the home directory cannot be determined and
+/// `ProjectDirs` is unavailable.
+pub fn settings_dir() -> Result<PathBuf> {
+    ProjectDirs::from("org", "maieutik", "Maieutik")
+        .map(|dirs| dirs.config_dir().to_path_buf())
+        .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("maieutik")))
+        .ok_or_else(|| anyhow::anyhow!("Impossible de déterminer le répertoire de configuration : home directory introuvable"))
 }
 
-pub fn data_dir() -> PathBuf {
+/// Returns the data directory, creating it if needed.
+///
+/// Errors if the home directory cannot be determined and
+/// `ProjectDirs` is unavailable.
+pub fn data_dir() -> Result<PathBuf> {
     ProjectDirs::from("org", "maieutik", "Maieutik")
         .map(|dirs| dirs.data_dir().to_path_buf())
-        .unwrap_or_else(|| dirs::home_dir().unwrap().join(".local").join("share").join("maieutik"))
+        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share").join("maieutik")))
+        .ok_or_else(|| anyhow::anyhow!("Impossible de déterminer le répertoire de données : home directory introuvable"))
 }
 
-pub fn models_dir() -> PathBuf {
-    data_dir().join("models")
+/// Returns the models directory, creating it if needed.
+///
+/// Errors if the data directory cannot be determined.
+pub fn models_dir() -> Result<PathBuf> {
+    data_dir().map(|d| d.join("models"))
 }
 
 /// ONNX embedder model file (BAAI/bge-m3, 1024-dim dense, fp32, ≈2.3 GB).
 ///
 /// Override with `MAIEUTIK_EMBEDDER_MODEL`.
-pub fn embedder_model_path() -> PathBuf {
-    std::env::var_os("MAIEUTIK_EMBEDDER_MODEL")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| models_dir().join("bge-m3").join("model.onnx"))
+/// Errors if the models directory cannot be determined.
+pub fn embedder_model_path() -> Result<PathBuf> {
+    if let Some(path) = std::env::var_os("MAIEUTIK_EMBEDDER_MODEL") {
+        return Ok(PathBuf::from(path));
+    }
+    models_dir().map(|d| d.join("bge-m3").join("model.onnx"))
 }
 
 /// HuggingFace `tokenizer.json` matching the embedder model (XLM-RoBERTa
 /// SentencePiece/Unigram, 250k vocabulary).
 ///
 /// Override with `MAIEUTIK_EMBEDDER_TOKENIZER`.
-pub fn embedder_tokenizer_path() -> PathBuf {
-    std::env::var_os("MAIEUTIK_EMBEDDER_TOKENIZER")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| models_dir().join("bge-m3").join("tokenizer.json"))
+/// Errors if the models directory cannot be determined.
+pub fn embedder_tokenizer_path() -> Result<PathBuf> {
+    if let Some(path) = std::env::var_os("MAIEUTIK_EMBEDDER_TOKENIZER") {
+        return Ok(PathBuf::from(path));
+    }
+    models_dir().map(|d| d.join("bge-m3").join("tokenizer.json"))
 }
 
 /// Optional path to `libonnxruntime.so`, used because `ort` is built with
@@ -55,14 +67,17 @@ pub fn ort_dylib_path() -> Option<PathBuf> {
     std::env::var_os("ORT_DYLIB_PATH").map(PathBuf::from)
 }
 
-pub fn config_path() -> PathBuf {
-    settings_dir().join("config.json")
+/// Returns the path to the config file.
+///
+/// Errors if the settings directory cannot be determined.
+pub fn config_path() -> Result<PathBuf> {
+    settings_dir().map(|d| d.join("config.json"))
 }
 
 pub fn ensure_dirs() -> Result<()> {
-    fs::create_dir_all(settings_dir())?;
-    fs::create_dir_all(data_dir())?;
-    fs::create_dir_all(models_dir())?;
+    fs::create_dir_all(settings_dir()?)?;
+    fs::create_dir_all(data_dir()?)?;
+    fs::create_dir_all(models_dir()?)?;
     Ok(())
 }
 
@@ -76,7 +91,7 @@ struct SettingsFile {
 
 pub fn load_settings() -> Result<AppSettings> {
     ensure_dirs()?;
-    let path = config_path();
+    let path = config_path()?;
     if !path.exists() {
         info!("No config file at {}, using defaults", path.display());
         return Ok(AppSettings::default());
@@ -95,7 +110,7 @@ pub fn load_settings() -> Result<AppSettings> {
 
 pub fn save_settings(settings: &AppSettings) -> Result<()> {
     ensure_dirs()?;
-    save_settings_to(&config_path(), settings)
+    save_settings_to(&config_path()?, settings)
 }
 
 /// Écrit les réglages de façon atomique ; fichier en 0600 sur Unix.
