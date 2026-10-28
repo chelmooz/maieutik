@@ -1,8 +1,10 @@
 //! Tests de contrat CLI : codes de sortie et flux (stdout/stderr) sans modèle.
 //!
-//! Chaque test lance le binaire dans un répertoire temporaire (le verrou
-//! `single-instance` crée `./maieutik` dans le cwd) avec un environnement
-//! entièrement contrôlé, sans modèle d'embedding.
+//! Chaque test lance le binaire dans un répertoire temporaire avec un
+//! environnement entièrement contrôlé, sans modèle d'embedding. Le verrou
+//! d'instance unique (`single-instance` 0.3, socket abstrait global sous
+//! Linux) reçoit un nom propre à chaque bac à sable : les tests s'exécutent en
+//! parallèle et ne doivent pas se refuser mutuellement.
 //!
 //! Ce fichier n'utilise que la bibliothèque standard et `tempfile` : il doit
 //! compiler au commit 1, avant toute nouvelle API de `maieutik`.
@@ -10,6 +12,17 @@
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
+
+/// Nom de verrou propre à ce bac à sable : le socket abstrait de
+/// `single-instance` est global à la machine, deux tests parallèles qui
+/// partageraient « maieutik » se refuseraient mutuellement.
+fn instance_name(sandbox: &Path) -> String {
+    let leaf = sandbox
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    format!("maieutik-test-{}-{leaf}", std::process::id())
+}
 
 /// Lance le binaire dans `sandbox` avec un environnement vidé puis reconstruit.
 /// `folders` : dossiers à écrire dans `config.json` (`None` = pas de config).
@@ -43,6 +56,7 @@ fn run(sandbox: &Path, folders: Option<&[&Path]>, args: &[&str]) -> Output {
         .env("XDG_CONFIG_HOME", &cfg)
         .env("XDG_DATA_HOME", &data)
         .env("XDG_CACHE_HOME", &cache)
+        .env("MAIEUTIK_INSTANCE_NAME", instance_name(sandbox))
         .env("MAIEUTIK_EMBEDDER_MODEL", sandbox.join("absent.onnx"))
         .env("MAIEUTIK_EMBEDDER_TOKENIZER", sandbox.join("absent.json"))
         .output()

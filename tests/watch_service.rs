@@ -67,6 +67,17 @@ impl Sandbox {
             .env("XDG_CONFIG_HOME", root.join("cfg"))
             .env("XDG_DATA_HOME", root.join("data"))
             .env("XDG_CACHE_HOME", root.join("cache"))
+            // Verrou propre au bac à sable : le socket abstrait de
+            // `single-instance` 0.3 est global à la machine, et un service
+            // laissé tourner ne doit pas faire échouer les tests suivants.
+            .env(
+                "MAIEUTIK_INSTANCE_NAME",
+                format!(
+                    "maieutik-test-{}-{}",
+                    std::process::id(),
+                    root.file_name().unwrap_or_default().to_string_lossy()
+                ),
+            )
             .env("MAIEUTIK_EMBEDDER_MODEL", env_var("MAIEUTIK_EMBEDDER_MODEL"))
             .env(
                 "MAIEUTIK_EMBEDDER_TOKENIZER",

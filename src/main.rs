@@ -22,6 +22,18 @@ const EXIT_USAGE: i32 = 2;
 const EXIT_NOT_IMPLEMENTED: i32 = 3;
 const EXIT_UNAVAILABLE: i32 = 4;
 
+/// Nom du verrou d'instance unique, surchargeable par
+/// `MAIEUTIK_INSTANCE_NAME`.
+///
+/// Les tests d'intégration s'en servent pour s'isoler : `single-instance`
+/// 0.3 lie, sous Linux, un socket abstrait dont le nom est global au réseau
+/// (et non plus un fichier relatif au dossier courant comme en 0.1), donc
+/// deux bacs à sable qui partageraient le nom par défaut « maieutik » se
+/// refuseraient mutuellement.
+fn instance_name() -> String {
+    std::env::var("MAIEUTIK_INSTANCE_NAME").unwrap_or_else(|_| "maieutik".to_owned())
+}
+
 #[derive(Parser)]
 #[command(name = "maieutik", version, about = "Local-first notes with AI")]
 struct Cli {
@@ -166,7 +178,8 @@ async fn run(cli: Cli) -> Result<i32> {
     // verrou est déjà détenu par un autre processus : seul `is_single()` dit
     // si ce processus est le propriétaire. Le verrou doit rester vivant
     // jusqu'à la fin de `run`, sinon il est libéré immédiatement.
-    let _lock = match single_instance::SingleInstance::new("maieutik") {
+    let instance = instance_name();
+    let _lock = match single_instance::SingleInstance::new(&instance) {
         Ok(lock) => lock,
         Err(e) => {
             eprintln!("Verrou d'instance indisponible : {e}");

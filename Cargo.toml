@@ -89,7 +89,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"]
 clap = { version = "4", features = ["derive", "env"] }
 
 # Single instance (cross-platform)
-single-instance = "0.1"
+single-instance = "0.3.3"
 
 # Audio (for meeting recording)
 
