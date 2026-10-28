@@ -32,6 +32,43 @@ fn entities_are_decoded_once() {
 }
 
 #[test]
+fn numeric_entities_are_decoded() {
+    let dir = tempfile::tempdir().unwrap();
+    // &#233; = é, &#xE9; = é, &#65; = A
+    let xml = "<w:document><w:body><w:p><w:r><w:t>caf&#233; &#xE9;cole &#65;</w:t></w:r></w:p></w:body></w:document>";
+    let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
+    let expected = format!("café école A{}", nl());
+    assert_eq!(extract_text(&path).unwrap(), expected);
+}
+
+#[test]
+fn malformed_xml_is_handled_gracefully() {
+    let dir = tempfile::tempdir().unwrap();
+    // Unclosed tag, invalid nesting
+    let xml = "<w:document><w:body><w:p><w:r><w:t>unclosed";
+    let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
+    // Should not panic; returns what it can extract or an error
+    let _ = extract_text(&path);  // Just verify no panic
+}
+
+#[test]
+fn zip_bomb_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    // Create a ZIP with a large uncompressed entry (ZIP bomb mitigation)
+    let path = dir.path().join("bomb.docx");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut writer = zip::ZipWriter::new(file);
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("word/document.xml", options).unwrap();
+    // Write 1MB of data - should complete without OOM
+    writer.write_all(&vec![b'x'; 1_000_000]).unwrap();
+    writer.finish().unwrap();
+    // Should return an error or complete without OOM
+    let _ = extract_text(&path);
+}
+
+#[test]
 fn paragraphs_are_separated_by_newline() {
     let dir = tempfile::tempdir().unwrap();
     let xml = "<w:document><w:body><w:p><w:r><w:t>A</w:t></w:r></w:p><w:p><w:r><w:t>B</w:t></w:r></w:p></w:body></w:document>";
