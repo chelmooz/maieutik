@@ -14,35 +14,35 @@
 de390db8d538  Cargo.lock
 d3e7931631cc  Cargo.toml
 d45e04e9e055  build.rs
-a622ac8a2f56  src/config/mod.rs
+463ea4e147c5  src/config/mod.rs
 229a0e521e41  src/config/store.rs
-1735e6f6525a  src/core/indexer/mod.rs
+524da9647032  src/core/indexer/mod.rs
 af2b9a17c0f5  src/core/mod.rs
 5efa656c2534  src/core/ort_env.rs
 898272ee6f98  src/core/scan.rs
-3d85c972fb77  src/core/watch.rs
-41fd305a17b7  src/lib.rs
-43e08d9772de  src/llm/mod.rs
+5a23194fcd29  src/core/watch.rs
+b8008c24b2be  src/lib.rs
+8e4ce86d05a8  src/llm/mod.rs
 8965ab6ccd12  src/main.rs
-02b7820e7098  src/mcp/mod.rs
-a8d9e106e24a  src/speech/mod.rs
+7db44f72bd9b  src/mcp/mod.rs
+1c9c54b0a9cd  src/speech/mod.rs
 91050b9b4da4  src/ui/mod.rs
-1756d1fa548c  src/utils/mod.rs
+c2dc2949d18c  src/utils/mod.rs
 36d44a041b21  tests/config_store.rs
 61734ffd9005  tests/chunker.rs
 ae7766f9018c  tests/docx_extract.rs
-5cab4f62c4c1  tests/embedding_search.rs
+82cdbbb9e228  tests/embedding_search.rs
 4d1e2c21e798  tests/index_replace.rs
-077770b9bbb3  tests/index_scan.rs
-9e6548501da4  tests/index_search.rs
+efe23d72c897  tests/index_scan.rs
+09daa53bbdd7  tests/index_search.rs
 b03abc7e7a34  tests/cli_exit_codes.rs
 9668d7632b67  tests/single_instance.rs
-5eba94868486  tests/watcher_reindex.rs
+b12b6d7bd70a  tests/watcher_reindex.rs
 ecb78c064436  tests/watcher_shutdown.rs
 f37b91078f63  tests/watch_service.rs
-b83b8d12d01d  tests/startup_reconcile.rs
-2fbecdfc524f  tests/file_fingerprint.rs
-fe4639e27aa1  tests/force_recovery.rs
+f02770620bc0  tests/startup_reconcile.rs
+8b7a90fe43f1  tests/file_fingerprint.rs
+bf36b221d71a  tests/force_recovery.rs
 b93c5b1332eb  tests/pdf_extraction.rs
 acf5418511a6  docs/INSTALLATION.md
 4ec7db00797c  docs/UTILISATION.md
@@ -78,8 +78,12 @@ acf5418511a6  docs/INSTALLATION.md
 | 4 | `cargo test --locked --test embedding_search -- --ignored --nocapture --test-threads=1` (with model, replayed at P1.24) | exit 0 — 3 tests passed (15.08 s); top-1 distances identical to the archived log (see honesty notes) |
 | 5 | same command after tightening `MAX_MATCH_DISTANCE` to 0.95 (P1.25) | exit 0 — 3 tests passed (14.43 s); the same command at 0.80 fails by design on query 1 (`d=0.8670, above the 0.8 threshold`) |
 | 6 | `cargo audit --deny warnings` after bumping `single-instance` to 0.3.3 (P1.26) | exit 0 — 470 crates scanned, 5 documented exceptions; the two `failure` advisories (RUSTSEC-2019-0036, RUSTSEC-2020-0036) are gone because `failure` left the lock |
+| 7 | `cargo clippy --locked --all-targets` after the backlog cleanup (P1.27) | exit 0 — `grep -c "^warning"` falls from 29 to 1, and the surviving line is the build script's informational "Skipping model download" (not a lint); the full test suite passes with 96 tests |
 
-- Hashes re-bound at P1.26 (`Cargo.toml`, `Cargo.lock`, `src/main.rs`,
+- Hashes re-bound at P1.27 (15 files — clippy backlog cleared: `is_empty`
+  added to `HnswIndex`, `VectorIndex::open` loses its unused `settings`
+  parameter and `db` field, unused imports/impls removed; red commit first for
+  `is_empty`); at P1.26 (`Cargo.toml`, `Cargo.lock`, `src/main.rs`,
   `tests/single_instance.rs`, `tests/cli_exit_codes.rs`, `tests/watch_service.rs`
   — `single-instance` 0.1.2 → 0.3.3 changed the lock from a cwd-relative flock
   file to a process-global abstract socket, so the lock name is now
@@ -152,7 +156,10 @@ Top-1 Euclidean distances from `test-model-nocapture.log` (R0):
    socket (never a regular file) and `socket_path()` lives under the user's
    private runtime directory (`tests` in `src/mcp/mod.rs`).
 9. Secrets: keyring and open_ai_* settings removed at P1.12; config.json is written with mode 0600 on Unix.
-10. `nom v2.2.1` (transitive) triggers a future-incompat warning.
+10. ~~`nom v2.2.1` (transitive) triggers a future-incompat warning~~
+   **Obsolete on this tree**: `nom` 2.2.1 no longer appears in `Cargo.lock`
+   (only 7.1.3 and 8.0.0 remain), and the P1.27 clippy run emits no
+   future-incompat warning.
 11. `extract_headings` keeps the extra `#` of levels 2-6 in `Heading.text`
     (`## B` gives `# B`) and counts `#tag` as a heading; unchanged in P1.8.
 
