@@ -4,7 +4,6 @@
 //! JSON-RPC 2.0 envoyées sur stdin, et écrire les réponses sur stdout.
 //! Aucune trame de longueur n'est utilisée (contrairement au socket Unix).
 
-use maieutik::mcp::McpServer;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
