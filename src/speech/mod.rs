@@ -91,15 +91,36 @@ impl SileroVad {
         let (h_shape, h_data) = outputs[1].try_extract_tensor::<f32>()?;
         let (c_shape, c_data) = outputs[2].try_extract_tensor::<f32>()?;
 
+        // Validate output shapes: h and c must be rank 2
+        // Shape derefs to &[i64], so len() gives rank
+        let h_rank = h_shape.len();
+        let c_rank = c_shape.len();
+        if h_rank != 2 {
+            anyhow::bail!("VAD hidden state h has unexpected rank {} (expected 2)", h_rank);
+        }
+        if c_rank != 2 {
+            anyhow::bail!("VAD cell state c has unexpected rank {} (expected 2)", c_rank);
+        }
+
         let h_dims: Vec<usize> = h_shape.iter().map(|d| *d as usize).collect();
         let c_dims: Vec<usize> = c_shape.iter().map(|d| *d as usize).collect();
-        self.h = ndarray::Array2::from_shape_vec((h_dims[0], h_dims[1]), h_data.to_vec())?;
-        self.c = ndarray::Array2::from_shape_vec((c_dims[0], c_dims[1]), c_data.to_vec())?;
 
+        // Validate speech probability tensor
         if sp_shape.num_elements() == 0 || sp_data.is_empty() {
             anyhow::bail!("Silero VAD returned an empty speech probability tensor");
         }
-        Ok(sp_data[0])
+
+        // Validate probability is finite
+        let prob = sp_data[0];
+        if !prob.is_finite() {
+            anyhow::bail!("Silero VAD returned non-finite speech probability: {}", prob);
+        }
+
+        // All validations passed - now update state
+        self.h = ndarray::Array2::from_shape_vec((h_dims[0], h_dims[1]), h_data.to_vec())?;
+        self.c = ndarray::Array2::from_shape_vec((c_dims[0], c_dims[1]), c_data.to_vec())?;
+
+        Ok(prob)
     }
 
     pub fn is_speech(&mut self, samples: &[i16]) -> Result<bool> {

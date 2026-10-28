@@ -189,7 +189,7 @@ impl Embedder {
         if norm > 0.0 {
             Ok(vec.into_iter().map(|x| x / norm).collect())
         } else {
-            Ok(vec)
+            anyhow::bail!("ONNX model produced zero-norm embedding (empty or invalid input)")
         }
     }
 
@@ -250,7 +250,7 @@ impl TextEmbedder for HashEmbedder {
                 *x /= norm;
             }
         } else {
-            v[0] = 1.0;
+            anyhow::bail!("HashEmbedder produced zero-norm embedding (empty or invalid input)")
         }
         Ok(v)
     }
