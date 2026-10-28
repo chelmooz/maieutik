@@ -5,9 +5,9 @@
 //! - needs_reindex flag is set
 //! - reindexing restores search and clears flag
 
-use maieutik::core::indexer::{HashEmbedder, VectorIndex, IndexMeta};
 use maieutik::config::FileContent;
 use maieutik::core::indexer::extract_headings;
+use maieutik::core::indexer::{HashEmbedder, IndexMeta, VectorIndex};
 use std::path::PathBuf;
 use tempfile::TempDir;
 
@@ -38,7 +38,9 @@ fn corrupt_meta_for_mismatch(data_dir: &std::path::Path) {
         model_size_bytes: None,
         needs_reindex: false,
     };
-    meta_tree.insert("meta", bincode::serialize(&bad_meta).unwrap()).unwrap();
+    meta_tree
+        .insert("meta", bincode::serialize(&bad_meta).unwrap())
+        .unwrap();
     db.flush().unwrap();
 }
 
@@ -62,11 +64,15 @@ fn mismatch_clears_file_meta() {
 
     let (content, file_path) = make_content("hello world test content for migration", data_dir);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(index.upsert_file(&file_path, &content)).unwrap();
+    rt.block_on(index.upsert_file(&file_path, &content))
+        .unwrap();
 
     // Verify file_meta exists before mismatch (via index method)
     let stored = index.stored_files().unwrap();
-    assert!(!stored.is_empty(), "Should have stored files before mismatch");
+    assert!(
+        !stored.is_empty(),
+        "Should have stored files before mismatch"
+    );
 
     // Drop index to release lock
     drop(index);
@@ -79,18 +85,30 @@ fn mismatch_clears_file_meta() {
     let index2 = VectorIndex::open(data_dir, embedder).unwrap();
 
     // needs_reindex flag should be set (proves mismatch was handled)
-    assert!(index2.needs_reindex(), "needs_reindex flag should be set after mismatch");
+    assert!(
+        index2.needs_reindex(),
+        "needs_reindex flag should be set after mismatch"
+    );
 
     // Active file_meta should be cleared (no orphaned entries)
     let stored = index2.stored_files().unwrap();
-    assert!(stored.is_empty(), "Active file_meta should be cleared after mismatch, stored_files should be empty");
+    assert!(
+        stored.is_empty(),
+        "Active file_meta should be cleared after mismatch, stored_files should be empty"
+    );
 
     // Drop index2 to release lock, then verify backups were created
     drop(index2);
 
     // Now we can safely open new connections to verify backups
-    assert!(has_backup_tree(data_dir, "vectors_backup_"), "vectors_backup tree should exist");
-    assert!(has_backup_tree(data_dir, "file_meta_backup_"), "file_meta_backup tree should exist");
+    assert!(
+        has_backup_tree(data_dir, "vectors_backup_"),
+        "vectors_backup tree should exist"
+    );
+    assert!(
+        has_backup_tree(data_dir, "file_meta_backup_"),
+        "file_meta_backup tree should exist"
+    );
 }
 
 /// A2.3 RED: needs_reindex flag should be set after mismatch
@@ -106,7 +124,8 @@ fn mismatch_raises_needs_reindex() {
 
         let (content, file_path) = make_content("hello world test content for migration", data_dir);
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(index.upsert_file(&file_path, &content)).unwrap();
+        rt.block_on(index.upsert_file(&file_path, &content))
+            .unwrap();
     }
 
     // Corrupt metadata to trigger mismatch
@@ -117,7 +136,10 @@ fn mismatch_raises_needs_reindex() {
     let index2 = VectorIndex::open(data_dir, embedder).unwrap();
 
     // needs_reindex should be true
-    assert!(index2.needs_reindex(), "needs_reindex flag should be true after mismatch");
+    assert!(
+        index2.needs_reindex(),
+        "needs_reindex flag should be true after mismatch"
+    );
 
     drop(index2);
 }
@@ -135,7 +157,8 @@ fn reindex_restores_search() {
 
         let (content, file_path) = make_content("hello world test content for migration", data_dir);
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(index.upsert_file(&file_path, &content)).unwrap();
+        rt.block_on(index.upsert_file(&file_path, &content))
+            .unwrap();
     }
 
     // Corrupt metadata to trigger mismatch
@@ -159,7 +182,10 @@ fn reindex_restores_search() {
     index2.clear_needs_reindex().unwrap();
 
     // Flag should be cleared
-    assert!(!index2.needs_reindex(), "Flag should be cleared after reindex");
+    assert!(
+        !index2.needs_reindex(),
+        "Flag should be cleared after reindex"
+    );
 
     // Search should work
     let results = rt.block_on(index2.search("hello world", 5)).unwrap();
@@ -179,7 +205,8 @@ fn crash_between_vectors_and_fingerprint() {
     // Add content
     let (content, file_path) = make_content("test content", data_dir);
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(index.upsert_file(&file_path, &content)).unwrap();
+    rt.block_on(index.upsert_file(&file_path, &content))
+        .unwrap();
 
     // Verify the index can be rebuilt
     rt.block_on(index.build_hnsw()).unwrap();
