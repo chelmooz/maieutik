@@ -1,14 +1,11 @@
 //! Settings persistence — JSON file (mode 0600 on Unix)
-use std::process;
-
-
 use crate::config::AppSettings;
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
-use serde_json;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process;
 use tracing::{debug, info, warn};
 
 /// Returns the settings directory, creating it if needed.
@@ -16,6 +13,9 @@ use tracing::{debug, info, warn};
 /// Errors if the home directory cannot be determined and
 /// `ProjectDirs` is unavailable.
 pub fn settings_dir() -> Result<PathBuf> {
+    if let Some(path) = std::env::var_os("MAIEUTIK_CONFIG_DIR") {
+        return Ok(PathBuf::from(path));
+    }
     ProjectDirs::from("org", "maieutik", "Maieutik")
         .map(|dirs| dirs.config_dir().to_path_buf())
         .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("maieutik")))
@@ -97,15 +97,19 @@ struct SettingsFile {
 
 pub fn load_settings() -> Result<AppSettings> {
     ensure_dirs()?;
-    let path = config_path()?;
+    load_settings_from(&config_path()?)
+}
+
+/// Load settings from an explicit file without consulting or creating user directories.
+pub fn load_settings_from(path: &Path) -> Result<AppSettings> {
     if !path.exists() {
         info!("No config file at {}, using defaults", path.display());
         return Ok(AppSettings::default());
     }
-    let text = fs::read_to_string(&path).with_context(|| format!("Reading {}", path.display()))?;
+    let text = fs::read_to_string(path).with_context(|| format!("Reading {}", path.display()))?;
     let file: SettingsFile = serde_json::from_str(&text)
         .with_context(|| format!("Parsing JSON from {}", path.display()))?;
-    
+
     // Handle version migration
     match file.version.cmp(&SETTINGS_VERSION) {
         std::cmp::Ordering::Equal => {
@@ -124,7 +128,8 @@ pub fn load_settings() -> Result<AppSettings> {
             // Future version - reject
             anyhow::bail!(
                 "Config version {} is newer than supported {}; please update Maieutik",
-                file.version, SETTINGS_VERSION
+                file.version,
+                SETTINGS_VERSION
             );
         }
     }
@@ -134,27 +139,36 @@ pub fn load_settings() -> Result<AppSettings> {
 
 pub fn save_settings(settings: &AppSettings) -> Result<()> {
     ensure_dirs()?;
-    save_settings_to(&config_path()?, settings)
+    save_settings_to_file(settings, &config_path()?)
 }
 
 /// Écrit les réglages de façon atomique ; fichier en 0600 sur Unix.
-pub fn save_settings_to(path: &std::path::Path, settings: &AppSettings) -> Result<()> {
+pub fn save_settings_to_file(settings: &AppSettings, path: &Path) -> Result<()> {
     use std::io::Write;
     let file = SettingsFile {
         version: SETTINGS_VERSION,
         settings: settings.clone(),
     };
     let text = serde_json::to_string_pretty(&file)?;
-    
+
     // Generate unique temporary filename to avoid races:
     // config.json.<pid>.<counter>.<random>.tmp
     static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     use rand::Rng;
     let counter = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let rand_suffix: u64 = rand::thread_rng().gen();
-    let tmp_name = format!("{}.{}.{}.{}.tmp", path.file_name().unwrap().to_string_lossy(), process::id(), counter, rand_suffix);
+    let file_name = path.file_name().ok_or_else(|| {
+        anyhow::anyhow!("Configuration path has no file name: {}", path.display())
+    })?;
+    let tmp_name = format!(
+        "{}.{}.{}.{}.tmp",
+        file_name.to_string_lossy(),
+        process::id(),
+        counter,
+        rand_suffix
+    );
     let tmp = path.with_file_name(tmp_name);
-    
+
     let mut opts = fs::OpenOptions::new();
     opts.write(true).create_new(true);
     #[cfg(unix)]
@@ -171,4 +185,9 @@ pub fn save_settings_to(path: &std::path::Path, settings: &AppSettings) -> Resul
     fs::rename(&tmp, path)?;
     debug!("Saved settings to {}", path.display());
     Ok(())
+}
+
+/// Compatibility wrapper for callers using the original argument order.
+pub fn save_settings_to(path: &Path, settings: &AppSettings) -> Result<()> {
+    save_settings_to_file(settings, path)
 }

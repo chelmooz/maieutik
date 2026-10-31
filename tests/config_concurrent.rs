@@ -1,6 +1,6 @@
 //! Tests for config concurrent writes and migration (AUD-03).
 
-use maieutik::config::store::{load_settings, save_settings_to};
+use maieutik::config::store::{load_settings_from, save_settings_to_file};
 use maieutik::config::AppSettings;
 use std::fs;
 use std::sync::{Arc, Barrier};
@@ -97,7 +97,7 @@ fn config_concurrent_saves_no_race() {
         let handle = thread::spawn(move || {
             barrier.wait(); // Synchronize start
             for _ in 0..iterations {
-                let _ = save_settings_to(&path, &settings);
+                save_settings_to_file(&settings, &path).unwrap();
             }
         });
         handles.push(handle);
@@ -138,28 +138,14 @@ fn config_concurrent_saves_no_race() {
 /// A4.2 RED: Config migration - old version should be handled gracefully
 #[test]
 fn config_migration_old_version() {
-    // Use the actual config path that load_settings() will read from
-    let config_path = maieutik::config::store::config_path().unwrap();
-
-    // Backup existing config if it exists
-    let backup = if config_path.exists() {
-        Some(fs::read_to_string(&config_path).unwrap())
-    } else {
-        None
-    };
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("config.json");
 
     // Write old version config (version 0)
     let old_json = make_versioned_json(0);
     fs::write(&config_path, old_json).unwrap();
 
-    let result = load_settings();
-
-    // Restore original config
-    if let Some(backup) = backup {
-        fs::write(&config_path, backup).unwrap();
-    } else {
-        let _ = fs::remove_file(&config_path);
-    }
+    let result = load_settings_from(&config_path);
 
     // Should handle old version gracefully (currently accepts with warning)
     assert!(
@@ -171,28 +157,14 @@ fn config_migration_old_version() {
 /// A4.3 RED: Config migration - future version should be rejected explicitly
 #[test]
 fn config_migration_future_version_rejected() {
-    // Use the actual config path that load_settings() will read from
-    let config_path = maieutik::config::store::config_path().unwrap();
-
-    // Backup existing config if it exists
-    let backup = if config_path.exists() {
-        Some(fs::read_to_string(&config_path).unwrap())
-    } else {
-        None
-    };
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("config.json");
 
     // Write future version config (version 999)
     let future_json = make_versioned_json(999);
     fs::write(&config_path, future_json).unwrap();
 
-    let result = load_settings();
-
-    // Restore original config
-    if let Some(backup) = backup {
-        fs::write(&config_path, backup).unwrap();
-    } else {
-        let _ = fs::remove_file(&config_path);
-    }
+    let result = load_settings_from(&config_path);
 
     // Should reject with clear error
     assert!(result.is_err(), "Future version should be rejected");
@@ -207,27 +179,13 @@ fn config_migration_future_version_rejected() {
 /// A4.4 RED: Config migration - invalid JSON should be rejected
 #[test]
 fn config_invalid_json_rejected() {
-    // Use the actual config path that load_settings() will read from
-    let config_path = maieutik::config::store::config_path().unwrap();
-
-    // Backup existing config if it exists
-    let backup = if config_path.exists() {
-        Some(fs::read_to_string(&config_path).unwrap())
-    } else {
-        None
-    };
+    let dir = TempDir::new().unwrap();
+    let config_path = dir.path().join("config.json");
 
     // Write invalid JSON
     fs::write(&config_path, "{ invalid json }").unwrap();
 
-    let result = load_settings();
-
-    // Restore original config
-    if let Some(backup) = backup {
-        fs::write(&config_path, backup).unwrap();
-    } else {
-        let _ = fs::remove_file(&config_path);
-    }
+    let result = load_settings_from(&config_path);
 
     assert!(result.is_err(), "Invalid JSON should be rejected");
 }
@@ -252,7 +210,7 @@ fn config_no_leftover_tmp_files() {
         let handle = thread::spawn(move || {
             barrier.wait();
             for _ in 0..iterations {
-                let _ = save_settings_to(&path, &settings);
+                save_settings_to_file(&settings, &path).unwrap();
             }
         });
         handles.push(handle);

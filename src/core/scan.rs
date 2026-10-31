@@ -2,7 +2,7 @@
 
 use crate::config::{AppSettings, FileContent};
 use crate::core::indexer::{extract_headings, Chunker, FileFingerprint, VectorIndex};
-use crate::core::watch::{is_extension_allowed, is_within_size_limit};
+use crate::core::watch::is_indexable_file;
 use crate::utils::extract_text;
 use anyhow::Result;
 use std::collections::HashSet;
@@ -75,10 +75,12 @@ pub fn collect_files(settings: &AppSettings) -> (Vec<PathBuf>, Vec<(PathBuf, Str
             match entry {
                 Ok(e) => {
                     let p = e.path();
-                    if e.file_type().is_file() && is_extension_allowed(p, settings) {
-                        match is_within_size_limit(p, settings) {
+                    if e.file_type().is_file() {
+                        // Même règle que la réconciliation et le watcher :
+                        // extension autorisée ET taille sous la limite.
+                        match is_indexable_file(p, settings) {
                             Ok(true) => files.push(p.to_path_buf()),
-                            // Trop gros : ignoré, comme avant.
+                            // Hors corpus (extension ou taille) : ignoré.
                             Ok(false) => {}
                             // Métadonnées illisibles : fail-closed, compté
                             // comme échec plutôt qu'accepté en silence.
@@ -209,6 +211,10 @@ pub struct ReconcileReport {
     /// Chemins conservés faute d'empreinte comparable : index antérieur au
     /// stockage des empreintes, ou date de modification indisponible.
     pub kept_unverified: Vec<String>,
+    /// Chemins modifiés mais exclus par les réglages courants (extension
+    /// retirée, fichier devenu plus gros que `max_file_size`) : la version
+    /// déjà indexée est conservée, le disque n'est pas relu.
+    pub skipped_unindexable: Vec<String>,
     /// Purges qui ont échoué, par chemin.
     pub failed: Vec<(String, String)>,
 }
@@ -233,19 +239,42 @@ pub struct ReconcileReport {
 /// alors en place jusqu'au prochain démarrage ou `maieutik index`.
 /// Un dossier retiré de `settings.Folders` reste indexé : c'est
 /// `index --force` qui réconcilie avec le corpus configuré.
-pub async fn reconcile_startup(index: &VectorIndex) -> Result<ReconcileReport> {
+///
+/// Éligibilité : un fichier modifié qui ne passe plus le filtre courant
+/// (`watch::is_indexable_file` : extension autorisée, taille sous
+/// `max_file_size`) n'est pas réindexé. Sa version indexée est conservée et
+/// signalée (`skipped_unindexable`) : relire un fichier hors corpus ferait
+/// diverger l'index des réglages, le purger détruirait du contenu sur une
+/// simple modification de configuration.
+pub async fn reconcile_startup(
+    index: &VectorIndex,
+    settings: &AppSettings,
+) -> Result<ReconcileReport> {
     let mut report = ReconcileReport::default();
     let chunker = Chunker::new(CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS);
     for (stored, recorded) in index.stored_files()? {
         match std::fs::metadata(&stored) {
             Ok(meta) if meta.is_file() => match (recorded, FileFingerprint::from_metadata(&meta)) {
                 (Some(recorded), Some(current)) if recorded != current => {
-                    info!("réconciliation : modifié pendant l'arrêt, réindexé {stored}");
-                    match index_one(index, &chunker, Path::new(&stored)) {
-                        Ok(_) => report.reindexed.push(stored),
-                        Err(e) => report
-                            .failed
-                            .push((stored, format!("réindexation : {e:#}"))),
+                    match is_indexable_file(Path::new(&stored), settings) {
+                        Ok(true) => {
+                            info!("réconciliation : modifié pendant l'arrêt, réindexé {stored}");
+                            match index_one(index, &chunker, Path::new(&stored)) {
+                                Ok(_) => report.reindexed.push(stored),
+                                Err(e) => report
+                                    .failed
+                                    .push((stored, format!("réindexation : {e:#}"))),
+                            }
+                        }
+                        // Réglages resserrés : ne pas relire le disque, ne pas
+                        // purger — conserver la version indexée et le dire.
+                        Ok(false) => {
+                            info!(
+                                "réconciliation : exclu par les réglages, entrée conservée {stored}"
+                            );
+                            report.skipped_unindexable.push(stored);
+                        }
+                        Err(e) => report.failed.push((stored, format!("éligibilité : {e:#}"))),
                     }
                 }
                 // Empreintes identiques : rien à faire.
@@ -292,4 +321,54 @@ pub async fn index_path(index: &VectorIndex, path: &Path) -> Result<bool> {
     let has_text = index_one(index, &chunker, path)?;
     index.build_hnsw().await?;
     Ok(has_text)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::indexer::HashEmbedder;
+    use crate::core::watch::max_file_size_bytes;
+
+    const MB: usize = 1024 * 1024;
+
+    #[tokio::test]
+    async fn modified_oversize_file_is_not_reindexed_at_startup_and_size_never_overflows() {
+        let data = tempfile::tempdir().unwrap();
+        let docs = tempfile::tempdir().unwrap();
+        let file = docs.path().join("notes.md");
+        std::fs::write(&file, "bonjour\n").unwrap();
+
+        let mut settings = AppSettings {
+            folders: vec![docs.path().to_string_lossy().to_string()],
+            max_file_size: 1,
+            ..AppSettings::default()
+        };
+        let index = VectorIndex::open(data.path(), HashEmbedder::new()).unwrap();
+        index_all(&index, &settings, false).await.unwrap();
+        let stored = index.stored_file_paths().unwrap();
+        assert_eq!(stored.len(), 1, "corpus initial inattendu : {stored:?}");
+
+        // Fichier modifié au-delà de la limite pendant l'arrêt du service.
+        std::fs::write(&file, vec![b'x'; MB + 1]).unwrap();
+        let report = reconcile_startup(&index, &settings).await.unwrap();
+        assert!(
+            report.reindexed.is_empty(),
+            "un fichier hors limite ne doit pas être réindexé : {report:?}"
+        );
+        assert_eq!(
+            report.skipped_unindexable, stored,
+            "le fichier exclu doit être signalé : {report:?}"
+        );
+
+        // Une limite démesurée sature au lieu de déborder (panic en debug,
+        // valeur fausse en release) : le même fichier redevient éligible.
+        settings.max_file_size = usize::MAX;
+        assert_eq!(max_file_size_bytes(&settings), u64::MAX);
+        std::fs::write(&file, "petit\n").unwrap();
+        let report = reconcile_startup(&index, &settings).await.unwrap();
+        assert_eq!(
+            report.reindexed, stored,
+            "limite saturée mal interprétée : {report:?}"
+        );
+    }
 }

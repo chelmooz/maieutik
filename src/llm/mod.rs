@@ -160,6 +160,73 @@ pub fn plan_decode(
     })
 }
 
+/// Décodeur UTF-8 incrémental : un token llama.cpp peut couper une séquence
+/// multi-octets (accent français, emoji) en deux. On n'émet que les séquences
+/// complètes et on garde 1 à 3 octets résiduels pour le token suivant, au lieu
+/// de produire un caractère de remplacement par fragment.
+#[derive(Debug, Default)]
+pub struct Utf8StreamDecoder {
+    pending: Vec<u8>,
+}
+
+impl Utf8StreamDecoder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Ajoute un fragment et rend le texte désormais complet. Un fragment qui
+    /// s'arrête au milieu d'une séquence ne rend rien et reste en attente.
+    pub fn push(&mut self, bytes: &[u8]) -> String {
+        self.pending.extend_from_slice(bytes);
+        let (text, consumed) = decode_complete_prefix(&self.pending);
+        self.pending.drain(..consumed);
+        text
+    }
+
+    /// Vide le tampon en fin de flux : des octets incomplets ne forment pas
+    /// un caractère, ils sont rendus en remplacement plutôt que perdus.
+    pub fn finish(&mut self) -> String {
+        let tail = std::mem::take(&mut self.pending);
+        String::from_utf8_lossy(&tail).into_owned()
+    }
+}
+
+/// Décode le plus long préfixe UTF-8 valide de `bytes` et rend le nombre
+/// d'octets consommés. Une séquence tronquée en fin de tampon n'est pas
+/// consommée : elle attend le fragment suivant.
+fn decode_complete_prefix(bytes: &[u8]) -> (String, usize) {
+    let mut text = String::with_capacity(bytes.len());
+    let mut consumed = 0usize;
+    while consumed < bytes.len() {
+        match std::str::from_utf8(&bytes[consumed..]) {
+            Ok(rest) => {
+                text.push_str(rest);
+                consumed = bytes.len();
+            }
+            Err(e) => {
+                let valid = e.valid_up_to();
+                if valid > 0 {
+                    let prefix = std::str::from_utf8(&bytes[consumed..consumed + valid])
+                        .expect("préfixe validé par from_utf8");
+                    text.push_str(prefix);
+                    consumed += valid;
+                }
+                match e.error_len() {
+                    // Séquence incomplète : conserver les octets résiduels.
+                    None => break,
+                    // Octets réellement invalides : un remplacement, puis on
+                    // reprend après eux (le caractère suivant est préservé).
+                    Some(invalid) => {
+                        text.push(char::REPLACEMENT_CHARACTER);
+                        consumed += invalid;
+                    }
+                }
+            }
+        }
+    }
+    (text, consumed)
+}
+
 pub struct LlamaSession<'b> {
     model: &'b llama_cpp_2::model::LlamaModel,
     ctx: llama_cpp_2::context::LlamaContext<'b>,
@@ -213,6 +280,8 @@ impl<'b> LlamaSession<'b> {
         let mut sampler = llama_cpp_2::sampling::LlamaSampler::temp(temp);
         let mut n_cur = tokens.len() as i32;
         let mut generated = 0u32;
+        let mut decoder = Utf8StreamDecoder::new();
+        let mut stopped_by_callback = false;
 
         while generated < plan.max_tokens {
             if n_cur >= self.ctx.n_ctx() as i32 {
@@ -225,8 +294,11 @@ impl<'b> LlamaSession<'b> {
                 break;
             }
             let piece = vocab.token_to_piece(token, false, None);
-            let text = String::from_utf8_lossy(&piece);
-            if !on_token(&text) {
+            // Un token peut couper une séquence UTF-8 en deux : seules les
+            // séquences complètes sont émises, le reste attend le token suivant.
+            let text = decoder.push(&piece);
+            if !text.is_empty() && !on_token(&text) {
+                stopped_by_callback = true;
                 break;
             }
             generated += 1;
@@ -239,6 +311,14 @@ impl<'b> LlamaSession<'b> {
             self.ctx
                 .decode(&mut batch)
                 .map_err(|e| anyhow::anyhow!("decode: {e}"))?;
+        }
+        // Fin naturelle (EOG ou contexte plein) : les octets résiduels forment
+        // une séquence tronquée, rendue en remplacement plutôt que perdue.
+        if !stopped_by_callback {
+            let tail = decoder.finish();
+            if !tail.is_empty() {
+                let _ = on_token(&tail);
+            }
         }
         Ok(())
     }
@@ -429,5 +509,37 @@ mod tests {
         let plan = plan_decode(2000, 64, 4096, N_BATCH).unwrap();
         let lots = 2000usize.div_ceil(plan.chunk);
         assert_eq!(lots, 4, "2000 tokens par lots de 512 = 4 décodages");
+    }
+
+    #[test]
+    fn utf8_stream_decoder_preserves_multibyte_chars_split_across_chunks() {
+        // « é » = C3 A9 (2 octets), « 🦀 » = F0 9F A6 80 (4 octets), tous deux
+        // coupés par un découpage token par token, octet par octet.
+        let source = "é🦀";
+        let mut decoder = Utf8StreamDecoder::new();
+        let mut decoded = String::new();
+        for (position, byte) in source.as_bytes().iter().enumerate() {
+            let emitted = decoder.push(std::slice::from_ref(byte));
+            match position {
+                0 => assert!(
+                    emitted.is_empty(),
+                    "« é » est incomplet après un seul octet, or {emitted:?} a été émis"
+                ),
+                1 => assert_eq!(emitted, "é", "« é » doit être émis au deuxième octet"),
+                _ => {}
+            }
+            decoded.push_str(&emitted);
+        }
+        assert_eq!(decoded, source, "caractères multi-octets corrompus");
+        assert!(
+            decoder.finish().is_empty(),
+            "aucun octet résiduel ne doit subsister après une séquence complète"
+        );
+
+        // Un octet réellement invalide est remplacé sur place, sans avaler le
+        // caractère suivant.
+        let mut decoder = Utf8StreamDecoder::new();
+        assert_eq!(decoder.push(&[0xFF]), "\u{FFFD}");
+        assert_eq!(decoder.push("é".as_bytes()), "é");
     }
 }

@@ -2,17 +2,15 @@
 //!
 //! Verifies that invalid config values are rejected with contextual errors.
 
-use maieutik::config::{
-    AppSettings, ChatScope, ConflictStrategy, DriveSyncSettings, EdgeBandSettings, FileSortColumn,
-    ThinkingLevel,
-};
-use tempfile::TempDir;
+use maieutik::config::{AppSettings, EdgeBandSettings};
 
 /// B8.1 RED: Config validation should reject invalid numerical values
 #[test]
 fn config_rejects_negative_splitter_position() {
-    let mut settings = AppSettings::default();
-    settings.splitter_position = -100.0;
+    let settings = AppSettings {
+        splitter_position: -100.0,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(
@@ -29,8 +27,10 @@ fn config_rejects_negative_splitter_position() {
 
 #[test]
 fn config_rejects_zero_splitter_position() {
-    let mut settings = AppSettings::default();
-    settings.splitter_position = 0.0;
+    let settings = AppSettings {
+        splitter_position: 0.0,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Zero splitter_position should be rejected");
@@ -38,8 +38,10 @@ fn config_rejects_zero_splitter_position() {
 
 #[test]
 fn config_rejects_negative_max_file_size() {
-    let mut settings = AppSettings::default();
-    settings.max_file_size = 0;
+    let settings = AppSettings {
+        max_file_size: 0,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Zero max_file_size should be rejected");
@@ -47,8 +49,10 @@ fn config_rejects_negative_max_file_size() {
 
 #[test]
 fn config_rejects_negative_top_matches_limit() {
-    let mut settings = AppSettings::default();
-    settings.top_matches_limit = 0;
+    let settings = AppSettings {
+        top_matches_limit: 0,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Zero top_matches_limit should be rejected");
@@ -56,8 +60,10 @@ fn config_rejects_negative_top_matches_limit() {
 
 #[test]
 fn config_rejects_invalid_tts_rate() {
-    let mut settings = AppSettings::default();
-    settings.tts_rate = -1000; // Too low
+    let settings = AppSettings {
+        tts_rate: -1000,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Invalid tts_rate should be rejected");
@@ -71,8 +77,10 @@ fn config_rejects_invalid_tts_rate() {
 
 #[test]
 fn config_rejects_invalid_tts_volume() {
-    let mut settings = AppSettings::default();
-    settings.tts_volume = -50; // Negative
+    let settings = AppSettings {
+        tts_volume: -50,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Invalid tts_volume should be rejected");
@@ -86,8 +94,10 @@ fn config_rejects_invalid_tts_volume() {
 
 #[test]
 fn config_rejects_excessive_tts_volume() {
-    let mut settings = AppSettings::default();
-    settings.tts_volume = 200; // Over 100%
+    let settings = AppSettings {
+        tts_volume: 200,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Excessive tts_volume should be rejected");
@@ -96,12 +106,14 @@ fn config_rejects_excessive_tts_volume() {
 /// B8.2 RED: Config validation should validate edge bands
 #[test]
 fn config_rejects_invalid_edge_band_thickness() {
-    let mut settings = AppSettings::default();
-    settings.edge_bands = vec![EdgeBandSettings {
-        color: "#FF6B6B".into(),
-        thickness: -1.0, // Invalid
-        label: "Strong".into(),
-    }];
+    let settings = AppSettings {
+        edge_bands: vec![EdgeBandSettings {
+            color: "#FF6B6B".into(),
+            thickness: -1.0,
+            label: "Strong".into(),
+        }],
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(
@@ -112,12 +124,14 @@ fn config_rejects_invalid_edge_band_thickness() {
 
 #[test]
 fn config_rejects_invalid_edge_band_color() {
-    let mut settings = AppSettings::default();
-    settings.edge_bands = vec![EdgeBandSettings {
-        color: "not-a-color".into(),
-        thickness: 2.0,
-        label: "Strong".into(),
-    }];
+    let settings = AppSettings {
+        edge_bands: vec![EdgeBandSettings {
+            color: "not-a-color".into(),
+            thickness: 2.0,
+            label: "Strong".into(),
+        }],
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(result.is_err(), "Invalid color format should be rejected");
@@ -126,8 +140,10 @@ fn config_rejects_invalid_edge_band_color() {
 /// B8.3 RED: Config validation should validate paths
 #[test]
 fn config_rejects_invalid_folder_paths() {
-    let mut settings = AppSettings::default();
-    settings.folders = vec!["/non/existent/path/that/definitely/does/not/exist".to_string()];
+    let settings = AppSettings {
+        folders: vec!["/non/existent/path/that/definitely/does/not/exist".to_string()],
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(
@@ -139,8 +155,10 @@ fn config_rejects_invalid_folder_paths() {
 /// B8.4 RED: Config validation should validate cloud context window
 #[test]
 fn config_rejects_zero_cloud_context_window() {
-    let mut settings = AppSettings::default();
-    settings.cloud_context_window = 0;
+    let settings = AppSettings {
+        cloud_context_window: 0,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(
@@ -151,8 +169,10 @@ fn config_rejects_zero_cloud_context_window() {
 
 #[test]
 fn config_rejects_excessive_cloud_context_window() {
-    let mut settings = AppSettings::default();
-    settings.cloud_context_window = 10_000_000; // 10M tokens - too large
+    let settings = AppSettings {
+        cloud_context_window: 10_000_000,
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(
@@ -177,19 +197,21 @@ fn config_accepts_valid_settings() {
 /// B8.6 RED: Edge band color validation
 #[test]
 fn config_accepts_valid_hex_colors() {
-    let mut settings = AppSettings::default();
-    settings.edge_bands = vec![
-        EdgeBandSettings {
-            color: "#FF6B6B".into(),
-            thickness: 2.0,
-            label: "Strong".into(),
-        },
-        EdgeBandSettings {
-            color: "#4ECDC4".into(),
-            thickness: 1.5,
-            label: "Medium".into(),
-        },
-    ];
+    let settings = AppSettings {
+        edge_bands: vec![
+            EdgeBandSettings {
+                color: "#FF6B6B".into(),
+                thickness: 2.0,
+                label: "Strong".into(),
+            },
+            EdgeBandSettings {
+                color: "#4ECDC4".into(),
+                thickness: 1.5,
+                label: "Medium".into(),
+            },
+        ],
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(
@@ -201,12 +223,14 @@ fn config_accepts_valid_hex_colors() {
 
 #[test]
 fn config_accepts_valid_rgb_colors() {
-    let mut settings = AppSettings::default();
-    settings.edge_bands = vec![EdgeBandSettings {
-        color: "rgb(255, 107, 107)".into(),
-        thickness: 2.0,
-        label: "Strong".into(),
-    }];
+    let settings = AppSettings {
+        edge_bands: vec![EdgeBandSettings {
+            color: "rgb(255, 107, 107)".into(),
+            thickness: 2.0,
+            label: "Strong".into(),
+        }],
+        ..Default::default()
+    };
 
     let result = settings.validate();
     assert!(

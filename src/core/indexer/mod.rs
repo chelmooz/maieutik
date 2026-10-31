@@ -1,7 +1,7 @@
 //! Vector index — ONNX embeddings (BGE-M3) + sled + HNSW (fast-hnsw).
 
 use crate::config::{Chunk, FileContent};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use fast_hnsw::distance::Euclidean;
 use fast_hnsw::{Builder, Hnsw};
 use ort::session::Session;
@@ -354,15 +354,37 @@ pub fn replace_file_records(
     Ok(())
 }
 
+/// Garde-fou de contrat : un vecteur doit avoir exactement la dimension
+/// déclarée par l'index et ne contenir que des valeurs finies. Un NaN ou un
+/// Inf corrompt silencieusement l'arbre HNSW (distances non comparables) : il
+/// est refusé à la frontière plutôt que découvert à la recherche.
+fn validate_embedding_vector(vector: &[f32], expected_dim: usize) -> Result<()> {
+    if vector.len() != expected_dim {
+        anyhow::bail!(
+            "dimension {} au lieu de {expected_dim} attendue",
+            vector.len()
+        );
+    }
+    if let Some((position, value)) = vector
+        .iter()
+        .enumerate()
+        .find(|(_, value)| !value.is_finite())
+    {
+        anyhow::bail!("composante {position} non finie ({value})");
+    }
+    Ok(())
+}
+
 /// Wrapper for fast-hnsw index with ID mapping
 pub struct HnswIndex {
     inner: Hnsw<Euclidean>,
+    dim: usize,
     id_to_idx: HashMap<String, usize>,
     idx_to_id: Vec<String>,
 }
 
 impl HnswIndex {
-    pub fn new(_dim: usize) -> Self {
+    pub fn new(dim: usize) -> Self {
         let index = Builder::new()
             .m(16)
             .ef_construction(200)
@@ -370,25 +392,30 @@ impl HnswIndex {
             .build(Euclidean);
         Self {
             inner: index,
+            dim,
             id_to_idx: HashMap::new(),
             idx_to_id: Vec::new(),
         }
     }
 
     pub fn add(&mut self, id: String, vec: &[f32]) -> Result<()> {
+        validate_embedding_vector(vec, self.dim)
+            .with_context(|| format!("vecteur « {id} » refusé"))?;
         let idx = self.inner.insert(vec.to_vec());
         self.id_to_idx.insert(id.clone(), idx);
         self.idx_to_id.push(id);
         Ok(())
     }
 
-    pub fn search(&self, query: &[f32], k: usize) -> Vec<(usize, f32)> {
+    pub fn search(&self, query: &[f32], k: usize) -> Result<Vec<(usize, f32)>> {
+        validate_embedding_vector(query, self.dim).context("requête de recherche refusée")?;
         // fast-hnsw `search(query, k, ef)` returns `SearchResult { id, distance }`.
-        self.inner
+        Ok(self
+            .inner
             .search(query, k, k.max(64))
             .into_iter()
             .map(|r| (r.id, r.distance))
-            .collect()
+            .collect())
     }
 
     pub fn get_id(&self, idx: usize) -> Option<&String> {
@@ -408,6 +435,7 @@ impl HnswIndex {
 impl std::fmt::Debug for HnswIndex {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HnswIndex")
+            .field("dim", &self.dim)
             .field("len", &self.idx_to_id.len())
             .finish()
     }
@@ -653,7 +681,7 @@ impl VectorIndex {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("HNSW not built"))?;
 
-        let results = hnsw.search(&query_emb, k);
+        let results = hnsw.search(&query_emb, k)?;
         let mut out = Vec::new();
         for (idx, score) in results {
             if let Some(id) = hnsw.get_id(idx) {
@@ -784,4 +812,69 @@ pub fn extract_headings(text: &str) -> Vec<crate::config::Heading> {
         offset += raw.len();
     }
     headings
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn vector_index_rejects_wrong_dimension_and_nan_inf_embeddings() {
+        let mut index = HnswIndex::new(3);
+
+        // Dimension : le message doit nommer l'identifiant, les deux
+        // dimensions et l'attendu (diagnostic actionnable).
+        let err = index
+            .add("chunk-dimension".to_string(), &[1.0, 0.0])
+            .unwrap_err();
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("chunk-dimension"),
+            "l'identifiant doit apparaître : {message}"
+        );
+        assert!(
+            message.contains("dimension 2 au lieu de 3"),
+            "les dimensions doivent apparaître : {message}"
+        );
+
+        // Valeurs non finies : refusées avant insertion, jamais dans l'arbre.
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let err = index
+                .add("chunk-non-fini".to_string(), &[1.0, value, 0.0])
+                .unwrap_err();
+            let message = format!("{err:#}");
+            assert!(
+                message.contains("chunk-non-fini") && message.contains("composante 1"),
+                "diagnostic inattendu : {message}"
+            );
+        }
+        assert_eq!(
+            index.len(),
+            0,
+            "un vecteur refusé ne doit pas entrer dans l'index"
+        );
+        assert!(index.is_empty());
+
+        index
+            .add("chunk-valide".to_string(), &[1.0, 0.0, 0.0])
+            .unwrap();
+        assert_eq!(index.len(), 1);
+
+        // Le contrat vaut aussi à la recherche : une requête hors dimension
+        // ou non finie est une erreur, pas un résultat vide trompeur.
+        let err = index.search(&[1.0, 0.0], 1).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("dimension 2 au lieu de 3"),
+            "requête de mauvaise dimension acceptée"
+        );
+        let err = index.search(&[1.0, f32::NAN, 0.0], 1).unwrap_err();
+        assert!(
+            format!("{err:#}").contains("composante 1"),
+            "requête non finie acceptée"
+        );
+
+        let hits = index.search(&[1.0, 0.0, 0.0], 1).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0, 0);
+    }
 }

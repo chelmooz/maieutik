@@ -16,7 +16,7 @@ use crate::config::AppSettings;
 use crate::core::indexer::{Embedder, VectorIndex};
 use crate::core::scan::index_path;
 use crate::core::watch::{
-    is_extension_allowed, is_within_size_limit, DebouncedProcessor, FileWatcher, WatchEvent,
+    is_indexable_file, DebouncedProcessor, FileWatcher, WatchEvent,
 };
 use anyhow::Result;
 use std::path::{Path, PathBuf};
@@ -147,15 +147,12 @@ async fn reindex(state: &AppState, path: &Path) {
     }
     let allowed = {
         let settings = state.settings.read().await;
-        if !is_extension_allowed(path, &settings) {
-            false
-        } else {
-            match is_within_size_limit(path, &settings) {
-                Ok(within) => within,
-                Err(e) => {
-                    warn!("taille illisible, ignoré {} : {e:#}", path.display());
-                    return;
-                }
+        // Même règle que `collect_files` et `reconcile_startup`.
+        match is_indexable_file(path, &settings) {
+            Ok(allowed) => allowed,
+            Err(e) => {
+                warn!("taille illisible, ignoré {} : {e:#}", path.display());
+                return;
             }
         }
     };

@@ -39,7 +39,7 @@ async fn vanished_file_is_purged_at_startup() {
     // Suppression pendant que le programme est arrêté : aucun événement.
     std::fs::remove_file(docs.path().join("b.md")).unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings).await.unwrap();
     assert_eq!(report.removed.len(), 1, "bilan inattendu : {report:?}");
     assert!(report.removed[0].ends_with("b.md"), "{report:?}");
 
@@ -76,7 +76,7 @@ async fn path_replaced_by_directory_is_purged() {
     std::fs::remove_file(&note).unwrap();
     std::fs::create_dir(&note).unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert_eq!(report.removed.len(), 1, "bilan inattendu : {report:?}");
     assert!(index.stored_file_paths().unwrap().is_empty());
 }
@@ -91,7 +91,7 @@ async fn present_files_are_kept() {
         .await
         .unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert!(report.removed.is_empty(), "bilan inattendu : {report:?}");
     assert!(
         report.kept_unreadable.is_empty(),
@@ -127,7 +127,7 @@ async fn unreadable_metadata_keeps_entry() {
         .unwrap();
     assert_eq!(index.stored_file_paths().unwrap().len(), 1);
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(&file)).await.unwrap();
     assert!(report.removed.is_empty(), "bilan inattendu : {report:?}");
     assert_eq!(
         report.kept_unreadable.len(),
@@ -158,7 +158,7 @@ async fn modified_file_is_reindexed_at_startup() {
     tick();
     std::fs::write(docs.path().join("a.md"), RUST).unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert_eq!(report.reindexed.len(), 1, "bilan inattendu : {report:?}");
     assert!(report.reindexed[0].ends_with("a.md"), "{report:?}");
 
@@ -180,7 +180,7 @@ async fn modified_file_is_reindexed_at_startup() {
 
     // Idempotence : la réindexation a relevé la nouvelle empreinte, un
     // second démarrage ne doit plus rien réindexer.
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert!(
         report.reindexed.is_empty() && report.kept_unverified.is_empty(),
         "réconciliation non idempotente : {report:?}"
@@ -204,7 +204,7 @@ async fn rewrite_of_identical_size_is_still_detected() {
     assert_eq!(same_size.len(), FOX.len());
     std::fs::write(docs.path().join("a.md"), same_size).unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert_eq!(report.reindexed.len(), 1, "bilan inattendu : {report:?}");
 }
 
@@ -218,7 +218,7 @@ async fn unchanged_file_is_not_reindexed() {
         .await
         .unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert!(
         report.reindexed.is_empty()
             && report.removed.is_empty()
@@ -250,7 +250,7 @@ async fn entry_without_recorded_fingerprint_is_kept_and_reported() {
         .store_file(&file, &FileContent { chunks, ..base }, None)
         .unwrap();
 
-    let report = reconcile_startup(&index).await.unwrap();
+    let report = reconcile_startup(&index, &settings_for(docs.path())).await.unwrap();
     assert!(report.removed.is_empty(), "bilan inattendu : {report:?}");
     assert!(
         report.reindexed.is_empty(),

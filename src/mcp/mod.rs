@@ -8,7 +8,7 @@
 //! décrit le contrat cible ; ses autres méthodes ne sont pas encore routées,
 //! et le transport stdio (`run_stdio`) reste un stub.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use serde::{Deserialize, Serialize};
@@ -291,7 +291,7 @@ impl McpServer {
         // Un reliquat de socket d'une instance précédente peut être retiré ;
         // tout autre fichier existant est une erreur, jamais une suppression.
         let path = Path::new(socket_path);
-        framed::ensure_socket_dir()?;
+        framed::ensure_socket_parent(path)?;
         prepare_socket_path(path)?;
 
         let listener = tokio::net::UnixListener::bind(socket_path)?;
@@ -388,13 +388,26 @@ impl McpServer {
 /// peut être retirée ; tout autre fichier existant est une erreur, jamais une
 /// suppression aveugle. Une entrée absente est normale.
 pub fn prepare_socket_path(path: &Path) -> Result<()> {
-    match std::fs::metadata(path) {
+    match std::fs::symlink_metadata(path) {
         Ok(meta) => {
             #[cfg(unix)]
             {
                 use std::os::unix::fs::FileTypeExt;
                 if meta.file_type().is_socket() {
-                    std::fs::remove_file(path)?;
+                    match std::os::unix::net::UnixStream::connect(path) {
+                        Ok(_) => anyhow::bail!("socket already in use: {}", path.display()),
+                        Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => {
+                            std::fs::remove_file(path)?;
+                        }
+                        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                            return Ok(());
+                        }
+                        Err(error) => {
+                            return Err(error).with_context(|| {
+                                format!("checking existing socket {}", path.display())
+                            });
+                        }
+                    }
                     return Ok(());
                 }
             }
@@ -410,7 +423,7 @@ pub fn prepare_socket_path(path: &Path) -> Result<()> {
 
 /// Length-prefixed JSON framing for the local socket protocol.
 pub mod framed {
-    use anyhow::Result;
+    use anyhow::{Context, Result};
     use serde::{Deserialize, Serialize};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::UnixStream;
@@ -434,39 +447,121 @@ pub mod framed {
         pub id: Option<serde_json::Value>,
     }
 
-    /// Chemin du socket MCP : répertoire privé de l'utilisateur, jamais le
-    /// `/tmp` partagé et monde-écrivable de l'ancien code.
-    pub fn socket_path() -> String {
-        socket_dir()
-            .join(format!("maieutik_mcp_{}.sock", std::process::id()))
-            .to_string_lossy()
-            .into_owned()
+    /// Résout un répertoire privé : runtime en priorité, cache sinon.
+    pub fn socket_dir_for(
+        runtime: Option<std::path::PathBuf>,
+        cache: Option<std::path::PathBuf>,
+    ) -> Result<std::path::PathBuf> {
+        let dir = match runtime {
+            Some(runtime) => runtime,
+            None => cache
+                .map(|cache| cache.join("maieutik"))
+                .ok_or_else(|| anyhow::anyhow!("no user runtime or cache directory available"))?,
+        };
+        validate_socket_dir(&dir)?;
+        Ok(dir)
     }
 
     pub const MAX_REQUEST_SIZE: usize = 1024 * 1024; // 1 MB
 
-    /// Répertoire hôte du socket, créé 0700 si absent (appelé par le serveur
-    /// avant bind ; le client se contente de `socket_path`).
+    /// Répertoire hôte du socket, créé en privé si absent.
     pub fn ensure_socket_dir() -> Result<std::path::PathBuf> {
-        let dir = socket_dir();
-        std::fs::create_dir_all(&dir)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))?;
-        }
+        let dir = socket_dir()?;
+        create_private_socket_dir(&dir)?;
         Ok(dir)
     }
 
-    fn socket_dir() -> std::path::PathBuf {
-        std::env::var_os("XDG_RUNTIME_DIR")
-            .map(std::path::PathBuf::from)
-            .or_else(|| dirs::cache_dir().map(|d| d.join("maieutik")))
-            .unwrap_or_else(std::env::temp_dir)
+    pub fn ensure_socket_parent(socket_path: &std::path::Path) -> Result<()> {
+        let dir = socket_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let dir = socket_dir_for(Some(dir.to_path_buf()), None)?;
+        create_private_socket_dir(&dir)
+    }
+
+    fn create_private_socket_dir(dir: &std::path::Path) -> Result<()> {
+        validate_socket_dir(dir)?;
+        std::fs::create_dir_all(dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        }
+        Ok(())
+    }
+
+    fn validate_socket_dir(dir: &std::path::Path) -> Result<()> {
+        let mut current = Some(dir);
+        let mut found_existing_ancestor = false;
+        while let Some(path) = current {
+            match std::fs::metadata(path) {
+                Ok(metadata) => {
+                    found_existing_ancestor = true;
+                    if !metadata.is_dir() {
+                        anyhow::bail!(
+                            "socket directory component is not a directory: {}",
+                            path.display()
+                        );
+                    }
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        if metadata.permissions().mode() & 0o002 != 0 {
+                            anyhow::bail!(
+                                "socket directory has a world-writable component: {}",
+                                path.display()
+                            );
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(error)
+                        .with_context(|| format!("checking socket directory {}", path.display()));
+                }
+            }
+            current = path.parent();
+        }
+        if !found_existing_ancestor {
+            anyhow::bail!("socket directory has no existing parent: {}", dir.display());
+        }
+        Ok(())
+    }
+
+    fn socket_dir() -> Result<std::path::PathBuf> {
+        let runtime = std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from);
+        socket_dir_for(runtime, dirs::cache_dir())
+    }
+
+    pub fn socket_path_for(
+        socket_override: Option<std::path::PathBuf>,
+        runtime: Option<std::path::PathBuf>,
+        cache: Option<std::path::PathBuf>,
+    ) -> Result<std::path::PathBuf> {
+        if let Some(path) = socket_override {
+            let parent = path
+                .parent()
+                .filter(|parent| !parent.as_os_str().is_empty())
+                .unwrap_or_else(|| std::path::Path::new("."));
+            socket_dir_for(Some(parent.to_path_buf()), None)?;
+            return Ok(path);
+        }
+        Ok(socket_dir_for(runtime, cache)?.join("maieutik_mcp.sock"))
+    }
+
+    pub fn socket_path() -> Result<std::path::PathBuf> {
+        socket_path_for(
+            std::env::var_os("MAIEUTIK_MCP_SOCKET").map(std::path::PathBuf::from),
+            std::env::var_os("XDG_RUNTIME_DIR").map(std::path::PathBuf::from),
+            dirs::cache_dir(),
+        )
     }
 
     pub async fn connect() -> Result<UnixStream> {
-        UnixStream::connect(socket_path()).await.map_err(Into::into)
+        UnixStream::connect(socket_path()?)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn read_request(stream: &mut UnixStream) -> Result<Option<RpcRequest>> {
@@ -533,6 +628,61 @@ pub use framed::{RpcRequest, RpcResponse};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static SOCKET_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn project_tempdir() -> tempfile::TempDir {
+        tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap()
+    }
+
+    #[test]
+    fn socket_dir_requires_a_user_directory() {
+        assert!(framed::socket_dir_for(None, None).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn socket_dir_rejects_world_writable_parent_without_chmod() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = project_tempdir();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+
+        let result = framed::socket_dir_for(None, Some(dir.path().to_path_buf()));
+
+        assert!(result.is_err(), "world-writable parents must be rejected");
+        let mode = std::fs::metadata(dir.path()).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o777, "the unsafe parent must not be chmod-ed");
+    }
+
+    #[test]
+    fn socket_path_is_stable_and_has_no_process_id() {
+        let dir = project_tempdir();
+        let first = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).unwrap();
+        let second = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.file_name().unwrap(), "maieutik_mcp.sock");
+    }
+
+    #[test]
+    fn socket_path_uses_environment_override() {
+        let _guard = SOCKET_ENV_LOCK.lock().unwrap();
+        let dir = project_tempdir();
+        let override_path = dir.path().join("custom.sock");
+        let previous = std::env::var_os("MAIEUTIK_MCP_SOCKET");
+        std::env::set_var("MAIEUTIK_MCP_SOCKET", &override_path);
+
+        let result = framed::socket_path();
+
+        match previous {
+            Some(value) => std::env::set_var("MAIEUTIK_MCP_SOCKET", value),
+            None => std::env::remove_var("MAIEUTIK_MCP_SOCKET"),
+        }
+
+        assert_eq!(result.unwrap(), override_path);
+    }
 
     #[test]
     fn prepare_accepts_a_missing_path() {
@@ -573,9 +723,24 @@ mod tests {
         assert!(!stale.exists(), "le socket mort doit être retiré");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn prepare_refuses_to_unlink_a_live_socket() {
+        let dir = project_tempdir();
+        let active = dir.path().join("actif.sock");
+        let listener = std::os::unix::net::UnixListener::bind(&active).unwrap();
+
+        let err = prepare_socket_path(&active).expect_err("un socket actif doit être préservé");
+
+        assert!(err.to_string().contains("already in use"), "{err:#}");
+        assert!(active.exists(), "le socket actif ne doit pas être supprimé");
+        drop(listener);
+    }
+
     #[test]
     fn socket_path_is_never_in_shared_tmp() {
-        let path = std::path::PathBuf::from(framed::socket_path());
+        let _guard = SOCKET_ENV_LOCK.lock().unwrap();
+        let path = framed::socket_path().unwrap();
         assert!(
             !path.starts_with("/tmp"),
             "le socket ne doit plus vivre sous /tmp : {}",

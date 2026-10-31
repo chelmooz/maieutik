@@ -290,7 +290,8 @@ async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
     // Réconciliation de démarrage : les fichiers disparus pendant que le
     // service était arrêté sont purgés avant de commencer à surveiller.
     if let Some(idx) = &state.vector_index {
-        match maieutik::core::scan::reconcile_startup(idx).await {
+        let settings = state.settings.read().await.clone();
+        match maieutik::core::scan::reconcile_startup(idx, &settings).await {
             Ok(report) => {
                 for path in &report.kept_unreadable {
                     warn!("Réconciliation : métadonnées illisibles, entrée conservée : {path}");

@@ -28,6 +28,34 @@ pub enum WatchEvent {
     Renamed { from: PathBuf, to: PathBuf },
 }
 
+/// Racines réellement surveillables : chemins canonicalisés (mêmes clés
+/// d'index que `scan::collect_files`), relatifs résolus contre `base`.
+/// Les dossiers invalides sont renvoyés à part avec leur motif, jamais
+/// ignorés en silence.
+pub fn resolve_watch_roots(
+    folders: &[String],
+    base: &Path,
+) -> (Vec<PathBuf>, Vec<(PathBuf, String)>) {
+    let mut roots = Vec::new();
+    let mut errors = Vec::new();
+    for folder in folders {
+        let configured = PathBuf::from(folder);
+        let candidate = if configured.is_absolute() {
+            configured.clone()
+        } else {
+            base.join(&configured)
+        };
+        match candidate.canonicalize() {
+            Ok(root) if root.is_dir() => roots.push(root),
+            Ok(_) => errors.push((configured, "n'est pas un dossier".to_string())),
+            Err(e) => errors.push((configured, e.to_string())),
+        }
+    }
+    roots.sort();
+    roots.dedup();
+    (roots, errors)
+}
+
 impl FileWatcher {
     pub fn new(
         settings: Arc<tokio::sync::RwLock<AppSettings>>,
@@ -73,14 +101,30 @@ impl FileWatcher {
 
     pub async fn watch(&mut self) -> Result<()> {
         let folders = self.settings.read().await.folders.clone();
-        for folder in folders {
-            let path = PathBuf::from(&folder);
-            if path.exists() {
-                self.watcher.watch(&path, RecursiveMode::Recursive)?;
-                info!("Watching folder: {}", path.display());
-            } else {
-                warn!("Watch folder does not exist: {}", path.display());
+        let cwd = std::env::current_dir()?;
+        let (roots, errors) = resolve_watch_roots(&folders, &cwd);
+        for (path, reason) in &errors {
+            warn!("Dossier à surveiller ignoré {} : {reason}", path.display());
+        }
+        if roots.is_empty() {
+            // Liste vide : rien à surveiller, ce n'est pas une erreur (le
+            // binaire refuse déjà ce cas en amont). Des dossiers configurés
+            // mais tous invalides : un watcher tournerait à vide en silence,
+            // mieux vaut refuser avec la liste des chemins fautifs.
+            if folders.is_empty() {
+                info!("no folder configured, nothing to watch");
+                return Ok(());
             }
+            let listed = errors
+                .iter()
+                .map(|(path, reason)| format!("{} ({reason})", path.display()))
+                .collect::<Vec<_>>()
+                .join(", ");
+            anyhow::bail!("aucun dossier surveillable parmi {listed}");
+        }
+        for root in roots {
+            self.watcher.watch(&root, RecursiveMode::Recursive)?;
+            info!("Watching folder: {}", root.display());
         }
         Ok(())
     }
@@ -200,13 +244,40 @@ pub fn is_extension_allowed(path: &Path, settings: &AppSettings) -> bool {
     }
 }
 
+/// Limite de taille en octets. `max_file_size` est exprimé en mébioctets :
+/// la conversion sature à `u64::MAX` au lieu de déborder — sans cela, un
+/// réglage démesuré panique en build debug (« attempt to multiply with
+/// overflow ») et produit une valeur fausse en release.
+#[allow(clippy::manual_saturating_arithmetic)] // `checked_mul` explicite : la saturation à u64::MAX est voulue.
+pub fn max_file_size_bytes(settings: &AppSettings) -> u64 {
+    (settings.max_file_size as u64)
+        .checked_mul(1024 * 1024)
+        .unwrap_or(u64::MAX)
+}
+
+/// Prédicat pur : une taille connue tient-elle dans la limite configurée ?
+pub fn is_indexable_size(size: u64, settings: &AppSettings) -> bool {
+    size <= max_file_size_bytes(settings)
+}
+
+/// Éligibilité d'un fichier au corpus : extension autorisée ET taille sous la
+/// limite. Point de vérité unique, partagé par le parcours initial
+/// (`scan::collect_files`), la réconciliation de démarrage et le watcher.
+/// `Err` = métadonnées illisibles (fail-closed) : jamais une acceptation
+/// implicite.
+pub fn is_indexable_file(path: &Path, settings: &AppSettings) -> Result<bool> {
+    if !is_extension_allowed(path, settings) {
+        return Ok(false);
+    }
+    is_within_size_limit(path, settings)
+}
+
 /// Contrôle de la limite de taille (Mo dans les réglages). Fail-closed : un
 /// fichier dont les métadonnées sont illisibles est une erreur, jamais une
 /// autorisation implicite — l'appelant rejette et diagnostique.
 pub fn is_within_size_limit(path: &Path, settings: &AppSettings) -> Result<bool> {
     let meta = std::fs::metadata(path)?;
-    let max_bytes = (settings.max_file_size as u64) * 1024 * 1024;
-    Ok(meta.len() <= max_bytes)
+    Ok(is_indexable_size(meta.len(), settings))
 }
 
 #[cfg(test)]
@@ -240,5 +311,40 @@ mod tests {
         let file = dir.path().join("a.md");
         std::fs::write(&file, "hello").unwrap();
         assert!(!is_within_size_limit(&file, &settings(0)).unwrap());
+    }
+
+    #[tokio::test]
+    async fn watch_rejects_all_missing_roots_and_canonicalizes_relative_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let notes = dir.path().join("notes");
+        std::fs::create_dir(&notes).unwrap();
+        let missing = dir.path().join("absent");
+
+        // Un chemin relatif doit être résolu contre `base` puis canonicalisé,
+        // comme `scan::collect_files` : mêmes clés d'index des deux côtés.
+        let folders = vec!["notes".to_string(), missing.to_string_lossy().to_string()];
+        let (roots, errors) = resolve_watch_roots(&folders, dir.path());
+        assert_eq!(
+            roots,
+            vec![notes.canonicalize().unwrap()],
+            "racine relative non canonicalisée : {roots:?}"
+        );
+        assert_eq!(errors.len(), 1, "dossier absent non signalé : {errors:?}");
+        assert_eq!(errors[0].0, missing);
+
+        // Aucune racine valide : le watcher doit refuser de démarrer au lieu
+        // de tourner à vide en silence.
+        let dead = AppSettings {
+            folders: vec!["absent-a".to_string(), "absent-b".to_string()],
+            ..AppSettings::default()
+        };
+        let (tx, _rx) = mpsc::channel(4);
+        let mut watcher = FileWatcher::new(Arc::new(tokio::sync::RwLock::new(dead)), tx).unwrap();
+        let err = watcher.watch().await.unwrap_err();
+        let message = format!("{err:#}");
+        assert!(
+            message.contains("absent-a") && message.contains("absent-b"),
+            "le message doit nommer les racines fautives : {message}"
+        );
     }
 }

@@ -27,7 +27,10 @@ async fn wait_for_socket(path: &std::path::Path) {
 
 /// Ouvre le serveur sur un socket de bac à sable et retourne son chemin.
 async fn server_on_sandbox_socket() -> (tempfile::TempDir, std::path::PathBuf) {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::Builder::new()
+        .prefix("mcp-health-")
+        .tempdir_in(env!("CARGO_MANIFEST_DIR"))
+        .unwrap();
     let sock = dir.path().join("mcp.sock");
     let server = Arc::new(McpServer::new());
     let sock_str = sock.to_str().unwrap().to_string();
