@@ -75,9 +75,50 @@ pub fn ort_dylib_path() -> Option<PathBuf> {
 
 /// Returns the path to the config file.
 ///
-/// Errors if the settings directory cannot be determined.
+/// Uses `MAIEUTIK_CONFIG_DIR` environment variable if set,
+/// otherwise falls back to the XDG-based default directory.
 pub fn config_path() -> Result<PathBuf> {
+    // Try MAIEUTIK_CONFIG_DIR first
+    if let Ok(dir) = std::env::var("MAIEUTIK_CONFIG_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
+    // Fall back to XDG-based default
     settings_dir().map(|d| d.join("config.json"))
+}
+
+/// Load settings from a specific path, useful for testing with temp directories.
+pub fn load_settings_from(path: &std::path::Path) -> Result<AppSettings> {
+    if !path.exists() {
+        info!("No config file at {}, using defaults", path.display());
+        return Ok(AppSettings::default());
+    }
+    let text = fs::read_to_string(path).with_context(|| format!("Reading {}", path.display()))?;
+    let file: SettingsFile = serde_json::from_str(&text)
+        .with_context(|| format!("Parsing JSON from {}", path.display()))?;
+    
+    // Handle version migration
+    match file.version.cmp(&SETTINGS_VERSION) {
+        std::cmp::Ordering::Equal => {
+            // Current version - OK
+        }
+        std::cmp::Ordering::Less => {
+            // Old version - migrate
+            warn!(
+                "Config version {} is older than current {}, migrating...",
+                file.version, SETTINGS_VERSION
+            );
+            // For now, accept old config as-is with warning
+        }
+        std::cmp::Ordering::Greater => {
+            // Future version - reject
+            anyhow::bail!(
+                "Config version {} is newer than supported {}; please update Maieutik",
+                file.version, SETTINGS_VERSION
+            );
+        }
+    }
+    debug!("Loaded settings from {}", path.display());
+    Ok(file.settings)
 }
 
 pub fn ensure_dirs() -> Result<()> {

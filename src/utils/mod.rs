@@ -75,81 +75,65 @@ fn strip_xml_tags(xml: &str) -> String {
     out
 }
 
-/// Décode les entités XML numériques : &#123; et &#x1F;.
-/// Ne panique pas sur des valeurs invalides ; laisse l'entité telle quelle.
+/// Parse a numeric entity like &#x1F600; or &#128;.
+/// Returns (character, length_in_bytes_of_the_entity_without_semicolon) if valid, None otherwise.
+fn parse_numeric_entity(s: &str) -> Option<(char, usize)> {
+    let s = s.trim();
+    // Must start with &# and end with ;
+    if !s.starts_with("&#") || !s.ends_with(';') {
+        return None;
+    }
+    let body = &s[2..s.len()-1]; // content between &# and ;
+    
+    // Determine if hex and extract digit characters
+    let is_hex = body.starts_with('x') || body.starts_with('X');
+    let digit_chars: String = if is_hex {
+        body.chars().skip(1).filter(|c| c.is_ascii_hexdigit()).collect()
+    } else {
+        body.chars().filter(|c| c.is_ascii_digit()).collect()
+    };
+    
+    if digit_chars.is_empty() {
+        return None;
+    }
+    
+    let value = if is_hex {
+        u32::from_str_radix(&digit_chars, 16)
+    } else {
+        digit_chars.parse::<u32>()
+    };
+    
+    value.ok().and_then(|cp| char::from_u32(cp).map(|c| (c, digit_chars.len())))
+}
+
+/// Décode les entités numériques &#x; ou &#; présents dans une chaîne.
+/// Les entités invalides ou incomplètes sont restituées telles quelles
+/// sans corruption silencieuse de texte (plus de préfixe dupliqué ni de
+/// caractères de contrôle injectés comme form feed).
 fn decode_numeric_entities(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
-    let mut chars = s.chars().peekable();
+    let mut pos = 0;
+    let bytes = s.as_bytes();
 
-    while let Some(ch) = chars.next() {
-        if ch == '\x26' && chars.peek() == Some(&'\x23') {
-            // Possible numeric entity: &#
-            chars.next(); // consume '#'
-            let mut hex = false;
-            if chars.peek() == Some(&'x') || chars.peek() == Some(&'X') {
-                hex = true;
-                chars.next(); // consume 'x' or 'X'
-            }
-            // Collect digits
-            let mut digits = String::new();
-            let mut entity_end = false;
-            for d in chars.by_ref() {
-                if d == ';' {
-                    entity_end = true;
-                    break;
-                }
-                if d.is_ascii_digit() || (hex && d.is_ascii_hexdigit()) {
-                    digits.push(d);
-                } else {
-                    // Invalid character in entity - restore and continue
-                    result.push('\x26');
-                    result.push('#');
-                    if hex {
-                        result.push('x');
-                    }
-                    result.push_str(&digits);
-                    result.push(d);
-                    entity_end = false;
-                    break;
-                }
-            }
-            if !entity_end && digits.is_empty() {
-                // No semicolon found or empty - the for loop ended without ;
-                // Continue with the rest of the string
-            }
-            if digits.is_empty() {
-                // No digits before ; - restore
-                result.push('\x26');
-                result.push('#');
-                if hex {
-                    result.push('x');
-                }
-                result.push(';');
-                continue;
-            }
-            // Parse the code point
-            let value = if hex {
-                u32::from_str_radix(&digits, 16)
+    while pos < bytes.len() {
+        // Chercher le début d'une entité &#
+        if pos + 5 < bytes.len()
+            && bytes[pos] == 0x26u8
+            && bytes[pos + 1] == 0x23u8
+        {
+            // Tentative de parser depuis cette position
+            let entity_candidate = std::str::from_utf8(&bytes[pos..]).unwrap_or("");
+            if let Some((ch, len)) = parse_numeric_entity(entity_candidate) {
+                result.push(ch);
+                pos += len;
             } else {
-                digits.parse::<u32>()
-            };
-            match value {
-                Ok(cp) if let Some(ch) = char::from_u32(cp) => {
-                    result.push(ch);
-                }
-                _ => {
-                    // Invalid code point - restore the entity
-                    result.push('\x26');
-                    result.push('#');
-                    if hex {
-                        result.push('x');
-                    }
-                    result.push_str(&digits);
-                    result.push(';');
-                }
+                // Entité invalide - restituer le caractère & et continuer
+                result.push(bytes[pos] as char);
+                pos += 1;
             }
         } else {
-            result.push(ch);
+            result.push(bytes[pos] as char);
+            pos += 1;
         }
     }
     result

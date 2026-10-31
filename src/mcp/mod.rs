@@ -437,10 +437,13 @@ pub mod framed {
     /// Chemin du socket MCP : répertoire privé de l'utilisateur, jamais le
     /// `/tmp` partagé et monde-écrivable de l'ancien code.
     pub fn socket_path() -> String {
-        socket_dir()
-            .join(format!("maieutik_mcp_{}.sock", std::process::id()))
-            .to_string_lossy()
-            .into_owned()
+        // Utiliser MAIEUTIK_MCP_SOCKET si défini (chemin absolu configuré)
+        if let Ok(custom) = std::env::var("MAIEUTIK_MCP_SOCKET") {
+            return custom.trim().to_string();
+        }
+        // Sinon, utiliser le répertoire déterminé par socket_dir()
+        // avec un nom de socket stable (pas de PID dans le nom par défaut)
+        socket_dir().join("maieutik_mcp.sock").to_string_lossy().into_owned()
     }
 
     pub const MAX_REQUEST_SIZE: usize = 1024 * 1024; // 1 MB

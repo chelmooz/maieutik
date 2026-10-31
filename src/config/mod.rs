@@ -261,8 +261,7 @@ impl AppSettings {
 
     fn is_valid_color(color: &str) -> bool {
         // Accept hex colors: #RRGGBB, #RRGGBBAA
-        if color.starts_with('#') {
-            let hex = &color[1..];
+        if let Some(hex) = color.strip_prefix('#') {
             return hex.len() == 6 || hex.len() == 8;
         }
         // Accept rgb(R,G,B) or rgba(R,G,B,A)
