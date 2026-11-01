@@ -11,14 +11,14 @@ configuration, never by code.
 |---|---|---|---|
 | ORT environment | `core::ort_env` | **tested** — shared process-wide environment, two sessions coexist | `tests/embedding_search.rs::two_embedders_share_one_ort_environment` (passes with the real model, see `VERIFICATION.md`) |
 | Embedder (BGE-M3 dense) | `core::indexer::Embedder` | **tested** — real ONNX model, 1024-dim, distances logged | same test file; `test-model-nocapture.log` |
-| Vector store + search | `core::indexer::VectorIndex` (sled + fast-hnsw) | **tested at small scale**; known limits: full HNSW rebuild per upsert, stale chunks kept when a file shrinks | `src/core/indexer/mod.rs` (`rebuild_hnsw_if_needed`, `upsert_file`) |
+| Vector store + search | `core::indexer::VectorIndex` (sled + fast-hnsw) + `core::retrieval` (BM25, RRF) | **tested at small scale** — `search_mode` exposes `semantic`, `lexical` (BM25, k1 = 1.2, b = 0.75) and `hybrid` (RRF k = 60, dense floor 0.25, Jaccard 0.92, 2 passages/file, ~1200-token budget); both indexes rebuilt from sled on every change. Known limits: full HNSW/BM25 rebuild per upsert, stale chunks kept when a file shrinks | `src/core/indexer/mod.rs`, `src/core/retrieval/`, `tests/hybrid_search.rs` |
 | Chunker | `core::indexer::Chunker` | **tested** — Unicode (emoji/CJK) and CRLF offsets correct; panic on overlap fixed (P1.8); property tests via `proptest` | `tests/chunker.rs` (10 tests: `reported_panic_case_does_not_panic`, `emoji_and_cjk_slices_match_offsets`, `crlf_heading_offsets_are_exact`, `heading_extraction_survives_crlf_with_multibyte`, size/overlap in chars) |
 | Headings extraction | `core::indexer::extract_headings` | **tested** — CRLF offsets exact; multibyte headings preserved | `tests/chunker.rs` (`crlf_heading_offsets_are_exact`, `heading_extraction_survives_crlf_with_multibyte`) |
 | File watcher + debounce | `core::watch` | **tested** — debouncing, extension/size filters (fail-closed); startup reconciliation purges vanished files and reindexes modified ones (fingerprint size+mtime); SIGINT/SIGTERM flushes pending events; E2E tested with model (`tests/watch_service.rs`) | `src/core/watch.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` (8 watcher tests) |
 | Extraction (docx/pdf/txt) | `utils` | **tested at small scale** — XML entities decoded once (`entities_are_decoded_once`); deeply nested PDF never kills process (`deeply_nested_pdf_never_kills_the_process`); not-a-ZIP handled (`not_a_zip_is_an_error`); missing docx XML is error (`missing_document_xml_is_an_error`); plain text works | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/pdf_extraction.rs` |
 | LLM generation (llama.cpp) | `llm` | **never executed** — no model ever loaded; sampler chain incomplete; 512-token batch cap | `VERIFICATION.md` issue 6 |
 
-| MCP / JSON-RPC bridge | `mcp` | **transport tested, `health.check` routed, stdio stub** — Unix socket framing (4-byte LE + JSON), accept loop, socket in private runtime dir (0700); `health.check` answers version; other methods refused by name; `run_stdio` not implemented; no binary command launches server (`--mcp-stdio` exits 3) | `src/mcp/mod.rs`, `tests/mcp_health.rs` (2 tests: `health_check_answers_ok_over_the_framed_socket`, `unknown_method_is_still_reported_as_not_implemented`) |
+| MCP / JSON-RPC bridge | `mcp` | **Unix socket + stdio transports working; `health.check` and `search.semantic` / `search.keyword` / `search.hybrid` routed** — `McpServer::with_state` (wired by `--mcp-stdio`) exposes the index with `folders` / `min_score` filters and a 100-result cap; other methods refused by name | `src/mcp/mod.rs`, `src/main.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
 | GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:12` |
@@ -43,7 +43,8 @@ trait Embedder: Send + Sync {
     fn model_id(&self) -> &str;
 }
 
-/// Retrieval over the index. Adapter today: sled + HNSW dense search.
+/// Retrieval over the index. Adapter today: sled + HNSW dense, BM25 lexical,
+/// RRF fusion (`VectorIndex::search_mode`).
 trait Retriever: Send + Sync {
     fn search(&self, query: &str, k: usize) -> Result<Vec<Hit>>;
     // Hit { chunk_id, file_path, ordinal, heading_path, text, distance, cosine }
@@ -92,8 +93,8 @@ fichier
   → embed (Embedder)                      [tested]
   → index (VectorIndex: sled + HNSW)      [tested at small scale]
   → recherche dense (Retriever)           [tested at small scale]
-  → recherche lexicale (FTS5|tantivy)     [à faire — décision ouverte]
-  → fusion RRF                            [à faire]
+  → recherche lexicale (BM25 en mémoire)  [tested — sans SQLite]
+  → fusion RRF                            [tested]
   → rerank (Reranker)                     [à faire — P4]
   → génération (Generator + sources)      [never executed — P5]
   → jugement (Judge)                      [à faire — P7]
@@ -105,7 +106,7 @@ fichier
 - Watch service E2E: SIGTERM flushes pending events, exits 0 (`watch_starts_flushes_pending_event_and_exits_zero_on_sigterm`); startup purges deleted and reindexes modified (`watch_startup_purges_files_deleted_while_stopped`, `watch_startup_reindexes_files_modified_while_stopped`).
 - Index upsert replaces previous chunks atomically; shrinking file drops stale chunks (`upsert_replaces_previous_chunks`, `shrinking_file_drops_stale_chunks`).
 
-The only path not yet wired end-to-end is `Commands::Index` (exits 4 without folders/model). Full corpus → chunk → embed → index → dense search is exercised by `tests/embedding_search.rs` (3 tests with real model, 14.43 s).
+The only path not yet wired end-to-end is `Commands::Index` (exits 4 without folders/model). Full corpus → chunk → embed → index → hybrid search is exercised by `tests/embedding_search.rs` (3 tests with real model, 14.43 s) and, without a model, by `tests/hybrid_search.rs` (7 tests).
 
 ## Chunk metadata (P3)
 
@@ -134,8 +135,10 @@ extractions must be visible instead of silently polluting retrieval.
 
 ## Decisions taken by the owner
 
-1. Lexical search: **SQLite FTS5 with BM25** (rusqlite, `bundled` feature),
-   merged with dense results by RRF (P4).
+1. Lexical search: **BM25 in memory over the sled corpus** (`core::retrieval::bm25`),
+   merged with dense results by RRF. This replaces the earlier SQLite FTS5
+   plan: no new dependency, same rebuild strategy as HNSW. FTS5 remains an
+   option if the corpus outgrows an in-memory rebuild (P4).
 2. Voice: **path B — sherpa-onnx in Rust** with Parakeet TDT 0.6B v3;
    OpenWhispr serves as an open-source reference for configuration only (P8).
 

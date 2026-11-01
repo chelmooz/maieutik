@@ -10,7 +10,8 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 |---|---|---|
 | Indexation par lot (`index`, `--force`) | Implémenté, testé sans modèle | `src/core/scan.rs`, `tests/index_scan.rs` |
 | Parcours des dossiers (extensions, taille, liens symboliques ignorés) | Implémenté, testé | `src/core/scan.rs`, `src/core/watch.rs` |
-| Recherche (`search`) | Implémenté | `src/main.rs`, `src/core/indexer/mod.rs`, `tests/index_search.rs` |
+| Recherche (`search`) | Implémenté — `--mode semantic` (dense), `lexical` (BM25) ou `hybrid` (fusion RRF + sélection de passages) ; scores normalisés [0,1] | `src/main.rs`, `src/core/indexer/mod.rs`, `src/core/retrieval/`, `tests/index_search.rs`, `tests/hybrid_search.rs` |
+| Index lexical BM25 (k1 = 1.2, b = 0.75) | Implémenté, reconstruit depuis sled comme HNSW ; requête courte et identifiants pondérés (RRF k = 60) | `src/core/retrieval/bm25.rs`, `src/core/retrieval/query.rs`, `src/core/retrieval/fusion.rs`, `src/core/retrieval/passage.rs` |
 | Index vectoriel (sled + HNSW) | Implémenté, testé | `src/core/indexer/mod.rs`, `tests/index_replace.rs` |
 | Embedder ONNX BGE-M3 (1024 dimensions) | Implémenté ; tests avec modèle rejoués au P1.24 sur l'arbre courant (3 passés, distances identiques à la calibration) | `src/core/indexer/mod.rs`, `src/core/ort_env.rs`, `tests/embedding_search.rs` |
 | Faux embedder déterministe (tests, CI) | Implémenté | `src/core/indexer/mod.rs` (`HashEmbedder`) |
@@ -20,10 +21,10 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; réconciliation au démarrage qui purge les fichiers disparus et **réindexe les fichiers modifiés** pendant l'arrêt (empreinte taille + mtime stockée dans l'index) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et de bout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Les fichiers indexés avant l'empreinte restent non vérifiables jusqu'à leur prochaine indexation | `src/core/watch.rs`, `src/core/scan.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
-| Pont MCP / JSON-RPC | Transport Unix socket fonctionnel (framing 4 octets LE + JSON, boucle d'accept, socket dans le répertoire privé 0700 de l'utilisateur) ; **une seule méthode acheminée : `health.check`** — répond `ok` + la version du binaire, testée de bout en bout (`tests/mcp_health.rs` : serveur réel + client `UnixStream` réel). Toute autre méthode est refusée en la nommant ; le trait `McpServer` décrit le contrat cible sans être routé, `run_stdio` reste un stub, et **aucune commande du binaire ne lance encore le serveur** (`--mcp-stdio` sort en 3) | `src/mcp/mod.rs`, `tests/mcp_health.rs` |
+| Pont MCP / JSON-RPC | Transport Unix socket (framing 4 octets LE + JSON, boucle d'accept, socket dans le répertoire privé 0700 de l'utilisateur) et **stdio** (une ligne = une requête) fonctionnels ; `initialize`, `health.check` et les trois méthodes de recherche — `search.semantic`, `search.keyword`, `search.hybrid` — sont acheminées quand le serveur porte l'état applicatif (`McpServer::with_state`, branché par `--mcp-stdio`), avec filtres `folders` / `min_score` et limite bornée à 100. Testé de bout en bout (`tests/mcp_health.rs`, `tests/mcp_search.rs` : serveur réel + client `UnixStream` réel, `HashEmbedder`). Les autres méthodes (`files.*`, `chat.*`, `settings.*`) décrivent le contrat cible et sont refusées en la nommant | `src/mcp/mod.rs`, `src/main.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
 | Interface graphique | Stub : build sans interface | `src/ui/mod.rs` |
-| Reclassement, recherche lexicale avec fusion, jugement des réponses (Laya, sidecar HTTP), reconnaissance vocale | Prévu | `ARCHITECTURE.md` |
+| Reclassement, jugement des réponses (Laya, sidecar HTTP), reconnaissance vocale | Prévu | `ARCHITECTURE.md` |
 
 ## Architecture
 
@@ -36,6 +37,8 @@ flowchart TD
     EXTRACT["utils::extract_text<br/>md, txt, docx, pdf"]
     CHUNK["Chunker, extract_headings"]
     IDX["VectorIndex<br/>sled + HNSW"]
+    BM25["BM25 lexical<br/>core::retrieval"]
+    FUSE["Fusion RRF +<br/>sélection de passages"]
     EMB["TextEmbedder (trait)"]
     HASH["HashEmbedder<br/>tests et CI"]
     ONNX["Embedder ONNX BGE-M3<br/>core::ort_env"]
@@ -51,12 +54,15 @@ flowchart TD
 
     CLI --> STATE
     CLI -- index --> SCAN
-    CLI -- search --> IDX
+    CLI -- search --> FUSE
     SCAN --> FILTER
     SCAN --> EXTRACT
     SCAN --> CHUNK
     SCAN --> IDX
     IDX --> EMB
+    IDX --> BM25
+    IDX --> FUSE
+    BM25 --> FUSE
     EMB --> HASH
     EMB --> ONNX
     WATCHER --> FILTER
@@ -77,10 +83,13 @@ Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou 
 maieutik index [--force]
 
 # Rechercher
-maieutik search "requête" [--limit 10]
+maieutik search "requête" [--limit 10] [--mode semantic|lexical|hybrid]
 
 # Mode service : surveille les dossiers jusqu'à SIGINT/SIGTERM
 maieutik --watch
+
+# Mode service : pont MCP sur stdio (Odysseus, clients MCP)
+maieutik --mcp-stdio
 
 # Factices : message sur stderr, code de sortie 3 (non implémentées)
 maieutik chat "message" [--file CHEMIN]
@@ -99,6 +108,10 @@ Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders
 - Au démarrage, l'index est réconcilié : les fichiers supprimés pendant que le service était arrêté en sont retirés, et les fichiers modifiés pendant l'arrêt sont réindexés (l'index stocke l'empreinte taille + date de modification de chaque version indexée, dans un arbre séparé — pas de migration destructrice). HNSW est reconstruit une fois. Un chemin dont les métadonnées sont illisibles est conservé et signalé — la réconciliation ne détruit rien sur une ambiguïté. Un fichier déjà indexé sans empreinte (index antérieur à ce lot) est conservé et signalé jusqu'à sa prochaine indexation.
 - Le verrou d'instance unique s'applique : deux `--watch` simultanés ne peuvent pas tourner, y compris depuis des dossiers différents (socket abstrait global ; `MAIEUTIK_INSTANCE_NAME` pour l'isoler).
 
+### `--mcp-stdio` (mode service)
+
+`maieutik --mcp-stdio` lance le pont MCP sur stdio : une ligne JSON-RPC par requête sur stdin, une ligne de réponse sur stdout, aucun diagnostic sur stdout (les journaux vont sur stderr). Le serveur est construit avec l'état applicatif (`McpServer::with_state`) : `initialize`, `health.check`, `search.semantic`, `search.keyword` et `search.hybrid` répondent. Sans index disponible, les méthodes de recherche renvoient une erreur explicite (« index indisponible »), pas une liste vide. `--mcp-stdio` combiné à une sous-commande ou à `--watch` est une erreur d'usage (code 2).
+
 ### `index`
 
 - Parcourt les dossiers configurés selon les extensions autorisées et la taille maximale, sans suivre les liens symboliques.
@@ -114,13 +127,13 @@ Codes de sortie :
 |---|---|
 | 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
-| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
-| 3 | commande non implémentée : chat, model, mcp |
+| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio`, `--mcp-stdio` combiné à une sous-commande |
+| 3 | commande non implémentée : chat, model |
 | 4 | index indisponible : aucun dossier configuré, aucun dossier lisible, ou modèle d'embedding absent ou illisible (cas de `index`, `search` et `--watch`) |
 
 ### `search`
 
-Affiche, pour chaque résultat, un score, le chemin et les 100 premiers caractères du chunk. L'index HNSW utilise la distance euclidienne sur des vecteurs normalisés L2. Si l'index est indisponible (modèle absent ou illisible), la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
+Affiche, pour chaque résultat, un score normalisé `[0, 1]`, le chemin et les 100 premiers caractères du chunk. `--mode` choisit la source : `semantic`/`dense` (HNSW seul, distance euclidienne convertie en similarité cosinus sur vecteurs normalisés L2), `lexical`/`bm25`/`keyword` (BM25 seul, k1 = 1.2, b = 0.75) ou `hybrid` (défaut : fusion RRF des deux listes, k = 60, puis sélection de passages — plancher dense 0.25, quasi-doublons Jaccard 0.92, deux passages par fichier au plus, budget 1200 tokens approximés). Le lexical est pondéré 1.0 par défaut, 1.5 pour une requête de cinq mots ou moins, 2.0 si la requête ressemble à un identifiant de code. Si l'index est indisponible (modèle absent ou illisible), la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
 
 ## Prérequis
 

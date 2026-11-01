@@ -3,11 +3,15 @@
 //! Transport: Unix domain socket (Linux) / stdio / TCP
 //! Payload: 4-byte little-endian length prefix + UTF-8 JSON.
 //!
-//! État : le transport Unix socket fonctionne (framing + boucle d'accept),
-//! et `health.check` est la seule méthode acheminée. Le trait `McpServer`
-//! décrit le contrat cible ; ses autres méthodes ne sont pas encore routées,
-//! et le transport stdio (`run_stdio`) reste un stub.
+//! État : le transport Unix socket et stdio fonctionnent, `health.check`
+//! répond, et les trois méthodes de recherche (`search.semantic`,
+//! `search.keyword`, `search.hybrid`) sont acheminées quand le serveur est
+//! construit avec un [`AppState`] (`McpServer::with_state`). Les autres
+//! méthodes du trait `McpServer` décrivent le contrat cible et sont refusées
+//! en la nommant.
 
+use crate::core::retrieval::SearchMode;
+use crate::AppState;
 use anyhow::Result;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
@@ -209,16 +213,23 @@ pub struct SettingsSetParams {
 
 /// JSON-RPC server — Unix socket / stdio / TCP.
 ///
-/// Sans état pour l'instant : les paramètres reçus par `settings.set` sont
-/// encore validés sans être conservés. TODO: y brancher l'index, le LLM, etc.
+/// Sans état (`new`), seules `initialize` et `health.check` répondent.
+/// Avec `with_state`, les méthodes de recherche sont acheminées vers l'index.
 #[derive(Default)]
 pub struct McpServer {
-    // TODO: add file index, vector index, LLM, etc.
+    state: Option<Arc<AppState>>,
 }
 
 impl McpServer {
+    /// Serveur d'acquittement seul (sans index) : utilisé par les tests de
+    /// transport et par `--mcp-stdio` quand aucun index n'est disponible.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Serveur relié à l'état applicatif : active les méthodes de recherche.
+    pub fn with_state(state: Arc<AppState>) -> Self {
+        Self { state: Some(state) }
     }
 
     /// Start server over stdio (for MCP clients like Claude Desktop, Odysseus).
@@ -343,14 +354,15 @@ impl McpServer {
         Ok(())
     }
 
-    /// Achemine une requête encadrée. Une seule méthode est branchée :
-    /// `health.check`, l'acquittement du pont (version du binaire). Tout le
-    /// reste — y compris les méthodes du trait `McpServer` ci-dessus, qui
-    /// décrivent le contrat cible sans être acheminées — est refusé en
-    /// nommant la méthode, pour qu'un client distingue « pont vivant » et
-    /// « pont incomplet ».
+    /// Achemine une requête encadrée.
+    ///
+    /// Branchées : `initialize`, `health.check`, et — quand le serveur porte
+    /// un état applicatif — `search.semantic`, `search.keyword`,
+    /// `search.hybrid`. Toute autre méthode est refusée en la nommant, pour
+    /// qu'un client distingue « pont vivant » et « pont incomplet ».
     async fn dispatch(&self, request: RpcRequest) -> RpcResponse {
-        match request.method.as_str() {
+        let RpcRequest { method, params, id } = request;
+        match method.as_str() {
             "initialize" => RpcResponse {
                 ok: true,
                 result: Some(serde_json::json!({
@@ -360,10 +372,10 @@ impl McpServer {
                         "name": "maieutik",
                         "version": env!("CARGO_PKG_VERSION")
                     },
-                    "instructions": "Maieutik local-first notes with AI. Use health.check for liveness."
+                    "instructions": "Maieutik local-first notes with AI. Search: search.semantic, search.keyword, search.hybrid. Liveness: health.check."
                 })),
                 error: None,
-                id: request.id,
+                id,
             },
             "health.check" => RpcResponse {
                 ok: true,
@@ -371,15 +383,77 @@ impl McpServer {
                     "version": env!("CARGO_PKG_VERSION"),
                 })),
                 error: None,
-                id: request.id,
+                id,
             },
+            "search.semantic" | "search.keyword" | "search.hybrid" => {
+                match self.dispatch_search(&method, params).await {
+                    Ok(result) => RpcResponse {
+                        ok: true,
+                        result: Some(result),
+                        error: None,
+                        id,
+                    },
+                    Err(e) => RpcResponse {
+                        ok: false,
+                        result: None,
+                        error: Some(format!("{e:#}")),
+                        id,
+                    },
+                }
+            }
             other => RpcResponse {
                 ok: false,
                 result: None,
                 error: Some(format!("méthode inconnue ou non implémentée : {other}")),
-                id: request.id,
+                id,
             },
         }
+    }
+
+    /// Recherche par le pont : `search.semantic` (dense), `search.keyword`
+    /// (BM25) ou `search.hybrid` (fusion). `folders` filtre par préfixe de
+    /// chemin, `min_score` par score normalisé `[0,1]` ; le plafond de
+    /// résultats reste borné à 100.
+    async fn dispatch_search(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let params: SearchParams = serde_json::from_value(params)?;
+        let state = self
+            .state
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("serveur MCP sans état applicatif"))?;
+        let index = state
+            .vector_index
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("index indisponible : modèle d'embedding absent"))?;
+
+        let limit = params.limit.unwrap_or(10).clamp(1, 100);
+        let mode = match method {
+            "search.semantic" => SearchMode::Semantic,
+            "search.keyword" => SearchMode::Lexical,
+            _ => SearchMode::Hybrid,
+        };
+        let hits = index.search_mode(&params.query, limit, mode).await?;
+        let hits: Vec<SearchHit> = hits
+            .into_iter()
+            .filter(|hit| params.min_score.is_none_or(|min| hit.score >= min))
+            .filter(|hit| match &params.folders {
+                Some(folders) if !folders.is_empty() => folders
+                    .iter()
+                    .any(|folder| hit.file_path.starts_with(folder)),
+                _ => true,
+            })
+            .map(|hit| SearchHit {
+                file_path: hit.file_path,
+                text: hit.text,
+                score: hit.score,
+                heading_path: hit.heading_path,
+            })
+            .collect();
+
+        Ok(serde_json::to_value(SearchResult { hits })?)
     }
 }
 
