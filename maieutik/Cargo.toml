@@ -1,0 +1,132 @@
+[package]
+name = "maieutik"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+description = "Maieutik — local-first notes with AI"
+repository = "https://github.com/chelmooz/maieutik"
+authors = ["Michel Husson"]
+rust-version = { workspace = true }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = "z"
+
+[profile.release-debug]
+inherits = "release"
+strip = false
+debug = true
+panic = "unwind"
+
+[profile.release-no-lto]
+inherits = "release"
+lto = false
+strip = false
+debug = true
+panic = "unwind"
+
+[profile.release-lto-unwind]
+inherits = "release"
+lto = "fat"
+strip = false
+debug = true
+panic = "unwind"
+
+[profile.release-abort-debug]
+inherits = "release"
+strip = false
+debug = true
+panic = "abort"
+
+[profile.dev]
+debug = true
+
+[features]
+default = []  # CPU by default; enable "cuda"/"vulkan"/"metal" explicitly
+cuda = ["llama-cpp-2/cuda"]
+metal = ["llama-cpp-2/metal"]
+vulkan = ["llama-cpp-2/vulkan"]
+full = ["cuda", "vulkan"]
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+directories = "2"
+serde_json = { workspace = true }
+bincode = "1"
+tokio = { workspace = true }
+futures = "0.3"
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+async-trait = { workspace = true }
+
+# Config & Secrets
+config = { version = "0.14", features = ["json"] }
+dirs = "5"
+
+# File Watching
+notify = { version = "6", features = ["mio"] }
+walkdir = "2"
+
+# Embedded DB
+sled = "0.34"
+
+# Vector Search
+fast-hnsw = "1.0"
+
+# ONNX Runtime
+ort = { workspace = true }
+
+# LLM - llama.cpp bindings
+llama-cpp-2 = { version = "0.1", features = [] }
+
+# MCP / JSON-RPC
+jsonrpsee = { version = "0.26", features = ["server", "client", "macros"] }
+
+# Document Processing
+pdf-extract = "0.12"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Single instance (cross-platform)
+single-instance = "0.3.3"
+
+# Audio (for meeting recording)
+hound = "3.5"
+
+# Utilities
+uuid = { workspace = true }
+chrono = { workspace = true }
+sha2 = "0.10"
+blake3 = "1"
+base64 = "0.22"
+percent-encoding = "2.3"
+
+ndarray = { workspace = true }
+tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex", "onig"] }
+
+rand = "0.8"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+pretty_assertions = "1"
+criterion = { workspace = true }
+tokio-test = { workspace = true }
+
+[[bench]]
+name = "perf_baseline"
+harness = false
+
+[build-dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }

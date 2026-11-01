@@ -1,0 +1,48 @@
+[package]
+name = "laya-primitives"
+version = { workspace = true }
+edition = { workspace = true }
+license = "Apache-2.0"
+description = "System 1 primitives: ModernBERT ONNX encoder + Noul/Choice/Score heads"
+repository = "https://github.com/chelmooz/maieutik"
+categories = ["machine-learning", "wasm", "embedding"]
+keywords = ["onnx", "bert", "system1", "guardrail", "router", "reranker"]
+
+[dependencies]
+ort = { workspace = true, features = ["load-dynamic", "ndarray"] }
+tokenizers = { version = "0.19", default-features = false, features = ["fancy-regex", "onig"] }
+ndarray = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+schemars = "0.8"
+tracing = { workspace = true }
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+half = { workspace = true }
+bytemuck = { workspace = true }
+rayon = { workspace = true }
+prometheus = { workspace = true }
+tokio = { workspace = true }
+tracing-subscriber = { workspace = true }
+rmcp = { version = "0.3", features = ["server", "transport-io"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+criterion = { workspace = true }
+tokio-test = { workspace = true }
+
+[features]
+default = ["ort-load-dynamic"]
+ort-load-dynamic = ["ort/load-dynamic"]
+ort-cuda = ["ort/cuda"]
+
+[[bench]]
+name = "bench_primitives"
+harness = false
+
+[[bin]]
+name = "maieutik-mcp"
+path = "src/mcp_server.rs"

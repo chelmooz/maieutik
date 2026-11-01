@@ -2,6 +2,8 @@
 
 Prise de notes locale avec IA : indexer ses notes, les retrouver par similarité sémantique et, à terme, reclasser les résultats, générer des réponses sourcées et juger ces réponses. Tout s'exécute localement ; chaque composant externe est placé derrière un trait Rust et choisi par configuration, jamais par le code.
 
+**Architecture hybride** : Maieutik (moteur RAG) + **Odysseus** (orchestration agentique, MCP) + **Laya** (System 1 local, primitives Choice/Score/Noul) + **Omarchy** (Arch Linux / Hyprland + 2 Docker dédiés).
+
 Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout en bout. Le reste est en stub ou prévu (voir le tableau ci-dessous).
 
 ## État du projet
@@ -24,6 +26,9 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
 | Interface graphique | Stub : build sans interface | `src/ui/mod.rs` |
 | Reclassement, recherche lexicale avec fusion, jugement des réponses (Laya, sidecar HTTP), reconnaissance vocale | Prévu | `ARCHITECTURE.md` |
+| **Odysseus (Agentic Cockpit, MCP Client)** | **Installé à `/home/chelmooz/Projects/odysseus`, MCP RAG Server opérationnel (`rag_server.py`)** | `opencode.json`, `mcp_servers/rag_server.py` |
+| **Laya (System 1 primitives : Choice, Score, Noul)** | **Binaires MCP compilés (`maieutik-mcp`), `is_loaded()` implémenté** | `laya-primitives/src/`, `maieutik-mcp-wrapper.sh` |
+| **Omarchy Host (Arch/Hyprland + 2 Docker)** | **Configuré ; 2 Docker dédiés : #1 Laya+MCP Bridge, #2 Ollama/vLLM+bge-m3** | `docker-compose.yml`, `maieutik-mcp-wrapper.sh` |
 
 ## Architecture
 
@@ -42,11 +47,22 @@ flowchart TD
     WATCHER["Watcher notify<br/>création, modification,<br/>suppression, renommage"]
     GEN["Génération<br/>llama.cpp, jamais exécutée"]
     JUDGE["Jugement<br/>Laya, sidecar HTTP"]
-
+    
+    %% Odysseus & Laya (System 1) components
+    ODYSSEUS["Odysseus<br/>Agentic Cockpit<br/>MCP Client Host"]
+    LAYA["Laya (System 1)<br/>/v1/systemone<br/>Choice/Score/Noul"]
+    OMARCHY["Omarchy Host<br/>Arch Linux / Hyprland<br/>2 Docker Dédiés"]
+    
     subgraph STUBS["Modules présents mais non reliés"]
         MCP["mcp : pont JSON-RPC"]
         SPEECH["speech : VAD, STT"]
         UI["ui : build sans interface"]
+    end
+
+    subgraph EXTERNAL["Composants externes (Hybride)"]
+        ODYSSEUS
+        LAYA
+        OMARCHY
     end
 
     CLI --> STATE
@@ -63,12 +79,25 @@ flowchart TD
     WATCHER --> IDX
     CLI -.-> GEN
     GEN -.-> JUDGE
+    
+    %% Odysseus orchestration layer
+    ODYSSEUS -->|MCP Client| MCP
+    ODYSSEUS -->|Appelle| LAYA
+    ODYSSEUS -->|Requête| IDX
+    LAYA -.->|Reranker Score| IDX
+    LAYE -.->|Guardrail Noul| CLI
+    
+    %% Omarchy hosting
+    OMARCHY -->|Docker #1| LAYA
+    OMARCHY -->|Docker #2| ODYSSEUS
 
     classDef planned stroke-dasharray: 5 5
     class GEN,JUDGE,MCP,SPEECH,UI planned
+    classDef external stroke-dasharray: 5 5,stroke:#3b82f6
+    class ODYSSEUS,LAYA,OMARCHY external
 ```
 
-Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu.
+Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu ; **bleu = composants hybrides (Odysseus, Laya, Omarchy) non encore câblés dans Maieutik**.
 
 ## Commandes
 

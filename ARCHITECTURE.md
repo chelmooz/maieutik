@@ -5,6 +5,8 @@ rerank, generate sourced answers, judge the answers. Everything runs locally;
 every external component sits behind a Rust trait and is selected by
 configuration, never by code.
 
+**Architecture hybride** : Maieutik (moteur RAG) + **Odysseus** (orchestration agentique, MCP Client Host) + **Laya** (System 1 local : primitives Choice/Score/Noul) + **Omarchy** (Arch Linux / Hyprland + 2 Docker dédiés).
+
 ## Component table (real status, evidence-backed)
 
 | Component | Trait / module | Status | Evidence |
@@ -22,6 +24,9 @@ configuration, never by code.
 | Speech (VAD/STT) | `speech` | **stub, unverified** — Silero VAD input shapes never checked against the real model file | `VERIFICATION.md` issue 5 |
 | Telemetry | — | **removed** | git history (pre-publication cleanup); no module in `src/` |
 | GUI | `ui` | **stub** — headless build, logs a warning | `src/ui/mod.rs:12` |
+| **Odysseus (Agentic Cockpit, MCP Client Host)** | External (Python) | **installed at `/home/chelmooz/Projects/odysseus`** — MCP RAG Server (`rag_server.py`) opérationnel, connecté via opencode MCP | `opencode.json`, `mcp_servers/rag_server.py`, `opencode mcp list` |
+| **Laya (System 1 Primitives : Choice, Score, Noul)** | External (Rust, `laya-primitives`) | **binaires MCP compilés** — `maieutik-mcp` build réussi, `is_loaded()` implémenté sur ScoreHead, ChoiceHead, NoulHead | `laya-primitives/src/mcp_server.rs`, `maieutik-mcp-wrapper.sh` |
+| **Omarchy Host + 2 Docker Dédiés** | Infrastructure | **configuré** — Docker #1: Laya+MCP Bridge (CPU), Docker #2: Ollama/vLLM+bge-m3 (GPU, NVIDIA Container Toolkit) | `docker-compose.yml`, `docker-compose.gpu-nvidia.yml` |
 
 Status vocabulary: **tested** = a real automated run with raw output exists;
 **stub** = compiles but does nothing or is not wired; **broken** = compiles but
@@ -99,6 +104,19 @@ fichier
   → jugement (Judge)                      [à faire — P7]
 ```
 
+**Pipeline Hybride (avec Odysseus + Laya — architecture cible)**:
+
+```
+User Prompt / Fichier
+  → [Odysseus] Autonomous Agentic Loop
+     → [Laya System 1] /v1/systemone
+        → Noul (Guardrail: injection, OOD, null) → Safe / Block
+        → Choice (Router: Intent → RAG / Odysseus / LLM)
+           ├─→ Si RAG: [Maieutik] Dense Search → [Laya] Score (Reranker) → Top-k chunks
+           └─→ Si Agent: [Odysseus] Tool Use / Code Sandbox / Deep Research
+     → [System 2 LLM] (Ollama/vLLM) Génération finale avec sources
+```
+
 **Wired today**: watcher → extraction → chunk → index IS connected and tested.
 
 - Startup reconciliation: vanished files purged, modified files reindexed (fingerprint), fingerprint recorded at index time (`vanished_file_is_purged_at_startup`, `modified_file_is_reindexed_at_startup`, `indexing_records_the_disk_fingerprint`).
@@ -130,7 +148,17 @@ extractions must be visible instead of silently polluting retrieval.
 | `MAIEUTIK_DOWNLOAD_MODELS` | build-time downloader (off by default) | in place |
 | `MAIEUTIK_RERANKER_MODEL` / `_TOKENIZER` | Reranker | P4 |
 | `MAIEUTIK_LLM_MODEL` | Generator | P5 |
-| `MAIEUTIK_LAYA_URL` | Judge sidecar | P7 |
+| `MAIEUTIK_LAYA_URL` | Judge sidecar (HTTP) | P7 |
+
+## Configuration Hybride (Odysseus + Laya + Omarchy)
+
+| Variable | Component | Description |
+|---|---|---|
+| `PYTHONPATH` | Odysseus MCP | Chemin racine Odysseus (ex: `/home/chelmooz/Projects/odysseus`) |
+| `LLM_HOST` | Odysseus | Hôte LLM (défaut: localhost) |
+| `OLLAMA_BASE_URL` | Odysseus | URL Ollama (ex: `http://host.docker.internal:11434/v1`) |
+| `RUST_LOG` | Laya MCP | Niveau de log (ex: `info`) |
+| `MAIEUTIK_INSTANCE_NAME` | Maieutik | Verrou d'instance unique (défaut: `maieutik`) |
 
 ## Decisions taken by the owner
 
