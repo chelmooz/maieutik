@@ -21,84 +21,144 @@ pub struct Bm25Doc {
     pub chunk_index: usize,
 }
 
-/// Index BM25 en mémoire.
+/// Entrée d'un document dans l'index avec son ID stable.
+#[derive(Debug, Clone)]
+struct IndexedDoc {
+    doc: Bm25Doc,
+    /// Longueur en tokens du document.
+    len: u32,
+    /// Si le document est valide (non supprimé).
+    alive: bool,
+}
+
+/// Index BM25 en mémoire avec IDs stables pour mises à jour incrémentales.
 ///
-/// `postings` associe un terme à la liste `(indice de document, fréquence)`.
-/// Les documents sont stockés à plat : la sélection de passages relit le texte
-/// sans retourner dans sled.
+/// `postings` associe un terme à la liste `(doc_id stable, fréquence)`.
+/// Les documents sont stockés dans un vec avec des IDs stables (leur index d'insertion),
+/// et un drapeau `alive` marque les documents supprimés.
 #[derive(Debug, Default)]
 pub struct Bm25Index {
-    docs: Vec<Bm25Doc>,
+    docs: Vec<IndexedDoc>,
     postings: HashMap<String, Vec<(usize, u32)>>,
-    doc_lens: Vec<u32>,
-    avgdl: f64,
+    /// Somme des longueurs des documents vivants.
+    total_len: u64,
+    /// Nombre de documents vivants.
+    alive_count: usize,
+    /// Mapping file_path -> liste des doc_ids (indices dans `docs`).
+    file_to_docs: HashMap<String, Vec<usize>>,
 }
 
 impl Bm25Index {
     /// Construit l'index à partir des chunks. Coût linéaire en texte indexé.
     pub fn from_docs(docs: Vec<Bm25Doc>) -> Self {
-        let mut postings: HashMap<String, Vec<(usize, u32)>> = HashMap::new();
-        let mut doc_lens = Vec::with_capacity(docs.len());
+        let mut index = Self::default();
+        for doc in docs {
+            index.add_doc(doc);
+        }
+        index
+    }
 
-        for (doc_idx, doc) in docs.iter().enumerate() {
-            let tokens = tokenize(&doc.text);
-            doc_lens.push(tokens.len() as u32);
-            let mut tf: HashMap<&str, u32> = HashMap::new();
-            for token in &tokens {
-                *tf.entry(token.as_str()).or_insert(0) += 1;
-            }
-            for (term, count) in tf {
-                postings
-                    .entry(term.to_string())
-                    .or_default()
-                    .push((doc_idx, count));
-            }
+    /// Ajoute un document à l'index.
+    fn add_doc(&mut self, doc: Bm25Doc) {
+        let doc_id = self.docs.len();
+        let tokens = tokenize(&doc.text);
+        let len = tokens.len() as u32;
+
+        let mut tf: HashMap<&str, u32> = HashMap::new();
+        for token in &tokens {
+            *tf.entry(token.as_str()).or_insert(0) += 1;
+        }
+        for (term, count) in tf {
+            self.postings
+                .entry(term.to_string())
+                .or_default()
+                .push((doc_id, count));
         }
 
-        let total: u64 = doc_lens.iter().map(|n| u64::from(*n)).sum();
-        let avgdl = if doc_lens.is_empty() {
-            0.0
-        } else {
-            total as f64 / doc_lens.len() as f64
+        self.total_len += u64::from(len);
+        self.alive_count += 1;
+        self.file_to_docs
+            .entry(doc.file_path.clone())
+            .or_default()
+            .push(doc_id);
+
+        self.docs.push(IndexedDoc {
+            doc,
+            len,
+            alive: true,
+        });
+    }
+
+    /// Retire tous les documents d'un fichier de l'index.
+    pub fn remove_file(&mut self, file_path: &str) {
+        let Some(doc_ids) = self.file_to_docs.remove(file_path) else {
+            return;
         };
 
-        Self {
-            docs,
-            postings,
-            doc_lens,
-            avgdl,
+        for &doc_id in &doc_ids {
+            if doc_id >= self.docs.len() {
+                continue;
+            }
+            let indexed = &mut self.docs[doc_id];
+            if !indexed.alive {
+                continue;
+            }
+            indexed.alive = false;
+            self.total_len -= u64::from(indexed.len);
+            self.alive_count = self.alive_count.saturating_sub(1);
+
+            // Retirer de postings (marquer comme mort en filtrant plus tard)
+            // Pour l'instant, on laisse les entrées dans postings et on les filtre à la recherche.
+            // Une reconstruction périodique nettoiera les entrées mortes.
         }
     }
 
-    /// Nombre de chunks indexés.
+    /// Remplace tous les documents d'un fichier (remove + add).
+    pub fn replace_file(&mut self, file_path: &str, new_docs: Vec<Bm25Doc>) {
+        self.remove_file(file_path);
+        for doc in new_docs {
+            self.add_doc(doc);
+        }
+    }
+
+    /// Nombre de chunks indexés (vivants).
     pub fn len(&self) -> usize {
-        self.docs.len()
+        self.alive_count
     }
 
     /// Vrai quand aucun chunk n'est indexé.
     pub fn is_empty(&self) -> bool {
-        self.docs.is_empty()
+        self.alive_count == 0
     }
 
     /// Chunk à l'indice donné (indices rendus par [`Bm25Index::search`]).
     pub fn doc(&self, idx: usize) -> &Bm25Doc {
-        &self.docs[idx]
+        &self.docs[idx].doc
+    }
+
+    /// Longueur moyenne des documents vivants.
+    fn avgdl(&self) -> f64 {
+        if self.alive_count == 0 {
+            0.0
+        } else {
+            self.total_len as f64 / self.alive_count as f64
+        }
     }
 
     /// Recherche BM25. Les termes de requête répétés ne comptent qu'une fois
     /// (la fréquence de requête n'apporte rien ici). Rend les `k` meilleurs
-    /// `(indice de document, score)` triés par score décroissant.
+    /// `(doc_id, score)` triés par score décroissant.
     pub fn search(&self, query_tokens: &[String], k: usize) -> Vec<(usize, f64)> {
-        if self.docs.is_empty() || k == 0 || query_tokens.is_empty() {
+        if self.alive_count == 0 || k == 0 || query_tokens.is_empty() {
             return Vec::new();
         }
 
-        let n = self.docs.len() as f64;
+        let n = self.alive_count as f64;
+        let avgdl = self.avgdl();
         let mut seen: HashMap<&str, ()> = HashMap::new();
         let mut scores: HashMap<usize, f64> = HashMap::new();
 
         for token in query_tokens {
-            // Terme déjà traité dans cette requête.
             if seen.insert(token.as_str(), ()).is_some() {
                 continue;
             }
@@ -108,9 +168,13 @@ impl Bm25Index {
             let df = posting.len() as f64;
             let idf = (1.0 + (n - df + 0.5) / (df + 0.5)).ln();
             for (doc_idx, tf) in posting {
-                let dl = f64::from(self.doc_lens[*doc_idx]);
+                // Ignorer les documents morts
+                if *doc_idx >= self.docs.len() || !self.docs[*doc_idx].alive {
+                    continue;
+                }
+                let dl = f64::from(self.docs[*doc_idx].len);
                 let denom =
-                    f64::from(*tf) + K1 * (1.0 - B + B * dl / self.avgdl.max(f64::MIN_POSITIVE));
+                    f64::from(*tf) + K1 * (1.0 - B + B * dl / avgdl.max(f64::MIN_POSITIVE));
                 let contribution = idf * (f64::from(*tf) * (K1 + 1.0)) / denom;
                 *scores.entry(*doc_idx).or_insert(0.0) += contribution;
             }
@@ -120,6 +184,24 @@ impl Bm25Index {
         ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
         ranked.truncate(k);
         ranked
+    }
+
+    /// Reconstruit l'index pour nettoyer les entrées mortes (compaction).
+    /// À appeler périodiquement quand beaucoup de documents ont été supprimés.
+    pub fn compact(&mut self) {
+        // Reconstruction complète : recréer un nouvel index avec seulement les docs vivants
+        let alive_docs: Vec<Bm25Doc> = self
+            .docs
+            .iter()
+            .filter(|d| d.alive)
+            .map(|d| d.doc.clone())
+            .collect();
+        *self = Self::from_docs(alive_docs);
+    }
+
+    /// Nombre de documents morts (pour décider quand compacter).
+    pub fn dead_count(&self) -> usize {
+        self.docs.len() - self.alive_count
     }
 }
 

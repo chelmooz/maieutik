@@ -513,10 +513,8 @@ impl VectorIndex {
 
     /// Reconstruit les index dérivés : HNSW (dense) et BM25 (lexical).
     ///
-    /// La stratégie reste une reconstruction complète, comme HNSW
-    /// (TODO : mise à jour incrémentale). Les deux index sont bâtis dans le
-    /// même passage sur `vectors_tree`, donc ils voient toujours le même
-    /// ensemble de chunks.
+    /// Reconstruction complète utilisée au démarrage ou après changement de schéma.
+    /// Pour les mises à jour incrémentales, voir `update_bm25_for_file`.
     pub async fn build_indexes(&self) -> Result<()> {
         let mut hnsw = HnswIndex::new(EMBEDDING_DIM);
         let mut docs = Vec::new();
@@ -528,8 +526,6 @@ impl VectorIndex {
             docs.push(Bm25Doc {
                 id: record.id.clone(),
                 file_path: record.file_path.clone(),
-                // Le texte d'index, s'il existe, est celui qui a été embeddé :
-                // BM25 doit voir la même matière que le dense.
                 text: record
                     .index_text
                     .as_deref()
@@ -547,6 +543,53 @@ impl VectorIndex {
         Ok(())
     }
 
+    /// Met à jour l'index BM25 pour un fichier spécifique (incrémental).
+    ///
+    /// Remplace les chunks du fichier dans l'index BM25 sans reconstruire
+    /// l'index complet. Si l'index n'existe pas encore, l'initialise.
+    /// L'index HNSW n'est PAS mis à jour ici.
+    pub async fn update_bm25_for_file(&self, file_path: &str, chunks: &[crate::config::Chunk]) -> Result<()> {
+        let mut bm25_guard = self.bm25.write().await;
+        let bm25 = bm25_guard.get_or_insert_with(Bm25Index::default);
+
+        let path_str = file_path.to_string();
+        if chunks.is_empty() {
+            bm25.remove_file(&path_str);
+        } else {
+            let bm25_docs: Vec<Bm25Doc> = chunks
+                .iter()
+                .enumerate()
+                .map(|(i, chunk)| Bm25Doc {
+                    id: format!("{}#{}", path_str, i),
+                    file_path: path_str.clone(),
+                    text: chunk.text.clone(),
+                    heading_path: chunk.heading_path.clone(),
+                    chunk_index: i,
+                })
+                .collect();
+            bm25.replace_file(&path_str, bm25_docs);
+        }
+
+        if bm25.dead_count() > bm25.len() / 2 && bm25.dead_count() > 100 {
+            bm25.compact();
+        }
+
+        Ok(())
+    }
+
+    /// Supprime un fichier de l'index BM25 (incrémental).
+    pub async fn remove_bm25_file(&self, file_path: &str) -> Result<()> {
+        let mut bm25_guard = self.bm25.write().await;
+        let Some(bm25) = bm25_guard.as_mut() else {
+            return Ok(());
+        };
+        bm25.remove_file(file_path);
+        if bm25.dead_count() > bm25.len() / 2 && bm25.dead_count() > 100 {
+            bm25.compact();
+        }
+        Ok(())
+    }
+
     /// Nom historique conservé pour les appelants existants : construit HNSW
     /// **et** BM25.
     pub async fn build_hnsw(&self) -> Result<()> {
@@ -555,10 +598,32 @@ impl VectorIndex {
 
     /// Upsert a file's chunks: embeddings first, then one atomic replace.
     /// Zero chunks (file emptied) purges the file's previous records.
+    /// Met à jour BM25 incrémentalement ; reconstruit HNSW (pas d'incrémental pour fast-hnsw).
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
         let fingerprint = FileFingerprint::read(file_path).ok().flatten();
+        let path_str = file_path.to_string_lossy().to_string();
+        let chunks = content.chunks.clone();
         self.store_file(file_path, content, fingerprint)?;
-        self.rebuild_hnsw_if_needed().await?;
+        // Mise à jour incrémentale BM25
+        self.update_bm25_for_file(&path_str, &chunks).await?;
+        // HNSW : reconstruction complète (fast-hnsw ne supporte pas l'incrémental)
+        self.rebuild_hnsw().await?;
+        Ok(())
+    }
+
+    /// Reconstruit seulement l'index HNSW (dense), sans toucher à BM25.
+    pub async fn rebuild_hnsw(&self) -> Result<()> {
+        let mut hnsw = HnswIndex::new(EMBEDDING_DIM);
+
+        for item in self.vectors_tree.iter() {
+            let (_, val) = item?;
+            let record: VectorRecord = bincode::deserialize(&val)?;
+            hnsw.add(record.id.clone(), &record.embedding)?;
+        }
+
+        let chunks = hnsw.len();
+        info!("Rebuilt HNSW index with {chunks} vectors (BM25 updated incrementally)");
+        *self.hnsw.write().await = Some(hnsw);
         Ok(())
     }
 
@@ -618,8 +683,12 @@ impl VectorIndex {
 
     /// Remove all chunks for a file
     pub async fn remove_file(&self, file_path: &Path) -> Result<()> {
-        self.purge_file(&file_path.to_string_lossy())?;
-        self.rebuild_hnsw_if_needed().await?;
+        let path_str = file_path.to_string_lossy().to_string();
+        self.purge_file(&path_str)?;
+        // Mise à jour incrémentale BM25
+        self.remove_bm25_file(&path_str).await?;
+        // HNSW : reconstruction complète
+        self.rebuild_hnsw().await?;
         Ok(())
     }
 
@@ -666,12 +735,6 @@ impl VectorIndex {
             .file_meta_tree
             .get(file_path.as_bytes())?
             .and_then(|bytes| bincode::deserialize(&bytes).ok()))
-    }
-
-    async fn rebuild_hnsw_if_needed(&self) -> Result<()> {
-        // Simple strategy: rebuild on every change (OK for small indexes)
-        // TODO: incremental HNSW/BM25 updates
-        self.build_indexes().await
     }
 
     /// Enregistrement par identifiant de chunk, ou `None` s'il a disparu

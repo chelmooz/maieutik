@@ -109,7 +109,7 @@ blake3 = "1"
 base64 = "0.22"
 percent-encoding = "2.3"
 
-ndarray = "0.17"
+ndarray = { workspace = true }
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
 
 [dev-dependencies]
