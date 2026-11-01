@@ -1,5 +1,7 @@
 /target
+target/
 /models
+models/
 *.onnx
 *.onnx_data
 *.gguf
