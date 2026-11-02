@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::{info, warn, error};
 
 #[rpc(server, client, namespace = "maieutik")]
 pub trait McpServer {
@@ -405,6 +405,22 @@ impl McpServer {
                     },
                 }
             }
+            "chat.complete" => {
+                match self.dispatch_chat(params).await {
+                    Ok(result) => RpcResponse {
+                        ok: true,
+                        result: Some(result),
+                        error: None,
+                        id,
+                    },
+                    Err(e) => RpcResponse {
+                        ok: false,
+                        result: None,
+                        error: Some(format!("{e:#}")),
+                        id,
+                    },
+                }
+            }
             other => RpcResponse {
                 ok: false,
                 result: None,
@@ -461,6 +477,37 @@ impl McpServer {
             .collect();
 
         Ok(serde_json::to_value(SearchResult { hits })?)
+    }
+
+    /// Dispatch pour chat.complete - utilise Ollama ou le LLM configuré
+    async fn dispatch_chat(&self, params: serde_json::Value) -> Result<serde_json::Value> {
+        let model_config = std::env::var("MAIEUTIK_LLM_MODEL")
+            .unwrap_or_else(|_| "ollama://qwen2.5:7b".to_string());
+        
+        let model_name = if model_config.starts_with("ollama://") {
+            model_config.trim_start_matches("ollama://").to_string()
+        } else {
+            return Err(anyhow::anyhow!("Modèle non configuré ou non-Ollama. Utilisez MAIEUTIK_LLM_MODEL=\"ollama://model_name\""));
+        };
+
+        let client = crate::llm::ollama::OllamaClient::new("http://localhost:11434", &model_name)
+            .map_err(|e| anyhow::anyhow!("Échec connexion Ollama: {}", e))?;
+        
+        let params: ChatParams = serde_json::from_value(params)?;
+        let message = params.message.clone();
+        
+        let response = client.chat(vec![crate::llm::ollama::ChatMessage {
+            role: "user".to_string(),
+            content: message,
+        }]).await?;
+
+        let result = ChatResult {
+            response,
+            sources: vec![],
+            tokens_used: None,
+        };
+
+        Ok(serde_json::to_value(result)?)
     }
 }
 
