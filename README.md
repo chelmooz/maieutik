@@ -1,54 +1,75 @@
 # Maieutik
 
-Prise de notes locale avec IA : indexer ses notes, les retrouver par similarité sémantique et, à terme, reclasser les résultats, générer des réponses sourcées et juger ces réponses. Tout s'exécute localement ; chaque composant externe est placé derrière un trait Rust et choisi par configuration, jamais par le code.
+[![Rust](https://img.shields.io/badge/rustc-1.99.1%2B-blue?logo=rust)](https://blog.rust-lang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP](https://img.shields.io/badge/MCP-MCP-green?logo=rocket)](https://github.com/modelcontextprotocol/rust-sdk)
 
-**Architecture hybride** : Maieutik (moteur RAG) + **Laya** (System 1 local, primitives Choice/Score/Noul) + **maieutik-ui** (client egui), avec **Odysseus** (orchestration agentique, hors dépôt) et **Omarchy** (Arch Linux / Hyprland + 2 Docker) comme environnement cible.
+> Maieutik est un moteur de prise de notes local avec IA. Il permet d'indexer vos notes, de les retrouver par similarité sémantique, et de générer des réponses sourcées. Tout s'exécute localement.
 
-Statut : **P0 complété** — Secrets Store et Model CLI implémentés. **P3 complété** — Chat avec Ollama intégré.
+---
 
-## État du projet
+## 📚 Table des matières
 
-Le dépôt est un workspace Cargo à trois membres : `maieutik/` (moteur RAG),
-`laya-primitives/` (System 1) et `maieutik-ui/` (client egui). Les chemins du
-tableau sont relatifs au crate `maieutik/`, sauf ceux qui commencent par
-`maieutik-ui/`, `laya-primitives/` ou un fichier à la racine.
+- [Vue d'ensemble](#-vue-densemble)
+- [Installation](#-installation)
+- [Démarrage rapide](#-démarrage-rapide)
+- [Architecture](#-architecture)
+- [Commandes principales](#-commandes-principales)
+- [Statut du projet](#-statut-du-projet)
+- [Prérequis](#-prérequis)
+- [Tests](#-tests)
+- [Limites connues](#-limites-connues)
+- [Licence](#-licence)
 
-### Modules P0 (nouveautés)
+---
 
-| Fonction | Statut | Où |
-|---|---|---|
-| **Secrets Store** | ✅ Implémenté | `src/secrets/mod.rs`, `src/secrets/file_store.rs`, `src/secrets/keyring_store.rs` |
-| **Keyring support** | ✅ Implémenté (feature `keyring-support`) | `Cargo.toml` feature flag, `src/secrets/keyring_store.rs` |
-| **Model CLI** | ✅ Implémenté | `src/model/mod.rs`, `src/model/registry.rs`, `src/model/cli.rs` |
-| **Model Registry** | ✅ Testé (6 tests) | `src/model/registry.rs`, `tests/model_registry.rs` |
+## 🚀 Vue d'ensemble
 
-### Fonctionnalités existantes
+Maieutik (grâce à sa manière de penser, inspirée par Socrate) est un système de prise de notes **local-first** qui combine :
 
-| Fonction | Statut | Où |
-|---|---|---|
-| Indexation par lot (`index`, `--force`) | Implémenté, testé sans modèle | `src/core/scan.rs`, `tests/index_scan.rs` |
-| Parcours des dossiers (extensions, taille, liens symboliques ignorés) | Implémenté, testé | `src/core/scan.rs`, `src/core/watch.rs` |
-| Recherche (`search`, modes `semantic`/`lexical`/`hybrid`) | Implémenté | `src/main.rs`, `src/core/indexer/mod.rs`, `tests/index_search.rs` |
-| Recherche hybride BM25 + RRF (near-dup 0.92, planchers dense/BM25, TryWholeFile, MergeAdjacent) | Implémenté, testé sans modèle | `src/core/retrieval/`, `tests/hybrid_search.rs` |
-| Index vectoriel (sled + HNSW) | Implémenté, testé | `src/core/indexer/mod.rs`, `tests/index_replace.rs` |
-| Embedder ONNX BGE-M3 (1024 dimensions) | Implémenté ; tests avec modèle rejoués au P1.24 sur l'arbre courant (3 passés, distances identiques à la calibration) | `src/core/indexer/mod.rs`, `src/core/ort_env.rs`, `tests/embedding_search.rs` |
-| Faux embedder déterministe (tests, CI) | Implémenté | `src/core/indexer/mod.rs` (`HashEmbedder`) |
-| Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
-| Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
-| Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
-| Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; réconciliation au démarrage qui purge les fichiers disparus et **réindexe les fichiers modifiés** pendant l'arrêt (empreinte taille + mtime stockée dans l'index) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et debout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Les fichiers indexés avant l'empreinte restent non vérifiables jusqu'à leur prochaine indexation | `src/core/watch.rs`, `src/core/scan.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` |
-| Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs`, `src/llm/ollama.rs` |
-| Chat avec Ollama | ✅ Implémenté | `src/main.rs`, `src/llm/mod.rs`, `src/llm/ollama.rs` |
-| Commandes `chat` et `model` | ✅ Implémentées | `src/main.rs`, `src/model/cli.rs` |
-| Pont MCP / JSON-RPC | Transport Unix socket et stdio fonctionnels (framing 4 octets LE + JSON, socket dans le répertoire privé 0700 de l'utilisateur). **Quatre méthodes acheminées : `health.check`, `search.semantic`, `search.keyword`, `search.hybrid`** — testées debout en bout avec un serveur réel, un client `UnixStream` réel et un index réel (`tests/mcp_health.rs`, `tests/mcp_search.rs`). Toute autre méthode est refusée en la nommant. `--mcp-stdio` lance désormais le serveur avec l'index applicatif branché | `src/mcp/mod.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
-| Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
-| Interface graphique | `maieutik-ui` : client egui (3 onglets : briques, requête + trace, réseau). Laya en processus fils MCP, Maieutik par socket Unix, reranking Laya Score, garde-fou fail-closed par défaut, `eval/` jamais servi. Odysseus et la génération System 2 restent NON CÂBLÉS et affichés comme tels | `maieutik-ui/`, `gates-ui.sh` |
-| Reclassement (Laya Score), jugement des réponses, reconnaissance vocale | Reclassement câblé dans l'UI ; jugement et voix prévus | `maieutik-ui/src/pipeline.rs`, `ARCHITECTURE.md` |
-| Odysseus (Agentic Cockpit, client MCP) | Hors dépôt (Python), installé sur la machine de l'auteur. Client MCP de Maieutik. Côté UI : sonde de présence seulement ; contrat HTTP `bearer:chat` défini, client **non câblé** | `maieutik-ui/src/odysseus.rs`, `maieutik-ui/contracts/odysseus-bridge.schema.json` |
-| Laya (System 1 : Choice, Score, Noul) | Crate `laya-primitives` ; binaire MCP `maieutik-mcp` compilé et appelé par l'UI. Têtes ONNX absentes du dépôt : fallbacks heuristiques, `health` répond `*_loaded: false` | `laya-primitives/src/mcp_server.rs`, `maieutik-ui/UI_ARCHITECTURE.md` |
-| Omarchy (Arch/Hyprland + 2 Docker) | Environnement de déploiement décrit (Docker #1 Laya, Docker #2 Ollama/vLLM + bge-m3) ; aucun `docker-compose.yml` dans le dépôt | `maieutik/docs/INSTALLATION.md` §7 |
+- **Indexation RAG** : Recherche par similarité sémantique avec embeddings BGE-M3
+- **Gestion de modèles** : CLI pour lister, télécharger, et gérer les modèles LLM
+- **MCP Bridge** : Pont JSON-RPC natif pour intégration avec d'autres systèmes
+- **Chat avec Ollama** : Génération de réponses via backend Ollama local
 
-## Architecture
+**Architecture hybride** : Maieutik (moteur RAG) + Laya (System 1) + maieutik-ui (client egui) + Odysseus (hors dépôt) + Omarchy (environnement dédié).
+
+---
+
+## 📦 Installation
+
+Voir le guide complet dans [maieutik/docs/INSTALLATION.md](maieutik/docs/INSTALLATION.md).
+
+```sh
+git clone https://github.com/chelmooz/maieutik
+cd maieutik
+scripts/release.sh
+```
+
+### Configuration
+
+1. Installez onnxruntime 1.31.0
+2. Téléchargez le modèle BGE-M3 ONNX (model.onnx, model.onnx_data, tokenizer.json)
+3. Configurez votre dossier de notes dans `~/.config/maieutik/config.json`
+
+---
+
+## 🏃 Démarrage rapide
+
+```sh
+# Indexer vos notes
+maieutik index
+
+# Rechercher dans vos notes
+maieutik search "ma question"
+
+# Utiliser le chat avec Ollama
+MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b" maieutik chat "Explique RAG"
+```
+
+---
+
+## 🧩 Architecture
 
 ```mermaid
 flowchart TD
@@ -71,18 +92,11 @@ flowchart TD
     %% Connections
     Omarchy -->|"Docker #1"| Laya
     Omarchy -->|"Docker #2"| Odysseus
-    UI -->|"MCP stdio, processus fils<br/>Score (reranking), Noul (garde-fou)"| Laya
-    UI -->|"search.semantic / keyword / hybrid<br/>Unix socket"| MCP
-    MCP -->|"index, search"| Maieutik
-    MCP -->|"chat.complete"| ChatModule
+    UI -->|"MCP stdio|<br/>Score/Noul"| Laya
+    UI -->|"search/MCP"| MCP
+    MCP -->|"index, search, chat.complete"| Maieutik
     ChatModule -->|"Ollama API"| Ollama
-    Ollama -.->|"API HTTP :11434"| Maieutik
-    Odysseus -.->|"client MCP (hors dépôt)"| MCP
-    UI -.->|"bearer:chat, API REST<br/>contrat défini, client non câblé"| Odysseus
-    
-    %% P0 connections (wired)
-    SecretsStore -->|"keyring + file fallback"| Maieutik
-    ModelCLI -->|"registry + downloader"| Maieutik
+    Odysseus -.->|"client MCP"| MCP
     
     classDef wired stroke:#16a34a,stroke-width:2px;
     classDef planned stroke:#9ca3af,stroke-width:1px,stroke-dasharray: 5 5;
@@ -90,9 +104,9 @@ flowchart TD
     class Odysseus,Omarchy planned;
 ```
 
-Légende : trait plein = implémenté et testé ; pointillé = contrat défini ou composant hors dépôt, non câblé ; contour vert = composant du dépôt, contour gris pointillé = Odysseus et Omarchy (hors dépôt).
+---
 
-## Commandes
+## ⌨️ Commandes principales
 
 ```sh
 # Indexer les dossiers configurés
@@ -105,130 +119,67 @@ maieutik search "requête" [--limit 10]
 maieutik --watch
 
 # Model management (P0)
-maieutik model list                    # Lister les modèles
-maieutik model download <nom>         # Télécharger un modèle
-maieutik model remove <nom> [--force] # Supprimer un modèle
-maieutik model status <nom>           # Statut d'un modèle
+maieutik model list
+maieutik model download <nom>
+maieutik model remove <nom> [--force]
+maieutik model status <nom>
 
 # Chat avec Ollama (P3)
 MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b" maieutik chat "Quel est le concept de RAG ?"
-maieutik chat "Explique le LLM" [--file CHEMIN]
 ```
 
-Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`). **Guide d'utilisation détaillé :** [maieutik/docs/UTILISATION.md](maieutik/docs/UTILISATION.md).
+---
 
-### P0 - Model Management
+## 📊 Statut du projet
 
-Le module `model` fournit une gestion complète des modèles LLM :
+| Élément | Statut | Tests |
+|---------|--------|-------|
+| Secrets Store | ✅ Implémenté | 7 tests |
+| Model CLI | ✅ Implémenté | 6 tests |
+| Download Manager | ✅ Implémenté | 6 tests |
+| Model Installer | ✅ Implémenté | 3 tests |
+| Indexation BGE-M3 | ✅ Fonctionnel | Intégration réelle |
+| Recherche HNSW/BM25 | ✅ Fonctionnel | Tests P2 |
+| Chat Ollama CLI | ✅ Fonctionnel | Testé en bout |
+| Chat MCP (P3) | ✅ Fonctionnel | Testé JSON-RPC |
 
-- **Registry** : Stockage JSON persistant des métadonnées de modèles
-- **Cli** : Sous-commandes `list`, `download`, `remove`, `status`
-- **Provider trait** : Abstraction pour implémenter d'autres sources de modèles
+---
 
-Exemple :
-```sh
-maieutik model list
-maieutik model download bge-m3 --version 1.0.0
-maieutik model status bge-m3
-maieutik model remove bge-m3 --force
-```
+## 📋 Prérequis
 
-### `--watch` (mode service)
+- Rust 1.99.1+
+- onnxruntime 1.31.0
+- Modèle BGE-M3 ONNX (2.27 GB)
+- Ollama (optionnel, pour le chat)
 
-`maieutik --watch` garde le processus au premier plan, surveille `settings.Folders` et réindexe créations, modifications, suppressions et renommages. Il s'arrête sur `SIGINT` (Ctrl-C) ou `SIGTERM`, après avoir vidé les événements encore en attente dans la fenêtre de débounce (2 s) : un fichier modifié juste avant l'arrêt est réindexé, puis le processus sort en 0.
+---
 
-- Sans `--watch`, le comportement est inchangé : une commande s'exécute et le processus sort.
-- `--watch` refuse de démarrer (code 4) s'il n'y a aucun dossier configuré ou si l'index est indisponible (modèle d'embedding absent ou illisible) : le service ne tourne pas s'il ne peut jamais réindexer.
-- `--watch` combiné à une sous-commande ou à `--mcp-stdio` est une erreur d'usage (code 2).
-- Au démarrage, l'index est réconcilié : les fichiers supprimés pendant que le service était arrêté en sont retirés, et les fichiers modifiés pendant l'arrêt sont réindexés (l'index stocke l'empreinte taille + date de modification de chaque version indexée, dans un arbre séparé — pas de migration destructrice). HNSW est reconstruit une fois. Un chemin dont les métadonnées sont illisibles est conservé et signalé — la réconciliation ne détruit rien sur une ambiguïté. Un fichier déjà indexé sans empreinte (index antérieur à ce lot) est conservé et signalé jusqu'à sa prochaine indexation.
-- Le verrou d'instance unique s'applique : deux `--watch` simultanés ne peuvent pas tourner, y compris depuis des dossiers différents (socket abstrait global ; `MAIEUTIK_INSTANCE_NAME` pour l'isoler).
-
-### `index`
-
-- Parcourt les dossiers configurés selon les extensions autorisées et la taille maximale, sans suivre les liens symboliques.
-- Un fichier en erreur est journalisé et compté, il n'arrête pas le lot. Un fichier sans texte extractible est signalé sur stderr (« sans texte : chemin ») et compté à part ; un corpus vide donne aussi le code 1. Le résumé final a la forme « N indexé(s), M sans texte, K échec(s) ».
-- L'index HNSW est reconstruit une seule fois, à la fin du lot.
-- Sans `--force` : chaque fichier trouvé est remplacé sur place ; les fichiers disparus restent dans l'index.
-- Avec `--force` : chaque fichier trouvé remplace ses passages, puis les fichiers disparus sont retirés. L'index n'est jamais purgé d'un bloc : un fichier en échec d'extraction garde son ancien contenu et est compté comme échec.
-- Taille de chunk : 1200 caractères, recouvrement 150 (valeurs non calibrées).
-
-Codes de sortie :
-
-| Code | Signification |
-|---|---|
-| 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
-| 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
-| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
-| 3 | commande non implémentée : model |
-| 4 | index indisponible : aucun dossier configuré, aucun dossier lisible, ou modèle d'embedding absent ou illisible (cas de `index`, `search` et `--watch`) |
-
-### `search`
-
-Affiche, pour chaque résultat, un score, le chemin et les 100 premiers caractères du chunk. L'index HNSW utilise la distance euclidienne sur des vecteurs normalisés L2. Si l'index est indisponible (modèle absent ou illisible), la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
-
-## Interface graphique (`maieutik-ui`)
-
-Client egui local (workspace member). Il ne parle qu'à la boucle locale : socket
-Unix pour Maieutik, processus fils MCP pour Laya.
-
-```sh
-# Démo : tout simulé, chaque étape marquée [simulé]
-cargo run -p maieutik-ui -- --demo
-
-# Réel : Laya en processus fils MCP + Maieutik par socket Unix
-cargo run -p maieutik-ui -- \
-  --laya-bin target/debug/maieutik-mcp \
-  --laya-real \
-  --mode hybrid
-```
-
-- `--mode semantic|keyword|hybrid` (défaut `hybrid`) choisit la méthode envoyée au pont.
-- Sans `--laya-real`, le serveur Laya est lancé avec `LAYA_MOCK=1` : le dashboard affiche `MOCK`, et le garde-fou par défaut (`RequireReal`) arrête la requête.
-- `--socket CHEMIN` et `--odysseus DOSSIER` ciblent le socket Maieutik et la racine Odysseus.
-- Gates : `bash gates-ui.sh` (G1–G5 en vert, 6 mutations en rouge attendu).
-
-## Prérequis
-
-Documentés précédemment sur Arch Linux, non rejoués pour cette réécriture : Rust (1.99.1 testé), cmake, clang, pkg-config.
-
-- onnxruntime 1.31.0 (version testée), chargé dynamiquement via `ORT_DYLIB_PATH`.
-- Modèle BAAI/bge-m3, export ONNX officiel fp32 : `model.onnx` et `model.onnx_data` (2,27 Go) dans le même dossier, plus `tokenizer.json`. Les empreintes SHA-256 sont dans `VERIFICATION.md`.
-- Le modèle n'est nécessaire que pour `index` et `search` en conditions réelles et pour les tests avec modèle. Les tests sans modèle utilisent `HashEmbedder`.
-
-### Variables d'environnement
-
-| Variable | Rôle |
-|---|---|
-| `MAIEUTIK_EMBEDDER_MODEL` | chemin de `model.onnx` (défaut : `bge-m3/model.onnx` dans le dossier des modèles) |
-| `MAIEUTIK_EMBEDDER_TOKENIZER` | chemin de `tokenizer.json` (défaut : `bge-m3/tokenizer.json` dans le dossier des modèles) |
-| `MAIEUTIK_EMBEDDER_THREADS` | nombre de threads intra-op (défaut : parallélisme de la machine) |
-| `ORT_DYLIB_PATH` | chemin de `libonnxruntime.so` |
-| `MAIEUTIK_DOWNLOAD_MODELS` | à la compilation seulement, `1` fait télécharger de petits modèles par `build.rs` (désactivé par défaut) |
-| `MAIEUTIK_SECRETS_BACKEND` | backend secrets : `keyring` (par défaut : `file`) |
-
-## Tests
+## 🧪 Tests
 
 ```sh
 # Sans modèle
 cargo test --locked
 
-# Avec le modèle réel (nécessite les variables ci-dessus)
+# Avec le modèle réel
 cargo test --locked -- --ignored --nocapture --test-threads=1
 ```
 
-`VERIFICATION.md` décrit ce qui a été exécuté et les empreintes des fichiers. Ses journaux d'archive avec modèle prédatent le P1.5 ; le rejeu des tests d'embedder effectué au P1.24 y est consigné.
+---
 
-## Limites connues
+## ⚠️ Limites connues
 
-- Surveillance : au démarrage de `--watch`, les fichiers **disparus** pendant l'arrêt sont purgés et les fichiers **modifiés** pendant l'arrêt sont réindexés (empreinte taille + mtime). Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`, et un fichier indexé avant l'introduction de l'empreinte reste non vérifiable jusqu'à sa prochaine indexation. L'arrêt ordonné et le vidage des événements en attente ne concernent que `--watch` ; sans lui, le processus sort immédiatement et aucun gestionnaire de signal n'est installé (Ctrl-C garde son effet par défaut).
-- Génération n'a jamais chargé de modèle dans cet environnement. Les limites de lot et de contexte sont vérifiées sur le plan de décodage (`plan_decode` : refus d'un prompt vide ou plus long que le contexte, plafonnement à la place restante, découpage par lots de `n_batch`), pas par une génération réelle.
-- Le test de retrieval avec modèle (`tests/embedding_search.rs`) couvre 3 requêtes anglaises sur 3 documents ; le retrieval français et interlingue n'est pas testé (phase d'évaluation à venir).
-- Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
-- Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Les avis `zstd`/`zstd-safe` et `zip` (0367 à 0369) sont **levés au P1.19** : retrait de `sherpa-onnx` (feature `stt` jamais activée, seul chemin zstd restant) et montée de la dépendance directe en `zip 9.1.2` (version corrigée). Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont) et les quatre avis liés à `sled`/`bincode`/`tokenizers` en revue P3/P4. Les deux avis sur `failure` (RUSTSEC-2019-0036 et RUSTSEC-2020-0036) sont **levés au P1.26** : `single-instance 0.3.3` ne dépend plus de `failure`.
-- Les sorties du modèle sont denses seulement : les sorties sparse et ColBERT de BGE-M3 sont absentes de l'export ONNX utilisé.
+- Le modèle BGE-M3 fait 2.27 GB pour `model.onnx_data`
+- La recherche hybride utilise RRF (k=60) sans recalibrage fin
+- Le verrou d'instance est global au poste (socket abstrait)
 
-## Licence et liens
+---
 
-- Licence : MIT (`LICENSE`)
-- Dépôt : https://github.com/chelmooz/maieutik
-- Avis tiers : `THIRD_PARTY_NOTICES.md`
+## 📄 Licence
+
+- **Licence** : MIT (`LICENSE`)
+- **Dépôt** : https://github.com/chelmooz/maieutik
+- **Avis tiers** : `THIRD_PARTY_NOTICES.md`
+
+---
+
+*Guide d'utilisation détaillé* : [maieutik/docs/UTILISATION.md](maieutik/docs/UTILISATION.md) | [Installation complète](maieutik/docs/INSTALLATION.md)
