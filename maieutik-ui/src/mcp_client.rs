@@ -39,18 +39,27 @@ pub struct McpClient {
 impl McpClient {
     pub fn connect(launch: &Launch, timeout: Duration) -> Result<Self, PortError> {
         let mut cmd = Command::new(&launch.program);
-        cmd.args(&launch.args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit());
+        cmd.args(&launch.args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit());
         for (k, v) in &launch.env {
             cmd.env(k, v);
         }
         if let Some(dir) = &launch.workdir {
             cmd.current_dir(dir);
         }
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| PortError::Unavailable(format!("lancement {} : {e}", launch.program.display())))?;
-        let stdin = child.stdin.take().ok_or_else(|| PortError::Io("stdin fils".into()))?;
-        let stdout = child.stdout.take().ok_or_else(|| PortError::Io("stdout fils".into()))?;
+        let mut child = cmd.spawn().map_err(|e| {
+            PortError::Unavailable(format!("lancement {} : {e}", launch.program.display()))
+        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| PortError::Io("stdin fils".into()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| PortError::Io("stdout fils".into()))?;
 
         let (tx, rx) = channel();
         thread::spawn(move || {
@@ -90,8 +99,14 @@ impl McpClient {
                 "clientInfo": {"name": "maieutik-ui", "version": env!("CARGO_PKG_VERSION")}
             }),
         )?;
-        self.server_name = info["serverInfo"]["name"].as_str().unwrap_or("?").to_owned();
-        self.server_version = info["serverInfo"]["version"].as_str().unwrap_or("?").to_owned();
+        self.server_name = info["serverInfo"]["name"]
+            .as_str()
+            .unwrap_or("?")
+            .to_owned();
+        self.server_version = info["serverInfo"]["version"]
+            .as_str()
+            .unwrap_or("?")
+            .to_owned();
         self.notify("notifications/initialized", json!({}))
     }
 
@@ -99,7 +114,11 @@ impl McpClient {
         let res = self.request("tools/list", json!({}))?;
         Ok(res["tools"]
             .as_array()
-            .map(|a| a.iter().filter_map(|t| t["name"].as_str().map(str::to_owned)).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|t| t["name"].as_str().map(str::to_owned))
+                    .collect()
+            })
             .unwrap_or_default())
     }
 
@@ -112,7 +131,8 @@ impl McpClient {
         if res["isError"].as_bool().unwrap_or(false) {
             return Err(PortError::Refused(text.to_owned()));
         }
-        serde_json::from_str(text).map_err(|e| PortError::Protocol(format!("JSON de l'outil : {e}")))
+        serde_json::from_str(text)
+            .map_err(|e| PortError::Protocol(format!("JSON de l'outil : {e}")))
     }
 
     pub fn noise_lines(&self) -> usize {
@@ -156,9 +176,13 @@ impl McpClient {
                 }
                 Ok(Line::Noise(s)) => self.noise.push(s),
                 Ok(Line::Eof) | Err(RecvTimeoutError::Disconnected) => {
-                    return Err(PortError::Unavailable("le serveur MCP a fermé stdout".into()))
+                    return Err(PortError::Unavailable(
+                        "le serveur MCP a fermé stdout".into(),
+                    ))
                 }
-                Err(RecvTimeoutError::Timeout) => return Err(PortError::Timeout(self.timeout.as_secs())),
+                Err(RecvTimeoutError::Timeout) => {
+                    return Err(PortError::Timeout(self.timeout.as_secs()))
+                }
             }
         }
     }
@@ -173,5 +197,7 @@ impl Drop for McpClient {
 
 pub fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(path).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+    std::fs::metadata(path)
+        .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
 }

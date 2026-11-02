@@ -173,8 +173,7 @@ impl Bm25Index {
                     continue;
                 }
                 let dl = f64::from(self.docs[*doc_idx].len);
-                let denom =
-                    f64::from(*tf) + K1 * (1.0 - B + B * dl / avgdl.max(f64::MIN_POSITIVE));
+                let denom = f64::from(*tf) + K1 * (1.0 - B + B * dl / avgdl.max(f64::MIN_POSITIVE));
                 let contribution = idf * (f64::from(*tf) * (K1 + 1.0)) / denom;
                 *scores.entry(*doc_idx).or_insert(0.0) += contribution;
             }

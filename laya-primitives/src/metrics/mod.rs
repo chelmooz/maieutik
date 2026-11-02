@@ -3,7 +3,7 @@
 //! Expose : latence (histogramme), throughput (counter), erreurs, distribution des scores.
 
 use super::LayaError;
-use prometheus::{Histogram, HistogramOpts, IntCounter, IntGauge, Registry, Opts};
+use prometheus::{Histogram, HistogramOpts, IntCounter, IntGauge, Opts, Registry};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -15,7 +15,10 @@ pub struct Timer {
 
 impl Timer {
     pub fn new(histogram: Histogram) -> Self {
-        Self { histogram, start: Instant::now() }
+        Self {
+            histogram,
+            start: Instant::now(),
+        }
     }
 }
 
@@ -76,13 +79,18 @@ impl PrimitiveMetrics {
         }
         macro_rules! histogram {
             ($name:expr, $help:expr, $buckets:expr) => {
-                Histogram::with_opts(HistogramOpts::new($name, $help).buckets($buckets)).expect("histogram")
+                Histogram::with_opts(HistogramOpts::new($name, $help).buckets($buckets))
+                    .expect("histogram")
             };
         }
 
-        let buckets_latency = vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0];
+        let buckets_latency = vec![
+            0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+        ];
         let buckets_score = vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
-        let buckets_entropy = vec![0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0];
+        let buckets_entropy = vec![
+            0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0, 2.5, 3.0,
+        ];
         let buckets_batch = vec![1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0];
 
         let metrics = Self {
@@ -91,26 +99,77 @@ impl PrimitiveMetrics {
             noul_total: counter!("laya_noul_total", "Total Noul predictions"),
             noul_safe: counter!("laya_noul_safe_total", "Noul predictions marked safe"),
             noul_unsafe: counter!("laya_noul_unsafe_total", "Noul predictions marked unsafe"),
-            noul_latency: histogram!("laya_noul_latency_seconds", "Noul inference latency", buckets_latency.clone()),
-            noul_injection_score: histogram!("laya_noul_injection_score", "Noul injection score distribution", buckets_score.clone()),
-            noul_null_score: histogram!("laya_noul_null_score", "Noul null score distribution", buckets_score.clone()),
-            noul_ood_score: histogram!("laya_noul_ood_score", "Noul OOD score distribution", buckets_score.clone()),
+            noul_latency: histogram!(
+                "laya_noul_latency_seconds",
+                "Noul inference latency",
+                buckets_latency.clone()
+            ),
+            noul_injection_score: histogram!(
+                "laya_noul_injection_score",
+                "Noul injection score distribution",
+                buckets_score.clone()
+            ),
+            noul_null_score: histogram!(
+                "laya_noul_null_score",
+                "Noul null score distribution",
+                buckets_score.clone()
+            ),
+            noul_ood_score: histogram!(
+                "laya_noul_ood_score",
+                "Noul OOD score distribution",
+                buckets_score.clone()
+            ),
 
             choice_total: counter!("laya_choice_total", "Total Choice predictions"),
-            choice_latency: histogram!("laya_choice_latency_seconds", "Choice inference latency", buckets_latency.clone()),
-            choice_entropy: histogram!("laya_choice_entropy", "Choice output entropy", buckets_entropy.clone()),
-            choice_confidence: histogram!("laya_choice_confidence", "Choice confidence (1 - entropy/max)", buckets_score.clone()),
+            choice_latency: histogram!(
+                "laya_choice_latency_seconds",
+                "Choice inference latency",
+                buckets_latency.clone()
+            ),
+            choice_entropy: histogram!(
+                "laya_choice_entropy",
+                "Choice output entropy",
+                buckets_entropy.clone()
+            ),
+            choice_confidence: histogram!(
+                "laya_choice_confidence",
+                "Choice confidence (1 - entropy/max)",
+                buckets_score.clone()
+            ),
 
             score_total: counter!("laya_score_total", "Total Score predictions"),
-            score_latency: histogram!("laya_score_latency_seconds", "Score inference latency", buckets_latency.clone()),
-            score_relevance: histogram!("laya_score_relevance", "Score relevance distribution", buckets_score.clone()),
-            score_chunks_relevant: counter!("laya_score_chunks_relevant_total", "Chunks marked relevant"),
+            score_latency: histogram!(
+                "laya_score_latency_seconds",
+                "Score inference latency",
+                buckets_latency.clone()
+            ),
+            score_relevance: histogram!(
+                "laya_score_relevance",
+                "Score relevance distribution",
+                buckets_score.clone()
+            ),
+            score_chunks_relevant: counter!(
+                "laya_score_chunks_relevant_total",
+                "Chunks marked relevant"
+            ),
             score_chunks_total: counter!("laya_score_chunks_total_total", "Total chunks evaluated"),
 
-            batch_size: histogram!("laya_batch_size", "Batch size distribution", buckets_batch.clone()),
-            batch_wait_ms: histogram!("laya_batch_wait_ms", "Batch wait time ms", vec![1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]),
+            batch_size: histogram!(
+                "laya_batch_size",
+                "Batch size distribution",
+                buckets_batch.clone()
+            ),
+            batch_wait_ms: histogram!(
+                "laya_batch_wait_ms",
+                "Batch wait time ms",
+                vec![1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+            ),
 
-            encoder_latency: histogram!("laya_encoder_latency_seconds", "Encoder inference latency", buckets_latency),
+            encoder_latency: histogram!(
+                "laya_encoder_latency_seconds",
+                "Encoder inference latency",
+                buckets_latency
+            ),
             active_requests: gauge!("laya_active_requests", "Currently processing requests"),
         };
 
@@ -123,27 +182,42 @@ impl PrimitiveMetrics {
         self.registry.register(Box::new(self.noul_total.clone()))?;
         self.registry.register(Box::new(self.noul_safe.clone()))?;
         self.registry.register(Box::new(self.noul_unsafe.clone()))?;
-        self.registry.register(Box::new(self.noul_latency.clone()))?;
-        self.registry.register(Box::new(self.noul_injection_score.clone()))?;
-        self.registry.register(Box::new(self.noul_null_score.clone()))?;
-        self.registry.register(Box::new(self.noul_ood_score.clone()))?;
+        self.registry
+            .register(Box::new(self.noul_latency.clone()))?;
+        self.registry
+            .register(Box::new(self.noul_injection_score.clone()))?;
+        self.registry
+            .register(Box::new(self.noul_null_score.clone()))?;
+        self.registry
+            .register(Box::new(self.noul_ood_score.clone()))?;
 
-        self.registry.register(Box::new(self.choice_total.clone()))?;
-        self.registry.register(Box::new(self.choice_latency.clone()))?;
-        self.registry.register(Box::new(self.choice_entropy.clone()))?;
-        self.registry.register(Box::new(self.choice_confidence.clone()))?;
+        self.registry
+            .register(Box::new(self.choice_total.clone()))?;
+        self.registry
+            .register(Box::new(self.choice_latency.clone()))?;
+        self.registry
+            .register(Box::new(self.choice_entropy.clone()))?;
+        self.registry
+            .register(Box::new(self.choice_confidence.clone()))?;
 
         self.registry.register(Box::new(self.score_total.clone()))?;
-        self.registry.register(Box::new(self.score_latency.clone()))?;
-        self.registry.register(Box::new(self.score_relevance.clone()))?;
-        self.registry.register(Box::new(self.score_chunks_relevant.clone()))?;
-        self.registry.register(Box::new(self.score_chunks_total.clone()))?;
+        self.registry
+            .register(Box::new(self.score_latency.clone()))?;
+        self.registry
+            .register(Box::new(self.score_relevance.clone()))?;
+        self.registry
+            .register(Box::new(self.score_chunks_relevant.clone()))?;
+        self.registry
+            .register(Box::new(self.score_chunks_total.clone()))?;
 
         self.registry.register(Box::new(self.batch_size.clone()))?;
-        self.registry.register(Box::new(self.batch_wait_ms.clone()))?;
+        self.registry
+            .register(Box::new(self.batch_wait_ms.clone()))?;
 
-        self.registry.register(Box::new(self.encoder_latency.clone()))?;
-        self.registry.register(Box::new(self.active_requests.clone()))?;
+        self.registry
+            .register(Box::new(self.encoder_latency.clone()))?;
+        self.registry
+            .register(Box::new(self.active_requests.clone()))?;
 
         Ok(())
     }
@@ -157,8 +231,13 @@ impl PrimitiveMetrics {
     /// Enregistre une prédiction Noul.
     pub fn record_noul(&self, output: &super::noul::NoulOutput) {
         self.noul_total.inc();
-        if output.is_safe { self.noul_safe.inc(); } else { self.noul_unsafe.inc(); }
-        self.noul_injection_score.observe(output.injection_score as f64);
+        if output.is_safe {
+            self.noul_safe.inc();
+        } else {
+            self.noul_unsafe.inc();
+        }
+        self.noul_injection_score
+            .observe(output.injection_score as f64);
         self.noul_null_score.observe(output.null_score as f64);
         self.noul_ood_score.observe(output.ood_score as f64);
         self.active_requests.dec();
@@ -175,8 +254,10 @@ impl PrimitiveMetrics {
     /// Enregistre une prédiction Score.
     pub fn record_score(&self, output: &super::score::ScoreOutput) {
         self.score_total.inc();
-        self.score_chunks_total.inc_by(output.chunks_evaluated as u64);
-        self.score_chunks_relevant.inc_by(output.chunks_relevant as u64);
+        self.score_chunks_total
+            .inc_by(output.chunks_evaluated as u64);
+        self.score_chunks_relevant
+            .inc_by(output.chunks_relevant as u64);
         for cs in &output.scores {
             self.score_relevance.observe(cs.relevance as f64);
         }

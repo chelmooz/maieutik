@@ -20,7 +20,10 @@ fn parse() -> Result<BackendConfig, String> {
     let mut laya_dir: Option<PathBuf> = None;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
-        let mut val = |name: &str| args.next().ok_or_else(|| format!("{name} attend une valeur"));
+        let mut val = |name: &str| {
+            args.next()
+                .ok_or_else(|| format!("{name} attend une valeur"))
+        };
         match a.as_str() {
             "--demo" => cfg.demo = true,
             "--laya-real" => laya_real = true,
@@ -33,19 +36,35 @@ fn parse() -> Result<BackendConfig, String> {
                     "semantic" | "dense" => maieutik_ui::ports::SearchMode::Semantic,
                     "keyword" | "bm25" | "lexical" => maieutik_ui::ports::SearchMode::Lexical,
                     "hybrid" => maieutik_ui::ports::SearchMode::Hybrid,
-                    other => return Err(format!("--mode inconnu : {other} (semantic|keyword|hybrid)")),
+                    other => {
+                        return Err(format!(
+                            "--mode inconnu : {other} (semantic|keyword|hybrid)"
+                        ))
+                    }
                 };
             }
             "--odysseus" => cfg.odysseus_root = Some(PathBuf::from(val("--odysseus")?)),
             "--llm-url" => cfg.llm_endpoint = Some(val("--llm-url")?),
             "-h" | "--help" => {
-                return Err(include_str!("main.rs").lines().take(9).map(|l| l.trim_start_matches("//! ")).collect::<Vec<_>>().join("\n"))
+                return Err(include_str!("main.rs")
+                    .lines()
+                    .take(9)
+                    .map(|l| l.trim_start_matches("//! "))
+                    .collect::<Vec<_>>()
+                    .join("\n"))
             }
             other => return Err(format!("argument inconnu : {other}")),
         }
     }
     if let Some(program) = laya_bin {
-        cfg.laya = Some(LayaSetup { launch: Launch { program, workdir: laya_dir, ..Launch::default() }, mock: !laya_real });
+        cfg.laya = Some(LayaSetup {
+            launch: Launch {
+                program,
+                workdir: laya_dir,
+                ..Launch::default()
+            },
+            mock: !laya_real,
+        });
     }
     Ok(cfg)
 }

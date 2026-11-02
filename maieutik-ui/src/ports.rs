@@ -126,7 +126,14 @@ pub struct Hit {
 impl Hit {
     pub fn new(file_path: String, text: String, score: f32, heading: Option<String>) -> Self {
         let collection = Collection::of(Path::new(&file_path));
-        Self { file_path, text, score, heading_path: heading, collection, relevance: None }
+        Self {
+            file_path,
+            text,
+            score,
+            heading_path: heading,
+            collection,
+            relevance: None,
+        }
     }
 }
 

@@ -15,7 +15,9 @@ pub struct LayaMcp {
 impl LayaMcp {
     /// `LAYA_MOCK` est posé explicitement : sans lui, `LayaConfig::default()` choisit le mock.
     pub fn connect(mut launch: Launch, mock: bool, timeout: Duration) -> Result<Self, PortError> {
-        launch.env.push(("LAYA_MOCK".into(), if mock { "1" } else { "0" }.into()));
+        launch
+            .env
+            .push(("LAYA_MOCK".into(), if mock { "1" } else { "0" }.into()));
         let client = McpClient::connect(&launch, timeout)?;
         Ok(Self { client, mock })
     }

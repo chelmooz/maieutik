@@ -122,11 +122,13 @@ fn chat_not_implemented_exits_three() {
 }
 
 #[test]
-fn model_not_implemented_exits_three() {
+fn model_list_works() {
     let t = tempfile::tempdir().unwrap();
     let o = run(t.path(), None, &["model", "list"]);
-    assert_eq!(code(&o), 3, "stdout: {} stderr: {}", out(&o), err(&o));
-    assert_error_streams(&o);
+    assert_eq!(code(&o), 0, "stdout: {} stderr: {}", out(&o), err(&o));
+    // Should output "Aucun modèle installé." or empty
+    let stdout = out(&o);
+    assert!(stdout.contains("Aucun") || stdout.trim().is_empty());
 }
 
 #[test]

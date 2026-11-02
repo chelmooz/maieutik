@@ -7,7 +7,7 @@
 //! hits (`file_path`, `text`, `score` ∈ [0,1], `heading_path`) est celle que
 //! l'UI consomme.
 
-use maieutik::config::{AppSettings, FileContent};
+use maieutik::config::FileContent;
 use maieutik::core::indexer::{extract_headings, Chunker, HashEmbedder, VectorIndex};
 use maieutik::mcp::McpServer;
 use maieutik::AppState;
@@ -16,7 +16,6 @@ use maieutik_ui::ports::{SearchMode, SearchPort};
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
 
 const FOX: &str = "the quick brown fox jumps over the lazy dog near the river";
 const RUST: &str = "rust cargo compiler borrow checker lifetimes traits";
@@ -57,7 +56,11 @@ async fn ui_client_gets_hits_from_the_real_mcp_bridge() {
             .unwrap();
     }
     let state = AppState {
-        settings: Arc::new(RwLock::new(AppSettings::default())),
+        config: Arc::new(
+            maieutik::config::store::ConfigStore::new(None)
+                .await
+                .unwrap(),
+        ),
         vector_index: Some(Arc::new(index)),
         embedder: None,
     };
@@ -70,7 +73,11 @@ async fn ui_client_gets_hits_from_the_real_mcp_bridge() {
     });
     wait_for_socket(&sock).await;
 
-    for mode in [SearchMode::Semantic, SearchMode::Lexical, SearchMode::Hybrid] {
+    for mode in [
+        SearchMode::Semantic,
+        SearchMode::Lexical,
+        SearchMode::Hybrid,
+    ] {
         let mut client = DaemonClient::new(sock.clone(), Duration::from_secs(5)).with_mode(mode);
         let hits = client.search("rust cargo compiler", 3).expect("recherche");
         assert!(!hits.is_empty(), "{mode:?} : aucun passage");

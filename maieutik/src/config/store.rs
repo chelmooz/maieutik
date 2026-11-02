@@ -1,11 +1,14 @@
 //! Settings persistence — JSON file (mode 0600 on Unix)
 use crate::config::AppSettings;
+use crate::secrets::{default_secrets_store, SecretsStore};
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
 
 /// Returns the settings directory, creating it if needed.
@@ -197,4 +200,84 @@ pub fn save_settings_to_file(settings: &AppSettings, path: &Path) -> Result<()> 
 /// Compatibility wrapper for callers using the original argument order.
 pub fn save_settings_to(path: &Path, settings: &AppSettings) -> Result<()> {
     save_settings_to_file(settings, path)
+}
+
+/// Configuration store with injected secrets backend.
+///
+/// This struct manages both application settings and secrets (API keys, tokens).
+/// The secrets backend is injected via dependency injection (DIP), allowing
+/// different implementations (KeyringStore, FileStore, mock for tests).
+#[derive(Debug)]
+pub struct ConfigStore {
+    pub settings: Arc<RwLock<AppSettings>>,
+    pub secrets: Arc<dyn SecretsStore>,
+}
+
+impl ConfigStore {
+    /// Create a new ConfigStore with an optional injected secrets store.
+    ///
+    /// If `secrets` is `None`, the default store is created via `default_secrets_store()`,
+    /// which tries keyring first and falls back to file store.
+    pub async fn new(secrets: Option<Arc<dyn SecretsStore>>) -> Result<Self> {
+        ensure_dirs()?;
+        let settings = Arc::new(RwLock::new(load_settings()?));
+        let secrets = match secrets {
+            Some(s) => s,
+            None => default_secrets_store().await?,
+        };
+        Ok(Self { settings, secrets })
+    }
+
+    /// Save settings to disk (atomic, 0600).
+    pub async fn save_settings(&self) -> Result<()> {
+        let settings = self.settings.read().await.clone();
+        save_settings_to_file(&settings, &config_path()?)
+    }
+
+    /// Get a secret by key.
+    pub async fn get_secret(&self, key: &str) -> Result<Option<String>> {
+        self.secrets.get(key).await
+    }
+
+    /// Set a secret (insert or update).
+    pub async fn set_secret(&self, key: &str, value: &str) -> Result<()> {
+        self.secrets.set(key, value).await
+    }
+
+    /// Delete a secret by key.
+    pub async fn delete_secret(&self, key: &str) -> Result<()> {
+        self.secrets.delete(key).await
+    }
+
+    /// List all secret keys (may return `SecretsError::ListUnsupported` for keyring).
+    pub async fn list_secrets(&self) -> Result<Vec<String>> {
+        self.secrets.list().await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::secrets::tests::MockStore;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_config_store_uses_injected_secrets() {
+        let mock = Arc::new(MockStore::new());
+        let store = ConfigStore::new(Some(mock.clone())).await.unwrap();
+
+        store.set_secret("test_key", "test_value").await.unwrap();
+        let val = store.get_secret("test_key").await.unwrap();
+        assert_eq!(val, Some("test_value".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_config_store_falls_back_to_file_store() {
+        // Without MAIEUTIK_SECRETS_BACKEND=keyring, should use FileStore
+        let store = ConfigStore::new(None).await.unwrap();
+
+        store.set_secret("fallback_test", "works").await.unwrap();
+        let val = store.get_secret("fallback_test").await.unwrap();
+        assert_eq!(val, Some("works".to_string()));
+    }
 }

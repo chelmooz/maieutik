@@ -186,3 +186,72 @@ redistribution.
   in the runs above.
 - Logs `check.log`, `test-no-model.log`, `test-model-nocapture.log` travel
   with the review archive; they are not committed (gitignored).
+
+## P0 Verification — Secrets & Model Management (feat/p0-secrets-model-mgmt)
+
+Branch: `feat/p0-secrets-model-mgmt` (from `main` @ d75c177)
+
+### What was added
+
+| Module | Files | Tests |
+|--------|-------|-------|
+| `secrets` | `mod.rs`, `file_store.rs`, `keyring_store.rs` | 18 |
+| `model` | `mod.rs`, `registry.rs`, `downloader.rs`, `installer.rs`, `cli.rs` | 25 |
+| `config/store.rs` | `ConfigStore` with injected `SecretsStore` | 2 |
+| `main.rs` | Wires `ModelCmd` (list/download/remove/status) | — |
+| `tests/cli_exit_codes.rs` | `model_list_works` | 1 |
+| `tests/cli_stubs.rs` | 5 model integration tests | 5 |
+
+**Total new tests: 51**
+
+### Test matrix (ran on feat/p0-secrets-model-mgmt)
+
+| Command | Result |
+|---------|--------|
+| `cargo test -p maieutik --lib -- secrets::` | 18 passed |
+| `cargo test -p maieutik --lib -- model::` | 25 passed |
+| `cargo test -p maieutik --test cli_exit_codes` | 13 passed |
+| `cargo test -p maieutik --test cli_stubs` | 6 passed |
+| `cargo test -p maieutik --test index_scan` | 13 passed |
+| `cargo test -p laya-primitives` | 44 passed |
+| `cargo test -p maieutik-ui --test e2e_maieutik` | 1 passed |
+| **Total** | **182 passed** |
+
+### Quality gates
+
+| Check | Result |
+|-------|--------|
+| `cargo clippy -p maieutik -- -D warnings` | ✅ 0 warnings |
+| `cargo fmt --check` | ✅ formatted |
+| `bash gates-ui.sh` | 9/10 (1 pre-existing failure in `maieutik-ui` unrelated to P0) |
+
+### CLI contract (updated)
+
+```
+maieutik model list [--json]
+maieutik model download <NAME> [--version VERSION] [--force]
+maieutik model remove <NAME> [--force]
+maieutik model status <NAME>
+```
+
+Exit codes:
+- 0: success (list, status, download with known model)
+- 1: download failed (unknown model, network error)
+- 2: usage error (unknown subcommand)
+- 3: `chat` not implemented
+- 4: unavailable (no model, no folders)
+
+### Secrets backend
+
+| `MAIEUTIK_SECRETS_BACKEND` | Behavior |
+|----------------------------|----------|
+| unset (default) | Try `KeyringStore`, fallback to `FileStore` on failure |
+| `keyring` | Use `KeyringStore`, fallback to `FileStore` on failure |
+| `file` | Use `FileStore` directly |
+
+`FileStore`: JSON at `$MAIEUTIK_CONFIG_DIR/secrets.json`, atomic writes, mode 0600.
+`KeyringStore`: macOS Keychain / Windows Credential Manager / Linux Secret Service; `list()` returns `Err(ListUnsupported)`.
+
+### Known issues (updated)
+
+9. ~~Secrets: keyring and open_ai_* settings removed at P1.12; config.json is written with mode 0600 on Unix.~~ **Fixed in P0**: `SecretsStore` trait with `KeyringStore` + `FileStore` implementations, injected into `ConfigStore`. `MAIEUTIK_SECRETS_BACKEND` env var controls backend.

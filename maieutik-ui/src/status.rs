@@ -32,7 +32,9 @@ impl Brick {
     /// Placement selon la matrice d'allocation du schéma Omarchy.
     pub fn host(self) -> Host {
         match self {
-            Brick::LayaNoul | Brick::LayaChoice | Brick::LayaScore | Brick::Odysseus => Host::Docker1,
+            Brick::LayaNoul | Brick::LayaChoice | Brick::LayaScore | Brick::Odysseus => {
+                Host::Docker1
+            }
             Brick::Llm => Host::Docker2,
             Brick::Maieutik => Host::HostApp,
         }
@@ -69,7 +71,10 @@ impl BrickState {
 
     pub fn detail(&self) -> &str {
         match self {
-            BrickState::Up(s) | BrickState::Mock(s) | BrickState::Unavailable(s) | BrickState::NotWired(s) => s,
+            BrickState::Up(s)
+            | BrickState::Mock(s)
+            | BrickState::Unavailable(s)
+            | BrickState::NotWired(s) => s,
         }
     }
 }

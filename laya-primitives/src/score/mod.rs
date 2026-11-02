@@ -4,12 +4,12 @@
 //! Entrée : query + liste de chunks → Scores [0,1] par chunk.
 //! Utilisé pour filtrer (seuil 0.65) ou reranker avant envoi au LLM System 2.
 
-use super::{LayaConfig, LayaError, Result, Encoder, EncoderOutput};
+use super::{Encoder, EncoderOutput, LayaConfig, LayaError, Result};
 use ndarray::Array2;
 use ort::session::{Session, SessionInputValue};
 use ort::value::Tensor;
-use std::sync::Arc;
 use std::path::Path;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
@@ -28,13 +28,19 @@ pub struct ScoreConfig {
     pub environment: Option<Arc<ort::environment::Environment>>,
 }
 
-fn default_relevance_thresh() -> f32 { 0.65 }
-fn default_max_chunks() -> usize { 32 }
+fn default_relevance_thresh() -> f32 {
+    0.65
+}
+fn default_max_chunks() -> usize {
+    32
+}
 
 impl From<&LayaConfig> for ScoreConfig {
     fn from(c: &LayaConfig) -> Self {
         Self {
-            model_path: c.model_path.replace("modernbert-base.onnx", "score-head.onnx"),
+            model_path: c
+                .model_path
+                .replace("modernbert-base.onnx", "score-head.onnx"),
             intra_threads: c.intra_threads,
             fp16: c.fp16,
             relevance_threshold: default_relevance_thresh(),
@@ -71,15 +77,19 @@ impl ScoreOutput {
         latency_ms: u64,
         threshold: f32,
     ) -> Self {
-        let chunk_scores: Vec<ChunkScore> = scores.into_iter().enumerate().map(|(i, rel)| {
-            let preview = chunks[i].chars().take(120).collect::<String>();
-            ChunkScore {
-                chunk_index: i,
-                text_preview: preview,
-                relevance: rel,
-                is_relevant: rel >= threshold,
-            }
-        }).collect();
+        let chunk_scores: Vec<ChunkScore> = scores
+            .into_iter()
+            .enumerate()
+            .map(|(i, rel)| {
+                let preview = chunks[i].chars().take(120).collect::<String>();
+                ChunkScore {
+                    chunk_index: i,
+                    text_preview: preview,
+                    relevance: rel,
+                    is_relevant: rel >= threshold,
+                }
+            })
+            .collect();
         let relevant = chunk_scores.iter().filter(|c| c.is_relevant).count();
         Self {
             scores: chunk_scores,
@@ -110,10 +120,17 @@ impl ScoreHead {
             info!("Chargement tête Score depuis {}", score_cfg.model_path);
             Some(Self::create_session(&score_cfg)?)
         } else {
-            warn!("Tête Score introuvable ({}), utilisation fallback heuristique", score_cfg.model_path);
+            warn!(
+                "Tête Score introuvable ({}), utilisation fallback heuristique",
+                score_cfg.model_path
+            );
             None
         };
-        Ok(Self { session, config: score_cfg, encoder })
+        Ok(Self {
+            session,
+            config: score_cfg,
+            encoder,
+        })
     }
 
     /// Charge avec une config pré-remplie (incluant l'environnement).
@@ -122,14 +139,24 @@ impl ScoreHead {
             info!("Chargement tête Score depuis {}", config.model_path);
             Some(Self::create_session(&config)?)
         } else {
-            warn!("Tête Score introuvable ({}), utilisation fallback heuristique", config.model_path);
+            warn!(
+                "Tête Score introuvable ({}), utilisation fallback heuristique",
+                config.model_path
+            );
             None
         };
-        Ok(Self { session, config, encoder })
+        Ok(Self {
+            session,
+            config,
+            encoder,
+        })
     }
 
     fn create_session(cfg: &ScoreConfig) -> Result<ort::session::Session> {
-        let env = cfg.environment.as_ref().ok_or_else(|| LayaError::EnvironmentNotInitialized)?;
+        let env = cfg
+            .environment
+            .as_ref()
+            .ok_or_else(|| LayaError::EnvironmentNotInitialized)?;
         Ok(ort::session::Session::builder(env)?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(cfg.intra_threads)?
@@ -140,9 +167,15 @@ impl ScoreHead {
     /// Score une query contre une liste de chunks.
     pub async fn predict(&mut self, query: &str, chunks: &[String]) -> Result<ScoreOutput> {
         if chunks.is_empty() {
-            return Ok(ScoreOutput::new(vec![], chunks, vec![], 0, self.config.relevance_threshold));
+            return Ok(ScoreOutput::new(
+                vec![],
+                chunks,
+                vec![],
+                0,
+                self.config.relevance_threshold,
+            ));
         }
-        
+
         // Truncate chunks if too many
         let chunks = if chunks.len() > self.config.max_chunks {
             &chunks[..self.config.max_chunks]
@@ -169,10 +202,21 @@ impl ScoreHead {
         };
 
         let latency_ms = ((start.elapsed().as_millis() as u64).max(1)).max(1);
-        Ok(ScoreOutput::new(scores, chunks, query_cls.to_vec(), latency_ms, self.config.relevance_threshold))
+        Ok(ScoreOutput::new(
+            scores,
+            chunks,
+            query_cls.to_vec(),
+            latency_ms,
+            self.config.relevance_threshold,
+        ))
     }
 
-    async fn predict_onnx(&self, session: &mut Session, query_cls: &[f32], chunk_cls: &[Vec<f32>]) -> Result<Vec<f32>> {
+    async fn predict_onnx(
+        &self,
+        session: &mut Session,
+        query_cls: &[f32],
+        chunk_cls: &[Vec<f32>],
+    ) -> Result<Vec<f32>> {
         // Get output names before running (session.run takes &mut self)
         let output_infos = session.outputs();
         let output_names: Vec<String> = output_infos.iter().map(|o| o.name().to_string()).collect();
@@ -190,7 +234,8 @@ impl ScoreHead {
 
         let input = Array2::from_shape_vec((chunk_cls.len(), query_cls.len() * 2), input_data)?;
         let tensor = Tensor::from_array(input)?;
-        let inputs: Vec<(String, ort::value::Value)> = vec![("pair_embedding".to_string(), tensor.into())];
+        let inputs: Vec<(String, ort::value::Value)> =
+            vec![("pair_embedding".to_string(), tensor.into())];
         let outputs = session.run(inputs)?;
 
         for (i, output) in outputs.into_iter().enumerate() {
@@ -200,12 +245,18 @@ impl ScoreHead {
                     return Ok(data.iter().map(|&x| sigmoid(x)).collect());
                 }
                 // Fallback
-                if output_names.len() == 1 && i == 0 && (dims == [chunk_cls.len(), 1] || dims == [chunk_cls.len()]) {
+                if output_names.len() == 1
+                    && i == 0
+                    && (dims == [chunk_cls.len(), 1] || dims == [chunk_cls.len()])
+                {
                     return Ok(data.iter().map(|&x| sigmoid(x)).collect());
                 }
             }
         }
-        Err(LayaError::DimensionMismatch { expected: chunk_cls.len(), got: 0 })
+        Err(LayaError::DimensionMismatch {
+            expected: chunk_cls.len(),
+            got: 0,
+        })
     }
 
     /// Fallback heuristique : chevauchement lexical query vs chunk (mots > 3 lettres).
@@ -232,7 +283,15 @@ impl ScoreHead {
             if query_words.is_empty() || chunk_words.is_empty() {
                 scores.push(0.3); // Pas de mots en commun
             } else if has_strong {
-                let bonus = if chunk_lower.contains("deploy") || chunk_lower.contains("yaml") || chunk_lower.contains("api") || chunk_lower.contains("pertinent") { 0.08 } else { 0.0 };
+                let bonus = if chunk_lower.contains("deploy")
+                    || chunk_lower.contains("yaml")
+                    || chunk_lower.contains("api")
+                    || chunk_lower.contains("pertinent")
+                {
+                    0.08
+                } else {
+                    0.0
+                };
                 scores.push(0.82 + bonus); // Mot-clé fort présent + bonus de précision
             } else {
                 let intersection: usize = query_words.intersection(&chunk_words).count();

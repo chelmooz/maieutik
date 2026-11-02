@@ -79,7 +79,10 @@ pub struct Backend {
 
 impl Backend {
     /// `wake` réveille l'UI (ex. `ctx.request_repaint()`) à chaque événement.
-    pub fn start(cfg: BackendConfig, wake: impl Fn() + Send + 'static) -> Result<Self, EgressError> {
+    pub fn start(
+        cfg: BackendConfig,
+        wake: impl Fn() + Send + 'static,
+    ) -> Result<Self, EgressError> {
         cfg.validate()?;
         let (tx, cmd_rx) = channel::<Command>();
         let (ev_tx, rx) = channel::<Event>();
@@ -87,7 +90,11 @@ impl Backend {
             .name("maieutik-backend".into())
             .spawn(move || Worker::new(cfg).run(cmd_rx, ev_tx, wake))
             .expect("thread backend");
-        Ok(Self { tx, rx, handle: Some(handle) })
+        Ok(Self {
+            tx,
+            rx,
+            handle: Some(handle),
+        })
     }
 
     pub fn send(&self, c: Command) {
@@ -112,7 +119,11 @@ struct Worker {
 
 impl Worker {
     fn new(cfg: BackendConfig) -> Self {
-        Self { cfg, laya: None, laya_err: None }
+        Self {
+            cfg,
+            laya: None,
+            laya_err: None,
+        }
     }
 
     fn run(mut self, rx: Receiver<Command>, tx: Sender<Event>, wake: impl Fn()) {
@@ -159,7 +170,9 @@ impl Worker {
         out.push(self.probe_odysseus());
         out.push(BrickReport {
             brick: Brick::Llm,
-            state: BrickState::NotWired("génération jamais exécutée (VERIFICATION.md) — aucun adaptateur".into()),
+            state: BrickState::NotWired(
+                "génération jamais exécutée (VERIFICATION.md) — aucun adaptateur".into(),
+            ),
             latency_ms: None,
         });
         out
@@ -168,38 +181,70 @@ impl Worker {
     fn probe_maieutik(&mut self) -> BrickReport {
         let brick = Brick::Maieutik;
         if self.cfg.demo {
-            return BrickReport { brick, state: BrickState::Mock("corpus jouet intégré".into()), latency_ms: None };
+            return BrickReport {
+                brick,
+                state: BrickState::Mock("corpus jouet intégré".into()),
+                latency_ms: None,
+            };
         }
         let Some(path) = self.cfg.daemon_socket.clone() else {
-            let s = BrickState::Unavailable("aucun chemin de socket (XDG_RUNTIME_DIR / MAIEUTIK_MCP_SOCKET)".into());
-            return BrickReport { brick, state: s, latency_ms: None };
+            let s = BrickState::Unavailable(
+                "aucun chemin de socket (XDG_RUNTIME_DIR / MAIEUTIK_MCP_SOCKET)".into(),
+            );
+            return BrickReport {
+                brick,
+                state: s,
+                latency_ms: None,
+            };
         };
         let mut c = DaemonClient::new(path, Duration::from_secs(3));
         let t = Instant::now();
         match c.health_check() {
             Ok(v) => {
                 let ms = t.elapsed().as_millis() as u64;
-                let search = match c.call("search.semantic", serde_json::json!({"query": "sonde", "limit": 1})) {
+                let search = match c.call(
+                    "search.semantic",
+                    serde_json::json!({"query": "sonde", "limit": 1}),
+                ) {
                     Ok(_) => "recherche routée".to_owned(),
                     Err(PortError::NotWired(_)) => "recherche NON routée côté serveur".to_owned(),
                     Err(e) => format!("recherche : {e}"),
                 };
-                BrickReport { brick, state: BrickState::Up(format!("maieutik {v} — {search}")), latency_ms: Some(ms) }
+                BrickReport {
+                    brick,
+                    state: BrickState::Up(format!("maieutik {v} — {search}")),
+                    latency_ms: Some(ms),
+                }
             }
-            Err(e) => BrickReport { brick, state: BrickState::Unavailable(e.to_string()), latency_ms: None },
+            Err(e) => BrickReport {
+                brick,
+                state: BrickState::Unavailable(e.to_string()),
+                latency_ms: None,
+            },
         }
     }
 
     fn probe_laya(&mut self) -> Vec<BrickReport> {
         let heads = [Brick::LayaNoul, Brick::LayaChoice, Brick::LayaScore];
         let all = |state: BrickState, ms: Option<u64>| -> Vec<BrickReport> {
-            heads.iter().map(|b| BrickReport { brick: *b, state: state.clone(), latency_ms: ms }).collect()
+            heads
+                .iter()
+                .map(|b| BrickReport {
+                    brick: *b,
+                    state: state.clone(),
+                    latency_ms: ms,
+                })
+                .collect()
         };
         if self.cfg.demo {
             return all(BrickState::Mock("verdicts simulés".into()), None);
         }
         let Some(laya) = self.laya.as_mut() else {
-            let why = self.laya_err.as_ref().map(|e| e.to_string()).unwrap_or_else(|| "inconnu".into());
+            let why = self
+                .laya_err
+                .as_ref()
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "inconnu".into());
             return all(BrickState::Unavailable(why), None);
         };
         let t = Instant::now();
@@ -209,15 +254,25 @@ impl Worker {
         };
         let ms = Some(t.elapsed().as_millis() as u64);
         let noise = if laya.noise_lines() > 0 {
-            format!(" ⚠ {} ligne(s) non-JSON sur stdout du serveur", laya.noise_lines())
+            format!(
+                " ⚠ {} ligne(s) non-JSON sur stdout du serveur",
+                laya.noise_lines()
+            )
         } else {
             String::new()
         };
         if laya.mock {
-            let s = BrickState::Mock(format!("{} en mode simulé — aucune protection réelle{noise}", laya.server_label()));
+            let s = BrickState::Mock(format!(
+                "{} en mode simulé — aucune protection réelle{noise}",
+                laya.server_label()
+            ));
             return all(s, ms);
         }
-        let loaded = [health.noul_loaded, health.choice_loaded, health.score_loaded];
+        let loaded = [
+            health.noul_loaded,
+            health.choice_loaded,
+            health.score_loaded,
+        ];
         heads
             .iter()
             .zip(loaded)
@@ -226,7 +281,10 @@ impl Worker {
                 state: if ok {
                     BrickState::Up(format!("{} — tête chargée{noise}", laya.server_label()))
                 } else {
-                    BrickState::Unavailable(format!("{} — tête non chargée{noise}", laya.server_label()))
+                    BrickState::Unavailable(format!(
+                        "{} — tête non chargée{noise}",
+                        laya.server_label()
+                    ))
                 },
                 latency_ms: ms,
             })
@@ -236,13 +294,23 @@ impl Worker {
     fn probe_odysseus(&self) -> BrickReport {
         let brick = Brick::Odysseus;
         let Some(root) = self.cfg.odysseus_root.clone() else {
-            return BrickReport { brick, state: BrickState::Unavailable("racine Odysseus non configurée".into()), latency_ms: None };
+            return BrickReport {
+                brick,
+                state: BrickState::Unavailable("racine Odysseus non configurée".into()),
+                latency_ms: None,
+            };
         };
         let state = match (OdysseusProbe { root }).inspect() {
-            Ok(d) => BrickState::NotWired(format!("{d} ; aucun contrat UI→Odysseus (Odysseus appelle Maieutik, pas l'inverse)")),
+            Ok(d) => BrickState::NotWired(format!(
+                "{d} ; aucun contrat UI→Odysseus (Odysseus appelle Maieutik, pas l'inverse)"
+            )),
             Err(e) => BrickState::Unavailable(e.to_string()),
         };
-        BrickReport { brick, state, latency_ms: None }
+        BrickReport {
+            brick,
+            state,
+            latency_ms: None,
+        }
     }
 
     fn run_pipeline(&mut self, prompt: &str) -> Trace {
@@ -255,14 +323,31 @@ impl Worker {
             .daemon_socket
             .clone()
             .map(|p| DaemonClient::new(p, Duration::from_secs(10)).with_mode(cfg.search_mode));
-        let mut odysseus = self.cfg.odysseus_root.clone().map(|root| OdysseusProbe { root });
+        let mut odysseus = self
+            .cfg
+            .odysseus_root
+            .clone()
+            .map(|root| OdysseusProbe { root });
 
         let demo = self.cfg.demo;
-        let system1: Option<&mut dyn System1Port> =
-            if demo { Some(&mut mock_s1) } else { self.laya.as_mut().map(|l| l as &mut dyn System1Port) };
-        let search: Option<&mut dyn SearchPort> =
-            if demo { Some(&mut mock_search) } else { daemon.as_mut().map(|d| d as &mut dyn SearchPort) };
+        let system1: Option<&mut dyn System1Port> = if demo {
+            Some(&mut mock_s1)
+        } else {
+            self.laya.as_mut().map(|l| l as &mut dyn System1Port)
+        };
+        let search: Option<&mut dyn SearchPort> = if demo {
+            Some(&mut mock_search)
+        } else {
+            daemon.as_mut().map(|d| d as &mut dyn SearchPort)
+        };
         let agent: Option<&mut dyn AgentPort> = odysseus.as_mut().map(|o| o as &mut dyn AgentPort);
-        Pipeline { cfg: &cfg, system1, search, agent, generator: None }.run(prompt)
+        Pipeline {
+            cfg: &cfg,
+            system1,
+            search,
+            agent,
+            generator: None,
+        }
+        .run(prompt)
     }
 }

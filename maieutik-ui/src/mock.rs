@@ -44,7 +44,11 @@ impl System1Port for MockSystem1 {
     }
 
     fn score(&mut self, query: &str, chunks: &[String]) -> Result<ScoreVerdict, PortError> {
-        let q: Vec<String> = query.to_lowercase().split_whitespace().map(str::to_owned).collect();
+        let q: Vec<String> = query
+            .to_lowercase()
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect();
         let scores: Vec<ChunkScore> = chunks
             .iter()
             .enumerate()
@@ -52,11 +56,21 @@ impl System1Port for MockSystem1 {
                 let lc = c.to_lowercase();
                 let hit = q.iter().filter(|w| lc.contains(w.as_str())).count() as f32;
                 let rel = (hit / q.len().max(1) as f32).min(1.0);
-                ChunkScore { chunk_index: i, text_preview: c.chars().take(40).collect(), relevance: rel, is_relevant: rel > 0.5 }
+                ChunkScore {
+                    chunk_index: i,
+                    text_preview: c.chars().take(40).collect(),
+                    relevance: rel,
+                    is_relevant: rel > 0.5,
+                }
             })
             .collect();
         let relevant = scores.iter().filter(|s| s.is_relevant).count();
-        Ok(ScoreVerdict { chunks_evaluated: scores.len(), chunks_relevant: relevant, scores, latency_ms: 0 })
+        Ok(ScoreVerdict {
+            chunks_evaluated: scores.len(),
+            chunks_relevant: relevant,
+            scores,
+            latency_ms: 0,
+        })
     }
 }
 
@@ -68,11 +82,36 @@ pub struct MockSearch;
 impl SearchPort for MockSearch {
     fn search(&mut self, _query: &str, k: usize) -> Result<Vec<Hit>, PortError> {
         let corpus = [
-            ("/notes/sources/contrat_client.pdf", "Le contrat client décrit l'architecture réseau et les SLA.", 0.69, Some("Contrat > Réseau")),
-            ("/notes/wiki/architecture.md", "Synthèse : Laya route, Maieutik retrouve, Odysseus orchestre.", 0.58, Some("Architecture")),
-            ("/notes/eval/questions.md", "Q: quel est le SLA ? R: 99.9 % (réponse attendue — ne doit jamais sortir).", 0.80, None),
-            ("/notes/sources/logs_serveur.md", "Logs du serveur : timeouts répétés sur le pont MCP.", 0.45, Some("Logs")),
-            ("/notes/sources/recette_crepes.md", "Farine, œufs, lait.", 0.07, None),
+            (
+                "/notes/sources/contrat_client.pdf",
+                "Le contrat client décrit l'architecture réseau et les SLA.",
+                0.69,
+                Some("Contrat > Réseau"),
+            ),
+            (
+                "/notes/wiki/architecture.md",
+                "Synthèse : Laya route, Maieutik retrouve, Odysseus orchestre.",
+                0.58,
+                Some("Architecture"),
+            ),
+            (
+                "/notes/eval/questions.md",
+                "Q: quel est le SLA ? R: 99.9 % (réponse attendue — ne doit jamais sortir).",
+                0.80,
+                None,
+            ),
+            (
+                "/notes/sources/logs_serveur.md",
+                "Logs du serveur : timeouts répétés sur le pont MCP.",
+                0.45,
+                Some("Logs"),
+            ),
+            (
+                "/notes/sources/recette_crepes.md",
+                "Farine, œufs, lait.",
+                0.07,
+                None,
+            ),
         ];
         Ok(corpus
             .iter()

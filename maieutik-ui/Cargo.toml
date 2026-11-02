@@ -6,6 +6,7 @@ license = { workspace = true }
 authors = { workspace = true }
 rust-version = { workspace = true }
 description = "Maieutik UI — client local (egui) reliant Maieutik, Laya (System 1) et Odysseus"
+default-run = "maieutik-ui"
 
 [features]
 default = ["gui"]

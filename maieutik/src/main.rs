@@ -4,7 +4,7 @@
 //!   0 succès complet (ou arrêt propre demandé par un signal en `--watch`)
 //!   1 échec partiel (fichier sans texte, corpus vide, dossier partiel, échec de fichier)
 //!   2 usage invalide (clap, `--watch` ou `--mcp-stdio` combiné à une autre commande)
-//!   3 commande non implémentée (`chat`, `model`)
+//!   3 commande non implémentée (`chat`)
 //!   4 environnement indisponible (modèle, index, `Folders` vide, dossiers absents)
 //! stdout ne porte que des résultats ; tous les diagnostics vont sur stderr.
 
@@ -12,6 +12,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use maieutik::config;
 use maieutik::core::retrieval::SearchMode;
+use maieutik::model::{run_model_cmd, ModelManager};
 use maieutik::{run_watcher, run_watcher_with_shutdown, AppState};
 use std::io::IsTerminal;
 use std::path::PathBuf;
@@ -66,8 +67,8 @@ struct Cli {
     debug: bool,
 }
 
-// Les champs de Chat/Model ne sont plus lus tant que ces commandes
-// sont non implémentées (code 3).
+// Les champs de Chat ne sont plus lus tant que cette commande
+// est non implémentée (code 3).
 #[allow(dead_code)]
 #[derive(Subcommand)]
 enum Commands {
@@ -93,20 +94,11 @@ enum Commands {
         #[arg(long)]
         file: Option<PathBuf>,
     },
-    /// Manage models (download, list, remove)
+    /// Manage models (download, list, remove, status)
     Model {
         #[command(subcommand)]
-        action: ModelAction,
+        action: maieutik::model::ModelCmd,
     },
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Subcommand)]
-enum ModelAction {
-    List,
-    Download { name: String },
-    Remove { name: String },
-    Status,
 }
 
 /// `--limit` doit être un entier >= 1 (clap sort en code 2 sinon).
@@ -155,7 +147,6 @@ fn not_implemented(label: &str) -> i32 {
 fn not_implemented_label(cmd: &Commands) -> Option<&'static str> {
     match cmd {
         Commands::Chat { .. } => Some("chat"),
-        Commands::Model { .. } => Some("model"),
         _ => None,
     }
 }
@@ -219,7 +210,7 @@ async fn run(cli: Cli) -> Result<i32> {
 
     // `Folders` est vérifié AVANT l'initialisation du modèle (coûteuse).
     if matches!(cli.command, Some(Commands::Index { .. }))
-        && state.settings.read().await.folders.is_empty()
+        && state.config.settings.read().await.folders.is_empty()
     {
         eprintln!("Aucun dossier à indexer : renseigne `Folders` dans config.json.");
         return Ok(EXIT_UNAVAILABLE);
@@ -296,7 +287,7 @@ fn index_unavailable() -> i32 {
 /// Refus avant démarrage quand le service n'aurait rien à faire : sans
 /// dossier, ou sans index (impossible de réindexer sans modèle).
 async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
-    let folders = state.settings.read().await.folders.clone();
+    let folders = state.config.settings.read().await.folders.clone();
     if folders.is_empty() {
         eprintln!("Aucun dossier à surveiller : renseigne `Folders` dans config.json.");
         return Ok(EXIT_UNAVAILABLE);
@@ -308,7 +299,7 @@ async fn watch_mode(state: Arc<AppState>) -> Result<i32> {
     // Réconciliation de démarrage : les fichiers disparus pendant que le
     // service était arrêté sont purgés avant de commencer à surveiller.
     if let Some(idx) = &state.vector_index {
-        let settings = state.settings.read().await.clone();
+        let settings = state.config.settings.read().await.clone();
         match maieutik::core::scan::reconcile_startup(idx, &settings).await {
             Ok(report) => {
                 for path in &report.kept_unreadable {
@@ -398,13 +389,13 @@ async fn shutdown_signal() {
     }
 }
 
-async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<i32> {
+async fn handle_command(cmd: Commands, _state: Arc<AppState>) -> Result<i32> {
     match cmd {
         Commands::Index { force } => {
-            let Some(idx) = &state.vector_index else {
+            let Some(idx) = &_state.vector_index else {
                 return Ok(index_unavailable());
             };
-            let settings = state.settings.read().await.clone();
+            let settings = _state.config.settings.read().await.clone();
             let needs_reindex = idx.needs_reindex()?;
             info!(
                 "Indexing... (force={}, needs_reindex={})",
@@ -433,7 +424,7 @@ async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<i32> {
             Ok(report.exit_code())
         }
         Commands::Search { query, limit, mode } => {
-            let Some(idx) = &state.vector_index else {
+            let Some(idx) = &_state.vector_index else {
                 return Ok(index_unavailable());
             };
             let results = idx.search_mode(&query, limit, mode).await?;
@@ -447,7 +438,11 @@ async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<i32> {
             }
             Ok(0)
         }
-        // Déjà refusées dans `run` ; garde-fou si l'ordre changeait.
-        Commands::Chat { .. } | Commands::Model { .. } => Ok(not_implemented("commande")),
+        Commands::Chat { .. } => Ok(not_implemented("chat")),
+        Commands::Model { action } => {
+            let data_dir = config::store::data_dir()?;
+            let manager = ModelManager::new(&data_dir)?;
+            run_model_cmd(manager, action).await
+        }
     }
 }

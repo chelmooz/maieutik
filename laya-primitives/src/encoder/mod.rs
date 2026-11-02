@@ -10,8 +10,8 @@
 use super::{LayaConfig, LayaError, Result};
 use ndarray;
 use ort::environment::Environment;
-use ort::session::{Session, SessionInputValue};
 use ort::session::builder::GraphOptimizationLevel;
+use ort::session::{Session, SessionInputValue};
 use ort::value::Tensor;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -69,7 +69,13 @@ impl EncoderOutput {
     pub fn new(cls: Vec<Vec<f32>>, mean: Vec<Vec<f32>>, lens: Vec<usize>) -> Self {
         let hidden_dim = cls.first().map(|v| v.len()).unwrap_or(0);
         let batch_size = cls.len();
-        Self { cls_embeddings: cls, mean_embeddings: mean, seq_lens: lens, hidden_dim, batch_size }
+        Self {
+            cls_embeddings: cls,
+            mean_embeddings: mean,
+            seq_lens: lens,
+            hidden_dim,
+            batch_size,
+        }
     }
 }
 
@@ -92,7 +98,8 @@ impl ModernBertEncoder {
 
     /// Charge avec une config complète (incluant l'environnement).
     pub async fn load_with_config(config: EncoderConfig) -> Result<Self> {
-        let environment = config.environment
+        let environment = config
+            .environment
             .as_ref()
             .ok_or_else(|| LayaError::EnvironmentNotInitialized)?
             .clone();
@@ -128,14 +135,27 @@ impl ModernBertEncoder {
             .commit_from_file(model_path)?;
 
         // Récupérer noms d'entrée/sortie
-        let input_names: Vec<String> = session.inputs().iter().map(|i| i.name().to_string()).collect();
-        let output_names: Vec<String> = session.outputs().iter().map(|o| o.name().to_string()).collect();
+        let input_names: Vec<String> = session
+            .inputs()
+            .iter()
+            .map(|i| i.name().to_string())
+            .collect();
+        let output_names: Vec<String> = session
+            .outputs()
+            .iter()
+            .map(|o| o.name().to_string())
+            .collect();
 
         info!("Inputs ONNX: {:?}", input_names);
         info!("Outputs ONNX: {:?}", output_names);
 
         // Déduire hidden_dim depuis la sortie (last_hidden_state: [batch, seq, hidden])
-        let hidden_dim = Self::infer_hidden_dim(&mut session, &input_names, &output_names, config.max_seq_len)?;
+        let hidden_dim = Self::infer_hidden_dim(
+            &mut session,
+            &input_names,
+            &output_names,
+            config.max_seq_len,
+        )?;
 
         Ok(Self {
             session: Mutex::new(session),
@@ -147,7 +167,12 @@ impl ModernBertEncoder {
         })
     }
 
-    fn infer_hidden_dim(session: &mut Session, input_names: &[String], output_names: &[String], _max_seq_len: usize) -> Result<usize> {
+    fn infer_hidden_dim(
+        session: &mut Session,
+        input_names: &[String],
+        output_names: &[String],
+        _max_seq_len: usize,
+    ) -> Result<usize> {
         // Forward pass bidon pour inspecter la forme de sortie
         let dummy_ids = ndarray::Array2::from_elem((1, 2), 0i64); // [CLS] [SEP]
         let dummy_mask = ndarray::Array2::from_elem((1, 2), 1i64);
@@ -188,7 +213,10 @@ impl ModernBertEncoder {
             return Err(LayaError::InvalidInput("Batch vide".into()));
         }
         if texts.len() > self.config.max_batch_size {
-            return Err(LayaError::BatchTooLarge { max: self.config.max_batch_size, got: texts.len() });
+            return Err(LayaError::BatchTooLarge {
+                max: self.config.max_batch_size,
+                got: texts.len(),
+            });
         }
 
         // 1. Tokenisation
@@ -198,11 +226,17 @@ impl ModernBertEncoder {
         let mut seq_lens = Vec::new();
 
         for text in texts {
-            let encoding = self.tokenizer.encode(*text, true)
+            let encoding = self
+                .tokenizer
+                .encode(*text, true)
                 .map_err(|e| LayaError::Tokenizer(e.to_string()))?;
 
             let ids: Vec<i64> = encoding.get_ids().iter().map(|&v| v as i64).collect();
-            let mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&v| v as i64).collect();
+            let mask: Vec<i64> = encoding
+                .get_attention_mask()
+                .iter()
+                .map(|&v| v as i64)
+                .collect();
             let type_ids: Vec<i64> = encoding.get_type_ids().iter().map(|&v| v as i64).collect();
 
             seq_lens.push(ids.len());
@@ -212,18 +246,34 @@ impl ModernBertEncoder {
         }
 
         // 2. Padding à la longueur max du batch
-        let max_len = seq_lens.iter().max().copied().unwrap_or(1).min(self.config.max_seq_len);
+        let max_len = seq_lens
+            .iter()
+            .max()
+            .copied()
+            .unwrap_or(1)
+            .min(self.config.max_seq_len);
         let batch_size = texts.len();
 
         let mut padded_ids = ndarray::Array2::zeros((batch_size, max_len));
         let mut padded_mask = ndarray::Array2::zeros((batch_size, max_len));
         let mut padded_type = ndarray::Array2::zeros((batch_size, max_len));
 
-        for (i, ((ids, mask), types)) in all_ids.into_iter().zip(all_mask).zip(all_type_ids).enumerate() {
+        for (i, ((ids, mask), types)) in all_ids
+            .into_iter()
+            .zip(all_mask)
+            .zip(all_type_ids)
+            .enumerate()
+        {
             let len = ids.len().min(max_len);
-            padded_ids.slice_mut(ndarray::s![i, ..len]).assign(&ndarray::Array1::from_vec(ids[..len].to_vec()));
-            padded_mask.slice_mut(ndarray::s![i, ..len]).assign(&ndarray::Array1::from_vec(mask[..len].to_vec()));
-            padded_type.slice_mut(ndarray::s![i, ..len]).assign(&ndarray::Array1::from_vec(types[..len].to_vec()));
+            padded_ids
+                .slice_mut(ndarray::s![i, ..len])
+                .assign(&ndarray::Array1::from_vec(ids[..len].to_vec()));
+            padded_mask
+                .slice_mut(ndarray::s![i, ..len])
+                .assign(&ndarray::Array1::from_vec(mask[..len].to_vec()));
+            padded_type
+                .slice_mut(ndarray::s![i, ..len])
+                .assign(&ndarray::Array1::from_vec(types[..len].to_vec()));
         }
 
         // 3. Inférence ONNX
@@ -242,8 +292,11 @@ impl ModernBertEncoder {
         let outputs = session_guard.run(inputs)?;
 
         // 4. Extraire last_hidden_state [batch, seq, hidden]
-        let hidden = outputs.iter()
-            .find(|(name, _)| name.contains("hidden") || name.contains("sequence") || name.contains("last"))
+        let hidden = outputs
+            .iter()
+            .find(|(name, _)| {
+                name.contains("hidden") || name.contains("sequence") || name.contains("last")
+            })
             .ok_or_else(|| LayaError::InvalidConfig("Sortie last_hidden_state introuvable".into()))?
             .1;
 
@@ -251,7 +304,10 @@ impl ModernBertEncoder {
         let dims: Vec<usize> = shape.iter().map(|d| *d as usize).collect();
         // dims = [batch, seq, hidden]
         if dims.len() != 3 {
-            return Err(LayaError::DimensionMismatch { expected: 3, got: dims.len() });
+            return Err(LayaError::DimensionMismatch {
+                expected: 3,
+                got: dims.len(),
+            });
         }
         let [_b, seq, hidden_dim] = [dims[0], dims[1], dims[2]];
 
@@ -281,19 +337,29 @@ impl ModernBertEncoder {
                 count += 1;
             }
             if count > 0 {
-                for v in &mut mean { *v /= count as f32; }
+                for v in &mut mean {
+                    *v /= count as f32;
+                }
             }
             mean_embeddings.push(mean);
         }
 
-        Ok(EncoderOutput::new(cls_embeddings, mean_embeddings, seq_lens))
+        Ok(EncoderOutput::new(
+            cls_embeddings,
+            mean_embeddings,
+            seq_lens,
+        ))
     }
 
     /// Dimension cachée du modèle.
-    pub fn hidden_dim(&self) -> usize { self.hidden_dim }
+    pub fn hidden_dim(&self) -> usize {
+        self.hidden_dim
+    }
 
     /// Longueur max de séquence.
-    pub fn max_seq_len(&self) -> usize { self.config.max_seq_len }
+    pub fn max_seq_len(&self) -> usize {
+        self.config.max_seq_len
+    }
 }
 
 impl std::fmt::Debug for ModernBertEncoder {
@@ -327,7 +393,10 @@ impl MockEncoder {
             return Err(LayaError::InvalidInput("Batch vide".into()));
         }
         if texts.len() > self.config.max_batch_size {
-            return Err(LayaError::BatchTooLarge { max: self.config.max_batch_size, got: texts.len() });
+            return Err(LayaError::BatchTooLarge {
+                max: self.config.max_batch_size,
+                got: texts.len(),
+            });
         }
 
         let batch_size = texts.len();
@@ -349,17 +418,26 @@ impl MockEncoder {
 
             if !text.trim().is_empty() {
                 for i in 0..hidden_dim {
-                // Générer des valeurs déterministes basées sur le hash
-                let val = ((hash.wrapping_mul(i as u64 + 1) as f32) / u64::MAX as f32) * 2.0 - 1.0;
-                cls[i] = val;
-                mean[i] = val * 0.5; // Mean slightly different
-            }
+                    // Générer des valeurs déterministes basées sur le hash
+                    let val =
+                        ((hash.wrapping_mul(i as u64 + 1) as f32) / u64::MAX as f32) * 2.0 - 1.0;
+                    cls[i] = val;
+                    mean[i] = val * 0.5; // Mean slightly different
+                }
 
-            // Normaliser (L2)
-            let cls_norm: f32 = cls.iter().map(|v| v * v).sum::<f32>().sqrt();
-            let mean_norm: f32 = mean.iter().map(|v| v * v).sum::<f32>().sqrt();
-            if cls_norm > 0.0 { for v in &mut cls { *v /= cls_norm; } }
-            if mean_norm > 0.0 { for v in &mut mean { *v /= mean_norm; } }
+                // Normaliser (L2)
+                let cls_norm: f32 = cls.iter().map(|v| v * v).sum::<f32>().sqrt();
+                let mean_norm: f32 = mean.iter().map(|v| v * v).sum::<f32>().sqrt();
+                if cls_norm > 0.0 {
+                    for v in &mut cls {
+                        *v /= cls_norm;
+                    }
+                }
+                if mean_norm > 0.0 {
+                    for v in &mut mean {
+                        *v /= mean_norm;
+                    }
+                }
             }
 
             cls_embeddings.push(cls);
@@ -367,11 +445,19 @@ impl MockEncoder {
             seq_lens.push(text.len().min(self.config.max_seq_len));
         }
 
-        Ok(EncoderOutput::new(cls_embeddings, mean_embeddings, seq_lens))
+        Ok(EncoderOutput::new(
+            cls_embeddings,
+            mean_embeddings,
+            seq_lens,
+        ))
     }
 
-    pub fn hidden_dim(&self) -> usize { self.hidden_dim }
-    pub fn max_seq_len(&self) -> usize { self.config.max_seq_len }
+    pub fn hidden_dim(&self) -> usize {
+        self.hidden_dim
+    }
+    pub fn max_seq_len(&self) -> usize {
+        self.config.max_seq_len
+    }
 }
 
 /// Encodeur unifié : soit ModernBERT réel, soit Mock pour les tests.
@@ -392,7 +478,10 @@ impl Encoder {
             match ModernBertEncoder::load_with_config(config).await {
                 Ok(encoder) => Ok(Self::Real(encoder)),
                 Err(e) => {
-                    warn!("Échec chargement ModernBERT ({}), fallback MOCK: {}", config_clone.model_path, e);
+                    warn!(
+                        "Échec chargement ModernBERT ({}), fallback MOCK: {}",
+                        config_clone.model_path, e
+                    );
                     let mut mock_config = config_clone;
                     mock_config.mock = true;
                     Ok(Self::Mock(MockEncoder::new(mock_config)))

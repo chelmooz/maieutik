@@ -2,17 +2,15 @@
 //!
 //! Exposes Laya System 1 primitives and Maieutik retrieval via MCP.
 
-use laya_primitives::{LayaConfig, LayaSystem, NoulOutput, ChoiceOutput, ScoreOutput};
+use laya_primitives::{ChoiceOutput, LayaConfig, LayaSystem, NoulOutput, ScoreOutput};
+use rmcp::model::ProtocolVersion;
 use rmcp::{
     handler::server::ServerHandler,
+    model::{CallToolRequestMethod, CallToolResult, Content, ServerCapabilities, Tool},
     service::RequestContext,
-    model::{ServerCapabilities, Tool, CallToolResult, Content, CallToolRequestMethod},
     transport::stdio,
-    ErrorData,
-    ServiceExt,
-    RoleServer,
+    ErrorData, RoleServer, ServiceExt,
 };
-use rmcp::model::ProtocolVersion;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -53,7 +51,9 @@ struct MaieutikLayaServer {
 
 impl MaieutikLayaServer {
     fn new() -> Self {
-        Self { system: Arc::new(tokio::sync::RwLock::new(None)) }
+        Self {
+            system: Arc::new(tokio::sync::RwLock::new(None)),
+        }
     }
 
     async fn ensure_initialized(&self) -> Result<(), String> {
@@ -77,57 +77,84 @@ impl MaieutikLayaServer {
         };
 
         vec![
-            make_tool("health".into(), "Health check - returns system status".into(), json!({"type": "object", "properties": {}})),
-            make_tool("noul".into(), "Noul guardrail - detects injection, OOD, null inputs".into(), json!({
-                "type": "object",
-                "properties": {
-                    "text": {"type": "string", "description": "Text to analyze"}
-                },
-                "required": ["text"]
-            })),
-            make_tool("choice".into(), "Choice router - selects best option from closed set".into(), json!({
-                "type": "object",
-                "properties": {
-                    "context": {"type": "string", "description": "Context for routing"},
-                    "options": {"type": "array", "items": {"type": "string"}, "description": "Options to choose from"}
-                },
-                "required": ["context", "options"]
-            })),
-            make_tool("score".into(), "Score critic - evaluates chunk relevance for RAG".into(), json!({
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Query text"},
-                    "chunks": {"type": "array", "items": {"type": "string"}, "description": "Chunks to score"}
-                },
-                "required": ["query", "chunks"]
-            })),
+            make_tool(
+                "health".into(),
+                "Health check - returns system status".into(),
+                json!({"type": "object", "properties": {}}),
+            ),
+            make_tool(
+                "noul".into(),
+                "Noul guardrail - detects injection, OOD, null inputs".into(),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string", "description": "Text to analyze"}
+                    },
+                    "required": ["text"]
+                }),
+            ),
+            make_tool(
+                "choice".into(),
+                "Choice router - selects best option from closed set".into(),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "context": {"type": "string", "description": "Context for routing"},
+                        "options": {"type": "array", "items": {"type": "string"}, "description": "Options to choose from"}
+                    },
+                    "required": ["context", "options"]
+                }),
+            ),
+            make_tool(
+                "score".into(),
+                "Score critic - evaluates chunk relevance for RAG".into(),
+                json!({
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "Query text"},
+                        "chunks": {"type": "array", "items": {"type": "string"}, "description": "Chunks to score"}
+                    },
+                    "required": ["query", "chunks"]
+                }),
+            ),
         ]
     }
 
-    async fn handle_call(&self, name: &str, args: Option<serde_json::Map<String, serde_json::Value>>) -> Result<CallToolResult, ErrorData> {
+    async fn handle_call(
+        &self,
+        name: &str,
+        args: Option<serde_json::Map<String, serde_json::Value>>,
+    ) -> Result<CallToolResult, ErrorData> {
         let args_map = args.as_ref().cloned().unwrap_or_default();
         match name {
             "health" => {
                 // S'assurer que le système est initialisé
-                self.ensure_initialized().await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
-                
+                self.ensure_initialized()
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+
                 let system_guard = self.system.read().await;
-                let system = system_guard.as_ref().ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
+                let system = system_guard
+                    .as_ref()
+                    .ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
 
                 let noul_loaded = async {
                     let guard = system.noul.read().await;
                     (&*guard).is_loaded()
-                }.await;
+                }
+                .await;
 
                 let choice_loaded = async {
                     let guard = system.choice.read().await;
                     (&*guard).is_loaded()
-                }.await;
+                }
+                .await;
 
                 let score_loaded = async {
                     let guard = system.score.read().await;
                     (&*guard).is_loaded()
-                }.await;
+                }
+                .await;
 
                 let response = HealthResponse {
                     status: "healthy".to_string(),
@@ -142,50 +169,84 @@ impl MaieutikLayaServer {
                 )]))
             }
             "noul" => {
-                self.ensure_initialized().await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                self.ensure_initialized()
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
                 let system = self.system.read().await;
-                let system = system.as_ref().ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
+                let system = system
+                    .as_ref()
+                    .ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
 
                 let text = args_map.get("text").and_then(|v| v.as_str()).unwrap_or("");
-                let output: NoulOutput = system.noul(text).await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                let output: NoulOutput = system
+                    .noul(text)
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
 
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&output).unwrap(),
                 )]))
             }
             "choice" => {
-                self.ensure_initialized().await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                self.ensure_initialized()
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
                 let system = self.system.read().await;
-                let system = system.as_ref().ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
+                let system = system
+                    .as_ref()
+                    .ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
 
-                let context = args_map.get("context").and_then(|v| v.as_str()).unwrap_or("");
-                let options = args_map.get("options").and_then(|v| v.as_array())
+                let context = args_map
+                    .get("context")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let options = args_map
+                    .get("options")
+                    .and_then(|v| v.as_array())
                     .map(|arr| {
-                        let vec: Vec<_> = arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+                        let vec: Vec<_> = arr
+                            .iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect();
                         vec
                     })
                     .unwrap_or_default();
 
-                let output: ChoiceOutput = system.choice(context, &options).await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                let output: ChoiceOutput = system
+                    .choice(context, &options)
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
 
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&output).unwrap(),
                 )]))
             }
             "score" => {
-                self.ensure_initialized().await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                self.ensure_initialized()
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
                 let system = self.system.read().await;
-                let system = system.as_ref().ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
+                let system = system
+                    .as_ref()
+                    .ok_or_else(|| ErrorData::internal_error("System not initialized", None))?;
 
                 let query = args_map.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                let chunks = args_map.get("chunks").and_then(|v| v.as_array())
+                let chunks = args_map
+                    .get("chunks")
+                    .and_then(|v| v.as_array())
                     .map(|arr| {
-                        let vec: Vec<_> = arr.iter().filter_map(|v| v.as_str().map(String::from)).collect();
+                        let vec: Vec<_> = arr
+                            .iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect();
                         vec
                     })
                     .unwrap_or_default();
 
-                let output: ScoreOutput = system.score(query, &chunks).await.map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
+                let output: ScoreOutput = system
+                    .score(query, &chunks)
+                    .await
+                    .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
 
                 Ok(CallToolResult::success(vec![Content::text(
                     serde_json::to_string_pretty(&output).unwrap(),
@@ -201,7 +262,9 @@ impl ServerHandler for MaieutikLayaServer {
         rmcp::model::ServerInfo {
             protocol_version: rmcp::model::ProtocolVersion::default(),
             capabilities: ServerCapabilities {
-                tools: Some(rmcp::model::ToolsCapability { list_changed: Some(false) }),
+                tools: Some(rmcp::model::ToolsCapability {
+                    list_changed: Some(false),
+                }),
                 ..Default::default()
             },
             server_info: rmcp::model::Implementation {
@@ -212,14 +275,22 @@ impl ServerHandler for MaieutikLayaServer {
         }
     }
 
-    async fn list_tools(&self, _request: Option<rmcp::model::PaginatedRequestParam>, _context: RequestContext<RoleServer>) -> Result<rmcp::model::ListToolsResult, ErrorData> {
+    async fn list_tools(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParam>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ListToolsResult, ErrorData> {
         Ok(rmcp::model::ListToolsResult {
             tools: Self::make_tools(),
             next_cursor: None,
         })
     }
 
-    async fn call_tool(&self, request: rmcp::model::CallToolRequestParam, _context: RequestContext<RoleServer>) -> Result<CallToolResult, ErrorData> {
+    async fn call_tool(
+        &self,
+        request: rmcp::model::CallToolRequestParam,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
         self.handle_call(&request.name, request.arguments).await
     }
 }

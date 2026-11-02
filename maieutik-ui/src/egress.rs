@@ -90,12 +90,22 @@ mod tests {
     fn docker_host_only_when_enabled() {
         let url = "http://host.docker.internal:11434/v1";
         assert!(!ok(url));
-        assert!(EgressPolicy { allow_docker_host: true }.check_url(url).is_ok());
+        assert!(EgressPolicy {
+            allow_docker_host: true
+        }
+        .check_url(url)
+        .is_ok());
     }
 
     #[test]
     fn non_http_and_empty_are_invalid() {
-        assert!(matches!(EgressPolicy::default().check_url("ftp://localhost/"), Err(EgressError::Invalid(_))));
-        assert!(matches!(EgressPolicy::default().check_url("http:///x"), Err(EgressError::Invalid(_))));
+        assert!(matches!(
+            EgressPolicy::default().check_url("ftp://localhost/"),
+            Err(EgressError::Invalid(_))
+        ));
+        assert!(matches!(
+            EgressPolicy::default().check_url("http:///x"),
+            Err(EgressError::Invalid(_))
+        ));
     }
 }

@@ -8,23 +8,23 @@
 //! All heads share the same frozen ModernBERT backbone (Apache 2.0).
 //! Inference runs on CPU/NPU via ONNX Runtime (FP16).
 
-pub mod encoder;
-pub mod noul;
-pub mod choice;
-pub mod score;
 pub mod batch;
+pub mod choice;
+pub mod encoder;
 pub mod metrics;
+pub mod noul;
+pub mod score;
 
-pub use encoder::{Encoder, EncoderConfig, EncoderOutput, ModernBertEncoder, MockEncoder};
-pub use noul::{NoulHead, NoulConfig, NoulOutput};
-pub use choice::{ChoiceHead, ChoiceConfig, ChoiceOutput};
-pub use score::{ScoreHead, ScoreConfig, ScoreOutput};
-pub use batch::{BatchInference, BatchConfig, BatchRequest, BatchResponse};
-pub use metrics::{PrimitiveMetrics, MetricsSnapshot};
+pub use batch::{BatchConfig, BatchInference, BatchRequest, BatchResponse};
+pub use choice::{ChoiceConfig, ChoiceHead, ChoiceOutput};
+pub use encoder::{Encoder, EncoderConfig, EncoderOutput, MockEncoder, ModernBertEncoder};
+pub use metrics::{MetricsSnapshot, PrimitiveMetrics};
+pub use noul::{NoulConfig, NoulHead, NoulOutput};
+pub use score::{ScoreConfig, ScoreHead, ScoreOutput};
 
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use thiserror::Error;
+use tokio::sync::RwLock;
 
 /// Erreurs unifiées pour toutes les primitives System 1.
 #[derive(Error, Debug, Clone)]
@@ -104,17 +104,29 @@ pub struct LayaConfig {
     pub mock: bool,
 }
 
-fn default_device() -> String { "cpu".into() }
-fn default_threads() -> usize { 4 }
-fn default_max_seq_len() -> usize { 8192 }
-fn default_max_batch() -> usize { 64 }
-fn default_fp16() -> bool { true }
+fn default_device() -> String {
+    "cpu".into()
+}
+fn default_threads() -> usize {
+    4
+}
+fn default_max_seq_len() -> usize {
+    8192
+}
+fn default_max_batch() -> usize {
+    64
+}
+fn default_fp16() -> bool {
+    true
+}
 
 impl Default for LayaConfig {
     fn default() -> Self {
         // Utiliser mock par défaut pour éviter les problèmes ONNX Runtime en dev/test
         // En production, définir mock=false et fournir les vrais modèles
-        let mock = std::env::var("LAYA_MOCK").map(|v| v == "1" || v == "true").unwrap_or(true);
+        let mock = std::env::var("LAYA_MOCK")
+            .map(|v| v == "1" || v == "true")
+            .unwrap_or(true);
         Self {
             model_path: "models/modernbert-base.onnx".into(),
             tokenizer_path: "models/tokenizer.json".into(),
@@ -162,9 +174,15 @@ impl LayaSystem {
         let encoder = Arc::new(Encoder::load(encoder_cfg).await?);
 
         // 4. Charger les têtes avec les configs enrichies
-        let noul = Arc::new(RwLock::new(NoulHead::load_with_config(noul_cfg, encoder.clone()).await?));
-        let choice = Arc::new(RwLock::new(ChoiceHead::load_with_config(choice_cfg, encoder.clone()).await?));
-        let score = Arc::new(RwLock::new(ScoreHead::load_with_config(score_cfg, encoder.clone()).await?));
+        let noul = Arc::new(RwLock::new(
+            NoulHead::load_with_config(noul_cfg, encoder.clone()).await?,
+        ));
+        let choice = Arc::new(RwLock::new(
+            ChoiceHead::load_with_config(choice_cfg, encoder.clone()).await?,
+        ));
+        let score = Arc::new(RwLock::new(
+            ScoreHead::load_with_config(score_cfg, encoder.clone()).await?,
+        ));
 
         // 5. Créer le batch inference (sans workers pour l'instant)
         let batch = Arc::new(BatchInference::new(config.max_batch_size));

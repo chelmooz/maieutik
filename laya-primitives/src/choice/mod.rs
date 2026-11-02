@@ -8,12 +8,12 @@
 //! - Choisir outil MCP : ["maieutik.search", "files.read", "bash.exec", "web.search"]
 //! - Décider action : ["rag", "agent", "direct_answer", "clarify"]
 
-use super::{LayaConfig, LayaError, Result, Encoder, EncoderOutput};
+use super::{Encoder, EncoderOutput, LayaConfig, LayaError, Result};
 use ndarray::Array2;
 use ort::session::{Session, SessionInputValue};
 use ort::value::Tensor;
-use std::sync::Arc;
 use std::path::Path;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
@@ -32,13 +32,19 @@ pub struct ChoiceConfig {
     pub environment: Option<Arc<ort::environment::Environment>>,
 }
 
-fn default_temp() -> f32 { 1.0 }
-fn default_max_options() -> usize { 16 }
+fn default_temp() -> f32 {
+    1.0
+}
+fn default_max_options() -> usize {
+    16
+}
 
 impl From<&LayaConfig> for ChoiceConfig {
     fn from(c: &LayaConfig) -> Self {
         Self {
-            model_path: c.model_path.replace("modernbert-base.onnx", "choice-head.onnx"),
+            model_path: c
+                .model_path
+                .replace("modernbert-base.onnx", "choice-head.onnx"),
             intra_threads: c.intra_threads,
             fp16: c.fp16,
             temperature: default_temp(),
@@ -76,15 +82,23 @@ impl ChoiceOutput {
         temperature: f32,
     ) -> Self {
         let probs = softmax_with_temp(logits, temperature);
-        let selected_index = probs.iter()
+        let selected_index = probs
+            .iter()
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
             .map(|(i, _)| i)
             .unwrap_or(0);
         let selected_option = options.get(selected_index).cloned().unwrap_or_default();
-        let entropy = probs.iter().map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 }).sum();
+        let entropy = probs
+            .iter()
+            .map(|p| if *p > 0.0 { -p * p.ln() } else { 0.0 })
+            .sum();
         let max_entropy = (options.len() as f32).ln();
-        let confidence = if max_entropy > 0.0 { 1.0 - entropy / max_entropy } else { 1.0 };
+        let confidence = if max_entropy > 0.0 {
+            1.0 - entropy / max_entropy
+        } else {
+            1.0
+        };
 
         Self {
             selected_index,
@@ -117,10 +131,17 @@ impl ChoiceHead {
             info!("Chargement tête Choice depuis {}", choice_cfg.model_path);
             Some(Self::create_session(&choice_cfg)?)
         } else {
-            warn!("Tête Choice introuvable ({}), utilisation fallback heuristique", choice_cfg.model_path);
+            warn!(
+                "Tête Choice introuvable ({}), utilisation fallback heuristique",
+                choice_cfg.model_path
+            );
             None
         };
-        Ok(Self { session, config: choice_cfg, encoder })
+        Ok(Self {
+            session,
+            config: choice_cfg,
+            encoder,
+        })
     }
 
     /// Charge avec une config pré-remplie (incluant l'environnement).
@@ -129,14 +150,24 @@ impl ChoiceHead {
             info!("Chargement tête Choice depuis {}", config.model_path);
             Some(Self::create_session(&config)?)
         } else {
-            warn!("Tête Choice introuvable ({}), utilisation fallback heuristique", config.model_path);
+            warn!(
+                "Tête Choice introuvable ({}), utilisation fallback heuristique",
+                config.model_path
+            );
             None
         };
-        Ok(Self { session, config, encoder })
+        Ok(Self {
+            session,
+            config,
+            encoder,
+        })
     }
 
     fn create_session(cfg: &ChoiceConfig) -> Result<ort::session::Session> {
-        let env = cfg.environment.as_ref().ok_or_else(|| LayaError::EnvironmentNotInitialized)?;
+        let env = cfg
+            .environment
+            .as_ref()
+            .ok_or_else(|| LayaError::EnvironmentNotInitialized)?;
         Ok(ort::session::Session::builder(env)?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(cfg.intra_threads)?
@@ -159,7 +190,7 @@ impl ChoiceHead {
                 cls_embedding: vec![],
             });
         }
-        
+
         // Truncate options if too many
         let options = if options.len() > self.config.max_options {
             &options[..self.config.max_options]
@@ -188,17 +219,29 @@ impl ChoiceHead {
         };
 
         let latency_ms = (start.elapsed().as_millis() as u64).max(1);
-        Ok(ChoiceOutput::new(&logits, options, cls.to_vec(), latency_ms, self.config.temperature))
+        Ok(ChoiceOutput::new(
+            &logits,
+            options,
+            cls.to_vec(),
+            latency_ms,
+            self.config.temperature,
+        ))
     }
 
-    async fn predict_onnx(&self, session: &mut Session, cls: &[f32], n_options: usize) -> Result<Vec<f32>> {
+    async fn predict_onnx(
+        &self,
+        session: &mut Session,
+        cls: &[f32],
+        n_options: usize,
+    ) -> Result<Vec<f32>> {
         // Get output names before running (session.run takes &mut self)
         let output_infos = session.outputs();
         let output_names: Vec<String> = output_infos.iter().map(|o| o.name().to_string()).collect();
 
         let input = Array2::from_shape_vec((1, cls.len()), cls.to_vec())?;
         let tensor = Tensor::from_array(input)?;
-        let inputs: Vec<(String, ort::value::Value)> = vec![("cls_embedding".to_string(), tensor.into())];
+        let inputs: Vec<(String, ort::value::Value)> =
+            vec![("cls_embedding".to_string(), tensor.into())];
         let outputs = session.run(inputs)?;
 
         for (i, output) in outputs.into_iter().enumerate() {
@@ -208,12 +251,18 @@ impl ChoiceHead {
                     return Ok(data.to_vec());
                 }
                 // Fallback: si une seule sortie et elle a la bonne taille
-                if output_names.len() == 1 && i == 0 && (dims == [1, n_options] || dims == [n_options]) {
+                if output_names.len() == 1
+                    && i == 0
+                    && (dims == [1, n_options] || dims == [n_options])
+                {
                     return Ok(data.to_vec());
                 }
             }
         }
-        Err(LayaError::DimensionMismatch { expected: n_options, got: 0 })
+        Err(LayaError::DimensionMismatch {
+            expected: n_options,
+            got: 0,
+        })
     }
 
     /// Fallback heuristique : routage basé sur mots-clés dans le contexte.
@@ -267,7 +316,10 @@ impl ChoiceHead {
 
 fn softmax_with_temp(logits: &[f32], temp: f32) -> Vec<f32> {
     let max_logit = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    let exp: Vec<f32> = logits.iter().map(|&x| ((x - max_logit) / temp).exp()).collect();
+    let exp: Vec<f32> = logits
+        .iter()
+        .map(|&x| ((x - max_logit) / temp).exp())
+        .collect();
     let sum: f32 = exp.iter().sum();
     exp.into_iter().map(|x| x / sum).collect()
 }

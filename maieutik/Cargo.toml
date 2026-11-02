@@ -50,6 +50,8 @@ cuda = ["llama-cpp-2/cuda"]
 metal = ["llama-cpp-2/metal"]
 vulkan = ["llama-cpp-2/vulkan"]
 full = ["cuda", "vulkan"]
+encrypt-secrets = ["chacha20poly1305", "rand_core"]
+keyring-support = []  # P0: cross-platform secrets with keyring
 
 [dependencies]
 anyhow = { workspace = true }
@@ -67,6 +69,18 @@ async-trait = { workspace = true }
 # Config & Secrets
 config = { version = "0.14", features = ["json"] }
 dirs = "5"
+
+# P0: Secrets & Model Management
+keyring = { workspace = true }
+reqwest = { workspace = true }
+sha2 = { workspace = true }
+tokio-util = { workspace = true }
+fd-lock = { workspace = true }
+schemars = { workspace = true }
+
+# Encryption for file store (optional feature)
+chacha20poly1305 = { version = "0.10", optional = true }
+rand_core = { version = "0.6", optional = true }
 
 # File Watching
 notify = { version = "6", features = ["mio"] }
@@ -107,15 +121,17 @@ hound = "3.5"
 # Utilities
 uuid = { workspace = true }
 chrono = { workspace = true }
-sha2 = "0.10"
 blake3 = "1"
 base64 = "0.22"
 percent-encoding = "2.3"
+libc = "0.2"
+dashmap = { workspace = true }
 
 ndarray = { workspace = true }
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex", "onig"] }
 
 rand = "0.8"
+tokio-stream = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -123,6 +139,7 @@ proptest = { workspace = true }
 pretty_assertions = "1"
 criterion = { workspace = true }
 tokio-test = { workspace = true }
+wiremock = "0.6"
 
 [[bench]]
 name = "perf_baseline"

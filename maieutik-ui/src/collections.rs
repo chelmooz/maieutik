@@ -48,16 +48,28 @@ mod tests {
 
     #[test]
     fn classifies_by_path_component() {
-        assert_eq!(Collection::of(Path::new("/n/sources/a.pdf")), Collection::Sources);
+        assert_eq!(
+            Collection::of(Path::new("/n/sources/a.pdf")),
+            Collection::Sources
+        );
         assert_eq!(Collection::of(Path::new("/n/wiki/a.md")), Collection::Wiki);
         assert_eq!(Collection::of(Path::new("/n/eval/q.md")), Collection::Eval);
-        assert_eq!(Collection::of(Path::new("/n/divers/a.md")), Collection::Other);
+        assert_eq!(
+            Collection::of(Path::new("/n/divers/a.md")),
+            Collection::Other
+        );
     }
 
     #[test]
     fn substring_is_not_a_match() {
-        assert_eq!(Collection::of(Path::new("/n/evaluation/a.md")), Collection::Other);
-        assert_eq!(Collection::of(Path::new("/n/sources_old/a.md")), Collection::Other);
+        assert_eq!(
+            Collection::of(Path::new("/n/evaluation/a.md")),
+            Collection::Other
+        );
+        assert_eq!(
+            Collection::of(Path::new("/n/sources_old/a.md")),
+            Collection::Other
+        );
     }
 
     #[test]

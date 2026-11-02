@@ -128,8 +128,15 @@ fn merge_group(group: &[&Candidate], file_path: &str) -> Candidate {
         text,
         heading_path: first.heading_path.clone(),
         chunk_index: first.chunk_index,
-        score: group.iter().map(|c| c.score).max_by(f32::total_cmp).unwrap_or(0.0),
-        dense_similarity: group.iter().filter_map(|c| c.dense_similarity).max_by(f32::total_cmp),
+        score: group
+            .iter()
+            .map(|c| c.score)
+            .max_by(f32::total_cmp)
+            .unwrap_or(0.0),
+        dense_similarity: group
+            .iter()
+            .filter_map(|c| c.dense_similarity)
+            .max_by(f32::total_cmp),
         lexical_rank: group.iter().filter_map(|c| c.lexical_rank).min(),
     }
 }
@@ -317,8 +324,18 @@ mod tests {
     #[test]
     fn results_stay_sorted_by_score() {
         // Utiliser des chemins qui n'existent pas pour éviter TryWholeFile
-        let c1 = candidate("a#0", "/nonexistent/results_stay_sorted_by_score_a.md", "alpha beta", 0.5);
-        let c2 = candidate("b#0", "/nonexistent/results_stay_sorted_by_score_b.md", "gamma delta", 0.9);
+        let c1 = candidate(
+            "a#0",
+            "/nonexistent/results_stay_sorted_by_score_a.md",
+            "alpha beta",
+            0.5,
+        );
+        let c2 = candidate(
+            "b#0",
+            "/nonexistent/results_stay_sorted_by_score_b.md",
+            "gamma delta",
+            0.9,
+        );
         let kept = select_passages(vec![c1, c2], 1000, 2);
         assert_eq!(kept[0].id, "b#0");
     }

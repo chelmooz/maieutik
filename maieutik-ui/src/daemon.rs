@@ -35,7 +35,12 @@ pub struct DaemonClient {
 
 impl DaemonClient {
     pub fn new(path: PathBuf, timeout: Duration) -> Self {
-        Self { path, timeout, next_id: 1, mode: SearchMode::default() }
+        Self {
+            path,
+            timeout,
+            next_id: 1,
+            mode: SearchMode::default(),
+        }
     }
 
     /// Choisit la méthode de recherche (`search.semantic` / `.keyword` / `.hybrid`).
@@ -62,15 +67,21 @@ impl DaemonClient {
         s.read_exact(&mut len).map_err(map_read)?;
         let len = u32::from_le_bytes(len) as usize;
         if len > MAX_FRAME {
-            return Err(PortError::Protocol(format!("trame de {len} octets refusée")));
+            return Err(PortError::Protocol(format!(
+                "trame de {len} octets refusée"
+            )));
         }
         let mut buf = vec![0u8; len];
         s.read_exact(&mut buf).map_err(map_read)?;
-        let resp: Value = serde_json::from_slice(&buf).map_err(|e| PortError::Protocol(e.to_string()))?;
+        let resp: Value =
+            serde_json::from_slice(&buf).map_err(|e| PortError::Protocol(e.to_string()))?;
         if resp["ok"].as_bool().unwrap_or(false) {
             Ok(resp["result"].clone())
         } else {
-            let msg = resp["error"].as_str().unwrap_or("erreur sans message").to_owned();
+            let msg = resp["error"]
+                .as_str()
+                .unwrap_or("erreur sans message")
+                .to_owned();
             if msg.contains("non implémentée") {
                 Err(PortError::NotWired(msg))
             } else {
@@ -95,7 +106,9 @@ fn map_read(e: std::io::Error) -> PortError {
 impl SearchPort for DaemonClient {
     fn search(&mut self, query: &str, k: usize) -> Result<Vec<Hit>, PortError> {
         let v = self.call(self.mode.method(), json!({"query": query, "limit": k}))?;
-        let hits = v["hits"].as_array().ok_or_else(|| PortError::Protocol("champ `hits` absent".into()))?;
+        let hits = v["hits"]
+            .as_array()
+            .ok_or_else(|| PortError::Protocol("champ `hits` absent".into()))?;
         Ok(hits
             .iter()
             .map(|h| {

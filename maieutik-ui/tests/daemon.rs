@@ -10,7 +10,10 @@ use std::thread;
 use std::time::Duration;
 
 fn sock(name: &str) -> PathBuf {
-    let p = std::env::temp_dir().join(format!("maieutik-ui-test-{}-{name}.sock", std::process::id()));
+    let p = std::env::temp_dir().join(format!(
+        "maieutik-ui-test-{}-{name}.sock",
+        std::process::id()
+    ));
     let _ = std::fs::remove_file(&p);
     p
 }
@@ -35,7 +38,9 @@ fn serve(path: &PathBuf, n: usize, handler: fn(&str) -> Vec<u8>) -> thread::Join
 fn ok_or_refuse(method: &str) -> Vec<u8> {
     let v = match method {
         "health.check" => json!({"ok": true, "result": {"version": "0.1.0"}, "id": 1}),
-        other => json!({"ok": false, "error": format!("méthode inconnue ou non implémentée : {other}"), "id": 1}),
+        other => {
+            json!({"ok": false, "error": format!("méthode inconnue ou non implémentée : {other}"), "id": 1})
+        }
     };
     serde_json::to_vec(&v).unwrap()
 }
@@ -44,7 +49,12 @@ fn ok_or_refuse(method: &str) -> Vec<u8> {
 fn health_check_returns_version() {
     let p = sock("health");
     let h = serve(&p, 1, ok_or_refuse);
-    assert_eq!(DaemonClient::new(p, Duration::from_secs(2)).health_check().unwrap(), "0.1.0");
+    assert_eq!(
+        DaemonClient::new(p, Duration::from_secs(2))
+            .health_check()
+            .unwrap(),
+        "0.1.0"
+    );
     h.join().unwrap();
 }
 
@@ -52,7 +62,9 @@ fn health_check_returns_version() {
 fn unrouted_search_maps_to_not_wired() {
     let p = sock("search");
     let h = serve(&p, 1, ok_or_refuse);
-    let err = DaemonClient::new(p, Duration::from_secs(2)).search("contrat", 3).unwrap_err();
+    let err = DaemonClient::new(p, Duration::from_secs(2))
+        .search("contrat", 3)
+        .unwrap_err();
     assert!(matches!(err, PortError::NotWired(_)), "reçu : {err:?}");
     h.join().unwrap();
 }
@@ -67,7 +79,9 @@ fn routed_search_parses_hits_and_derives_collection() {
     }
     let p = sock("routed");
     let h = serve(&p, 1, routed);
-    let hits = DaemonClient::new(p, Duration::from_secs(2)).search("q", 5).unwrap();
+    let hits = DaemonClient::new(p, Duration::from_secs(2))
+        .search("q", 5)
+        .unwrap();
     assert_eq!(hits.len(), 2);
     assert_eq!(hits[0].heading_path.as_deref(), Some("A > B"));
     assert_eq!(hits[0].collection.label(), "wiki");
@@ -91,8 +105,12 @@ fn search_mode_selects_the_bridge_method() {
                 let mut buf = vec![0u8; u32::from_le_bytes(len) as usize];
                 s.read_exact(&mut buf).unwrap();
                 let req: Value = serde_json::from_slice(&buf).unwrap();
-                seen.lock().unwrap().push(req["method"].as_str().unwrap().to_string());
-                let body = serde_json::to_vec(&json!({"ok": true, "id": 1, "result": {"hits": []}})).unwrap();
+                seen.lock()
+                    .unwrap()
+                    .push(req["method"].as_str().unwrap().to_string());
+                let body =
+                    serde_json::to_vec(&json!({"ok": true, "id": 1, "result": {"hits": []}}))
+                        .unwrap();
                 s.write_all(&(body.len() as u32).to_le_bytes()).unwrap();
                 s.write_all(&body).unwrap();
             }
@@ -101,8 +119,15 @@ fn search_mode_selects_the_bridge_method() {
     let p = sock("modes");
     let seen = Arc::new(Mutex::new(Vec::new()));
     let h = recording(&p, seen.clone());
-    for m in [SearchMode::Semantic, SearchMode::Lexical, SearchMode::Hybrid] {
-        DaemonClient::new(p.clone(), Duration::from_secs(2)).with_mode(m).search("q", 3).unwrap();
+    for m in [
+        SearchMode::Semantic,
+        SearchMode::Lexical,
+        SearchMode::Hybrid,
+    ] {
+        DaemonClient::new(p.clone(), Duration::from_secs(2))
+            .with_mode(m)
+            .search("q", 3)
+            .unwrap();
     }
     h.join().unwrap();
     assert_eq!(
@@ -113,7 +138,9 @@ fn search_mode_selects_the_bridge_method() {
 
 #[test]
 fn absent_socket_is_unavailable() {
-    let err = DaemonClient::new(sock("absent"), Duration::from_secs(1)).health_check().unwrap_err();
+    let err = DaemonClient::new(sock("absent"), Duration::from_secs(1))
+        .health_check()
+        .unwrap_err();
     assert!(matches!(err, PortError::Unavailable(_)), "reçu : {err:?}");
 }
 
@@ -129,7 +156,9 @@ fn oversized_frame_is_refused() {
         s.read_exact(&mut buf).unwrap();
         s.write_all(&(2_000_000u32).to_le_bytes()).unwrap();
     });
-    let err = DaemonClient::new(p, Duration::from_secs(2)).health_check().unwrap_err();
+    let err = DaemonClient::new(p, Duration::from_secs(2))
+        .health_check()
+        .unwrap_err();
     assert!(matches!(err, PortError::Protocol(_)), "reçu : {err:?}");
     h.join().unwrap();
 }

@@ -64,9 +64,9 @@ fn chat_command_returns_not_implemented() {
     );
 }
 
-/// A5.2 RED: `model list` command should return exit code 3
+/// A5.2 GREEN: `model list` command should work and return exit code 0
 #[test]
-fn model_list_returns_not_implemented() {
+fn model_list_works() {
     let (_dir, _work, home, cfg, data, cache) = setup_test_env(TempDir::new().unwrap());
 
     let output = run_maieutik(
@@ -82,24 +82,25 @@ fn model_list_returns_not_implemented() {
 
     assert_eq!(
         output.status.code(),
-        Some(3),
-        "model list should return exit code 3"
+        Some(0),
+        "model list should return exit code 0"
     );
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Should output "Aucun modèle installé." or empty list
     assert!(
-        stderr.contains("model") || stderr.contains("non implémenté"),
-        "stderr should mention model/not implemented: {}",
-        stderr
+        stdout.contains("Aucun") || stdout.trim().is_empty(),
+        "stdout should mention no models: {}",
+        stdout
     );
 }
 
-/// A5.3 RED: `model download` command should return exit code 3
+/// A5.3 GREEN: `model download` command should fail gracefully for unknown model
 #[test]
-fn model_download_returns_not_implemented() {
+fn model_download_unknown_model_fails() {
     let (_dir, _work, home, cfg, data, cache) = setup_test_env(TempDir::new().unwrap());
 
     let output = run_maieutik(
-        &["model", "download", "test-model"],
+        &["model", "download", "unknown-model"],
         Some(vec![
             ("HOME", home.to_str().unwrap()),
             ("XDG_CONFIG_HOME", cfg.to_str().unwrap()),
@@ -109,20 +110,20 @@ fn model_download_returns_not_implemented() {
         ]),
     );
 
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "model download should return exit code 3"
+    // Should fail with non-zero exit code (model not found)
+    assert!(
+        output.status.code().unwrap_or(-1) != 0,
+        "model download unknown should fail"
     );
 }
 
-/// A5.4 RED: `model remove` command should return exit code 3
+/// A5.4 GREEN: `model remove` command should fail gracefully for unknown model
 #[test]
-fn model_remove_returns_not_implemented() {
+fn model_remove_unknown_model_fails() {
     let (_dir, _work, home, cfg, data, cache) = setup_test_env(TempDir::new().unwrap());
 
     let output = run_maieutik(
-        &["model", "remove", "test-model"],
+        &["model", "remove", "unknown-model", "--force"],
         Some(vec![
             ("HOME", home.to_str().unwrap()),
             ("XDG_CONFIG_HOME", cfg.to_str().unwrap()),
@@ -132,20 +133,20 @@ fn model_remove_returns_not_implemented() {
         ]),
     );
 
-    assert_eq!(
-        output.status.code(),
-        Some(3),
-        "model remove should return exit code 3"
+    // Should fail with non-zero exit code (model not found)
+    assert!(
+        output.status.code().unwrap_or(-1) != 0,
+        "model remove unknown should fail"
     );
 }
 
-/// A5.5 RED: `model status` command should return exit code 3
+/// A5.5 GREEN: `model status` command should work and report NotInstalled
 #[test]
-fn model_status_returns_not_implemented() {
+fn model_status_not_installed() {
     let (_dir, _work, home, cfg, data, cache) = setup_test_env(TempDir::new().unwrap());
 
     let output = run_maieutik(
-        &["model", "status"],
+        &["model", "status", "unknown-model"],
         Some(vec![
             ("HOME", home.to_str().unwrap()),
             ("XDG_CONFIG_HOME", cfg.to_str().unwrap()),
@@ -157,8 +158,14 @@ fn model_status_returns_not_implemented() {
 
     assert_eq!(
         output.status.code(),
-        Some(3),
-        "model status should return exit code 3"
+        Some(0),
+        "model status should return exit code 0"
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("Non installé") || stdout.contains("NotInstalled"),
+        "stdout should mention not installed: {}",
+        stdout
     );
 }
 

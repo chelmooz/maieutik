@@ -242,7 +242,14 @@ impl TextEmbedder for HashEmbedder {
             let h = blake3::hash(word.to_lowercase().as_bytes());
             let b = h.as_bytes();
             let idx = (u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize) % EMBEDDING_DIM;
-            let sign = if b[4].is_multiple_of(2) { 1.0 } else { -1.0 };
+            let sign = {
+                #[allow(clippy::incompatible_msrv)]
+                if b[4].is_multiple_of(2) {
+                    1.0
+                } else {
+                    -1.0
+                }
+            };
             v[idx] += sign;
         }
         let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -579,7 +586,11 @@ impl VectorIndex {
     /// Remplace les chunks du fichier dans l'index BM25 sans reconstruire
     /// l'index complet. Si l'index n'existe pas encore, l'initialise.
     /// L'index HNSW n'est PAS mis à jour ici.
-    pub async fn update_bm25_for_file(&self, file_path: &str, chunks: &[crate::config::Chunk]) -> Result<()> {
+    pub async fn update_bm25_for_file(
+        &self,
+        file_path: &str,
+        chunks: &[crate::config::Chunk],
+    ) -> Result<()> {
         let mut bm25_guard = self.bm25.write().await;
         let bm25 = bm25_guard.get_or_insert_with(Bm25Index::default);
 

@@ -8,12 +8,12 @@
 //!
 //! Seuil par défaut : `is_safe = (injection_score < 0.5) && (null_score < 0.5) && !is_ood`
 
-use super::{LayaConfig, LayaError, Result, Encoder, EncoderOutput};
+use super::{Encoder, EncoderOutput, LayaConfig, LayaError, Result};
 use ndarray::Array2;
 use ort::session::{Session, SessionInputValue};
 use ort::value::Tensor;
-use std::sync::Arc;
 use std::path::Path;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize, schemars::JsonSchema)]
@@ -35,14 +35,22 @@ pub struct NoulConfig {
     pub environment: Option<Arc<ort::environment::Environment>>,
 }
 
-fn default_injection_thresh() -> f32 { 0.5 }
-fn default_null_thresh() -> f32 { 0.5 }
-fn default_ood_thresh() -> f32 { 0.7 }
+fn default_injection_thresh() -> f32 {
+    0.5
+}
+fn default_null_thresh() -> f32 {
+    0.5
+}
+fn default_ood_thresh() -> f32 {
+    0.7
+}
 
 impl From<&LayaConfig> for NoulConfig {
     fn from(c: &LayaConfig) -> Self {
         Self {
-            model_path: c.model_path.replace("modernbert-base.onnx", "noul-head.onnx"),
+            model_path: c
+                .model_path
+                .replace("modernbert-base.onnx", "noul-head.onnx"),
             intra_threads: c.intra_threads,
             fp16: c.fp16,
             injection_threshold: default_injection_thresh(),
@@ -104,17 +112,26 @@ pub struct NoulHead {
 }
 
 impl NoulHead {
-    pub fn is_loaded(&self) -> bool { self.session.is_some() }
+    pub fn is_loaded(&self) -> bool {
+        self.session.is_some()
+    }
     pub async fn load(config: &LayaConfig, encoder: Arc<Encoder>) -> Result<Self> {
         let noul_cfg = NoulConfig::from(config);
         let session = if Path::new(&noul_cfg.model_path).exists() {
             info!("Chargement tête Noul depuis {}", noul_cfg.model_path);
             Some(Self::create_session(&noul_cfg)?)
         } else {
-            warn!("Tête Noul introuvable ({}), utilisation fallback heuristique", noul_cfg.model_path);
+            warn!(
+                "Tête Noul introuvable ({}), utilisation fallback heuristique",
+                noul_cfg.model_path
+            );
             None
         };
-        Ok(Self { session, config: noul_cfg, encoder })
+        Ok(Self {
+            session,
+            config: noul_cfg,
+            encoder,
+        })
     }
 
     /// Charge avec une config pré-remplie (incluant l'environnement).
@@ -123,14 +140,24 @@ impl NoulHead {
             info!("Chargement tête Noul depuis {}", config.model_path);
             Some(Self::create_session(&config)?)
         } else {
-            warn!("Tête Noul introuvable ({}), utilisation fallback heuristique", config.model_path);
+            warn!(
+                "Tête Noul introuvable ({}), utilisation fallback heuristique",
+                config.model_path
+            );
             None
         };
-        Ok(Self { session, config, encoder })
+        Ok(Self {
+            session,
+            config,
+            encoder,
+        })
     }
 
     fn create_session(cfg: &NoulConfig) -> Result<ort::session::Session> {
-        let env = cfg.environment.as_ref().ok_or_else(|| LayaError::EnvironmentNotInitialized)?;
+        let env = cfg
+            .environment
+            .as_ref()
+            .ok_or_else(|| LayaError::EnvironmentNotInitialized)?;
         Ok(ort::session::Session::builder(env)?
             .with_optimization_level(ort::session::builder::GraphOptimizationLevel::Level3)?
             .with_intra_threads(cfg.intra_threads)?
@@ -152,7 +179,14 @@ impl NoulHead {
             self.predict_heuristic(cls)
         };
 
-        Ok(NoulOutput::new(injection, null, ood, cls.to_vec(), (start.elapsed().as_millis() as u64).max(1), &self.config))
+        Ok(NoulOutput::new(
+            injection,
+            null,
+            ood,
+            cls.to_vec(),
+            (start.elapsed().as_millis() as u64).max(1),
+            &self.config,
+        ))
     }
 
     async fn predict_onnx(&self, session: &mut Session, cls: &[f32]) -> Result<(f32, f32, f32)> {
@@ -165,16 +199,21 @@ impl NoulHead {
 
         let input = Array2::from_shape_vec((1, cls.len()), cls.to_vec())?;
         let tensor = Tensor::from_array(input)?;
-        let inputs: Vec<(String, ort::value::Value)> = vec![("cls_embedding".to_string(), tensor.into())];
+        let inputs: Vec<(String, ort::value::Value)> =
+            vec![("cls_embedding".to_string(), tensor.into())];
         let outputs = session.run(inputs)?;
 
         for (i, output) in outputs.into_iter().enumerate() {
             if let Ok((_shape, data)) = output.1.try_extract_tensor::<f32>() {
                 if i < output_names.len() {
                     let name = &output_names[i];
-                    if name.contains("injection") { injection = sigmoid(data[0]); }
-                    else if name.contains("null") { null = sigmoid(data[0]); }
-                    else if name.contains("ood") { ood = sigmoid(data[0]); }
+                    if name.contains("injection") {
+                        injection = sigmoid(data[0]);
+                    } else if name.contains("null") {
+                        null = sigmoid(data[0]);
+                    } else if name.contains("ood") {
+                        ood = sigmoid(data[0]);
+                    }
                 }
             }
         }

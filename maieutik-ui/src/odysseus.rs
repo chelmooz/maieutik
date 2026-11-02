@@ -13,11 +13,17 @@ impl OdysseusProbe {
 
     pub fn inspect(&self) -> Result<String, PortError> {
         if !self.root.is_dir() {
-            return Err(PortError::Unavailable(format!("racine absente : {}", self.root.display())));
+            return Err(PortError::Unavailable(format!(
+                "racine absente : {}",
+                self.root.display()
+            )));
         }
         let rag = self.root.join(Self::RAG_SERVER);
         if !rag.is_file() {
-            return Err(PortError::Unavailable(format!("{} introuvable", rag.display())));
+            return Err(PortError::Unavailable(format!(
+                "{} introuvable",
+                rag.display()
+            )));
         }
         Ok(format!("{} présent", Self::RAG_SERVER))
     }
@@ -26,7 +32,8 @@ impl OdysseusProbe {
 impl AgentPort for OdysseusProbe {
     fn submit(&mut self, _task: &str) -> Result<String, PortError> {
         Err(PortError::NotWired(
-            "aucun contrat UI→Odysseus défini (Odysseus appelle Maieutik via MCP, pas l'inverse)".into(),
+            "aucun contrat UI→Odysseus défini (Odysseus appelle Maieutik via MCP, pas l'inverse)"
+                .into(),
         ))
     }
 }

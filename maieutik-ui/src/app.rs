@@ -109,7 +109,8 @@ impl App {
             }
         }
         self.pipeline.collections = cols;
-        self.backend.send(Command::SetPipeline(self.pipeline.clone()));
+        self.backend
+            .send(Command::SetPipeline(self.pipeline.clone()));
         self.backend.send(Command::Run(self.prompt.clone()));
         self.busy = true;
     }
@@ -142,24 +143,33 @@ impl App {
                 ui.heading("Maieutik");
                 ui.label(RichText::new("local-first · Laya · Odysseus").weak());
                 if self.cfg.demo {
-                    ui.label(RichText::new("  MODE DÉMO — résultats simulés").color(AMBER).strong());
+                    ui.label(
+                        RichText::new("  MODE DÉMO — résultats simulés")
+                            .color(AMBER)
+                            .strong(),
+                    );
                 }
             });
         });
 
-        egui::SidePanel::left("nav").resizable(false).exact_width(180.0).show(ctx, |ui| {
-            ui.add_space(8.0);
-            ui.selectable_value(&mut self.tab, Tab::Dashboard, "Tableau de bord");
-            ui.selectable_value(&mut self.tab, Tab::Query, "Requête & RAG");
-            ui.selectable_value(&mut self.tab, Tab::Network, "Réseau & garde-fous");
-        });
+        egui::SidePanel::left("nav")
+            .resizable(false)
+            .exact_width(180.0)
+            .show(ctx, |ui| {
+                ui.add_space(8.0);
+                ui.selectable_value(&mut self.tab, Tab::Dashboard, "Tableau de bord");
+                ui.selectable_value(&mut self.tab, Tab::Query, "Requête & RAG");
+                ui.selectable_value(&mut self.tab, Tab::Network, "Réseau & garde-fous");
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| match self.tab {
-                Tab::Dashboard => self.dashboard(ui),
-                Tab::Query => self.query(ui),
-                Tab::Network => self.network(ui),
-            });
+            egui::ScrollArea::vertical()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| match self.tab {
+                    Tab::Dashboard => self.dashboard(ui),
+                    Tab::Query => self.query(ui),
+                    Tab::Network => self.network(ui),
+                });
         });
     }
 
@@ -186,7 +196,12 @@ impl App {
                 ui.separator();
                 for r in self.health.iter().filter(|r| r.brick.host() == host) {
                     ui.horizontal_wrapped(|ui| {
-                        ui.label(RichText::new(format!("{:<12}", r.state.tag())).color(state_color(&r.state)).strong().monospace());
+                        ui.label(
+                            RichText::new(format!("{:<12}", r.state.tag()))
+                                .color(state_color(&r.state))
+                                .strong()
+                                .monospace(),
+                        );
                         ui.label(RichText::new(r.brick.label()).strong());
                         if let Some(ms) = r.latency_ms {
                             ui.label(RichText::new(format!("{ms} ms")).monospace().weak());
@@ -218,8 +233,16 @@ impl App {
                     GuardPolicy::Skip => "Désactivé",
                 })
                 .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.pipeline.guard, GuardPolicy::RequireReal, "Noul réel requis (fail-closed)");
-                    ui.selectable_value(&mut self.pipeline.guard, GuardPolicy::AllowMock, "Noul simulé accepté");
+                    ui.selectable_value(
+                        &mut self.pipeline.guard,
+                        GuardPolicy::RequireReal,
+                        "Noul réel requis (fail-closed)",
+                    );
+                    ui.selectable_value(
+                        &mut self.pipeline.guard,
+                        GuardPolicy::AllowMock,
+                        "Noul simulé accepté",
+                    );
                     ui.selectable_value(&mut self.pipeline.guard, GuardPolicy::Skip, "Désactivé");
                 });
             ui.checkbox(&mut self.pipeline.rerank, "Reranking Laya Score");
@@ -227,7 +250,11 @@ impl App {
             egui::ComboBox::from_label("Recherche")
                 .selected_text(self.pipeline.search_mode.label())
                 .show_ui(ui, |ui| {
-                    for m in [SearchMode::Hybrid, SearchMode::Semantic, SearchMode::Lexical] {
+                    for m in [
+                        SearchMode::Hybrid,
+                        SearchMode::Semantic,
+                        SearchMode::Lexical,
+                    ] {
                         ui.selectable_value(&mut self.pipeline.search_mode, m, m.label());
                     }
                 });
@@ -241,7 +268,16 @@ impl App {
         });
 
         let can = !self.busy && !self.prompt.trim().is_empty();
-        let clicked = ui.add_enabled(can, egui::Button::new(if self.busy { "En cours…" } else { "Exécuter" })).clicked();
+        let clicked = ui
+            .add_enabled(
+                can,
+                egui::Button::new(if self.busy {
+                    "En cours…"
+                } else {
+                    "Exécuter"
+                }),
+            )
+            .clicked();
         if clicked || (ctrl_enter && can) {
             self.submit();
         }
@@ -261,38 +297,59 @@ impl App {
             ))
             .strong(),
         );
-        egui::Grid::new("trace").striped(true).num_columns(4).spacing([12.0, 4.0]).show(ui, |ui| {
-            for s in &t.steps {
-                ui.label(s.name);
-                ui.label(RichText::new(format!("{} ms", s.ms)).monospace());
-                let mut txt = RichText::new(status_text(&s.status)).color(status_color(&s.status));
-                if s.simulated {
-                    txt = txt.italics();
+        egui::Grid::new("trace")
+            .striped(true)
+            .num_columns(4)
+            .spacing([12.0, 4.0])
+            .show(ui, |ui| {
+                for s in &t.steps {
+                    ui.label(s.name);
+                    ui.label(RichText::new(format!("{} ms", s.ms)).monospace());
+                    let mut txt =
+                        RichText::new(status_text(&s.status)).color(status_color(&s.status));
+                    if s.simulated {
+                        txt = txt.italics();
+                    }
+                    ui.label(txt);
+                    let mut d = s.detail.clone();
+                    if s.simulated {
+                        d.push_str(" [simulé]");
+                    }
+                    ui.label(RichText::new(d).weak());
+                    ui.end_row();
                 }
-                ui.label(txt);
-                let mut d = s.detail.clone();
-                if s.simulated {
-                    d.push_str(" [simulé]");
-                }
-                ui.label(RichText::new(d).weak());
-                ui.end_row();
-            }
-        });
+            });
 
         if !t.hits.is_empty() {
             ui.add_space(8.0);
             ui.label(RichText::new(format!("Passages ({})", t.hits.len())).strong());
             for (i, h) in t.hits.iter().enumerate() {
-                let prov = if h.collection.is_primary() { "source primaire" } else { "synthèse / autre" };
-                let rel = h.relevance.map(|r| format!(" · pertinence {r:.2}")).unwrap_or_default();
-                let head = format!("{}. [{}] {}  (score {:.3}{rel})", i + 1, h.collection.label(), h.file_path, h.score);
-                egui::CollapsingHeader::new(head).id_salt(("hit", i)).default_open(i == 0).show(ui, |ui| {
-                    if let Some(hp) = &h.heading_path {
-                        ui.label(RichText::new(hp).weak());
-                    }
-                    ui.label(&h.text);
-                    ui.label(RichText::new(prov).weak().small());
-                });
+                let prov = if h.collection.is_primary() {
+                    "source primaire"
+                } else {
+                    "synthèse / autre"
+                };
+                let rel = h
+                    .relevance
+                    .map(|r| format!(" · pertinence {r:.2}"))
+                    .unwrap_or_default();
+                let head = format!(
+                    "{}. [{}] {}  (score {:.3}{rel})",
+                    i + 1,
+                    h.collection.label(),
+                    h.file_path,
+                    h.score
+                );
+                egui::CollapsingHeader::new(head)
+                    .id_salt(("hit", i))
+                    .default_open(i == 0)
+                    .show(ui, |ui| {
+                        if let Some(hp) = &h.heading_path {
+                            ui.label(RichText::new(hp).weak());
+                        }
+                        ui.label(&h.text);
+                        ui.label(RichText::new(prov).weak().small());
+                    });
             }
         }
     }
@@ -301,27 +358,54 @@ impl App {
         ui.heading("Réseau & garde-fous");
         ui.label("L'UI ne parle qu'à la machine locale. Tout le reste est refusé avant connexion.");
         ui.add_space(6.0);
-        egui::Grid::new("channels").striped(true).num_columns(2).spacing([16.0, 4.0]).show(ui, |ui| {
-            let sock = self.cfg.daemon_socket.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "(aucun)".into());
-            let laya = self.cfg.laya.as_ref().map(|l| l.launch.program.display().to_string()).unwrap_or_else(|| "(non configuré)".into());
-            let od = self.cfg.odysseus_root.as_ref().map(|p| p.display().to_string()).unwrap_or_else(|| "(non configuré)".into());
-            let llm = self.cfg.llm_endpoint.clone().unwrap_or_else(|| "(non configuré)".into());
-            for (k, v) in [
-                ("Maieutik — socket Unix", sock),
-                ("Laya — processus fils (stdio MCP)", laya),
-                ("Odysseus — racine (présence seulement)", od),
-                ("LLM System 2 — endpoint (loopback)", llm),
-            ] {
-                ui.label(k);
-                ui.label(RichText::new(v).monospace());
-                ui.end_row();
-            }
-        });
+        egui::Grid::new("channels")
+            .striped(true)
+            .num_columns(2)
+            .spacing([16.0, 4.0])
+            .show(ui, |ui| {
+                let sock = self
+                    .cfg
+                    .daemon_socket
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "(aucun)".into());
+                let laya = self
+                    .cfg
+                    .laya
+                    .as_ref()
+                    .map(|l| l.launch.program.display().to_string())
+                    .unwrap_or_else(|| "(non configuré)".into());
+                let od = self
+                    .cfg
+                    .odysseus_root
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "(non configuré)".into());
+                let llm = self
+                    .cfg
+                    .llm_endpoint
+                    .clone()
+                    .unwrap_or_else(|| "(non configuré)".into());
+                for (k, v) in [
+                    ("Maieutik — socket Unix", sock),
+                    ("Laya — processus fils (stdio MCP)", laya),
+                    ("Odysseus — racine (présence seulement)", od),
+                    ("LLM System 2 — endpoint (loopback)", llm),
+                ] {
+                    ui.label(k);
+                    ui.label(RichText::new(v).monospace());
+                    ui.end_row();
+                }
+            });
         ui.add_space(10.0);
         ui.label(RichText::new("Tester une URL contre la politique").strong());
         ui.add(egui::TextEdit::singleline(&mut self.url_probe).desired_width(f32::INFINITY));
         match EgressPolicy::default().check_url(&self.url_probe) {
-            Ok(()) => ui.label(RichText::new("AUTORISÉE — boucle locale").color(GREEN).strong()),
+            Ok(()) => ui.label(
+                RichText::new("AUTORISÉE — boucle locale")
+                    .color(GREEN)
+                    .strong(),
+            ),
             Err(e) => ui.label(RichText::new(format!("REFUSÉE — {e}")).color(RED).strong()),
         };
         ui.add_space(10.0);
@@ -332,8 +416,14 @@ impl App {
 fn outcome_banner(ui: &mut egui::Ui, t: &Trace) {
     let (txt, col) = match &t.outcome {
         Outcome::Halted(w) => (format!("ARRÊTÉ — {w}"), RED),
-        Outcome::Retrieved(n) => (format!("{n} passage(s) retrouvé(s) — génération non câblée, aucune réponse rédigée"), AMBER),
-        Outcome::AgentUnavailable(w) => (format!("Route agent choisie, Odysseus indisponible — {w}"), AMBER),
+        Outcome::Retrieved(n) => (
+            format!("{n} passage(s) retrouvé(s) — génération non câblée, aucune réponse rédigée"),
+            AMBER,
+        ),
+        Outcome::AgentUnavailable(w) => (
+            format!("Route agent choisie, Odysseus indisponible — {w}"),
+            AMBER,
+        ),
         Outcome::DirectUnavailable(w) => (format!("Réponse directe demandée — {w}"), AMBER),
         Outcome::Failed(w) => (format!("ÉCHEC — {w}"), RED),
     };

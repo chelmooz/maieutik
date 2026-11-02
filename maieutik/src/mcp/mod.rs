@@ -442,7 +442,10 @@ impl McpServer {
         let hits = index.search_mode(&params.query, limit, mode).await?;
         let hits: Vec<SearchHit> = hits
             .into_iter()
-            .filter(|hit| params.min_score.is_none_or(|min| hit.score >= min))
+            .filter(|hit| {
+                #[allow(clippy::incompatible_msrv)]
+                params.min_score.is_none_or(|min| hit.score >= min)
+            })
             .filter(|hit| match &params.folders {
                 Some(folders) if !folders.is_empty() => folders
                     .iter()

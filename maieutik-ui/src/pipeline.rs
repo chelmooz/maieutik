@@ -93,7 +93,10 @@ pub struct Pipeline<'a> {
 }
 
 fn route_options() -> Vec<String> {
-    [ROUTE_RAG, ROUTE_AGENT, ROUTE_DIRECT].iter().map(|s| s.to_string()).collect()
+    [ROUTE_RAG, ROUTE_AGENT, ROUTE_DIRECT]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
 }
 
 impl Pipeline<'_> {
@@ -130,8 +133,23 @@ impl Pipeline<'_> {
         }
     }
 
-    fn push(tr: &mut Trace, name: &'static str, brick: Brick, status: StepStatus, t: Instant, detail: String, simulated: bool) {
-        tr.steps.push(Step { name, brick, status, ms: t.elapsed().as_millis() as u64, detail, simulated });
+    fn push(
+        tr: &mut Trace,
+        name: &'static str,
+        brick: Brick,
+        status: StepStatus,
+        t: Instant,
+        detail: String,
+        simulated: bool,
+    ) {
+        tr.steps.push(Step {
+            name,
+            brick,
+            status,
+            ms: t.elapsed().as_millis() as u64,
+            detail,
+            simulated,
+        });
     }
 
     fn step_guard(&mut self, prompt: &str, tr: &mut Trace) -> Option<String> {
@@ -139,18 +157,43 @@ impl Pipeline<'_> {
         let name = "Noul · garde-fou";
         let b = Brick::LayaNoul;
         if self.cfg.guard == GuardPolicy::Skip {
-            Self::push(tr, name, b, StepStatus::Skipped("désactivé par la configuration".into()), t, String::new(), false);
+            Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Skipped("désactivé par la configuration".into()),
+                t,
+                String::new(),
+                false,
+            );
             return None;
         }
         let Some(s1) = self.system1.as_deref_mut() else {
             let why = "Laya non configuré — garde-fou requis (fail-closed)".to_owned();
-            Self::push(tr, name, b, StepStatus::Unavailable(why.clone()), t, String::new(), false);
+            Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Unavailable(why.clone()),
+                t,
+                String::new(),
+                false,
+            );
             return Some(why);
         };
         let mock = s1.is_mock();
         if mock && self.cfg.guard == GuardPolicy::RequireReal {
-            let why = "Noul simulé : aucune protection réelle — requête stoppée (fail-closed)".to_owned();
-            Self::push(tr, name, b, StepStatus::Blocked(why.clone()), t, String::new(), true);
+            let why =
+                "Noul simulé : aucune protection réelle — requête stoppée (fail-closed)".to_owned();
+            Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Blocked(why.clone()),
+                t,
+                String::new(),
+                true,
+            );
             return Some(why);
         }
         match s1.noul(prompt) {
@@ -160,13 +203,32 @@ impl Pipeline<'_> {
                 None
             }
             Ok(v) => {
-                let why = format!("bloqué : injection={:.2} ood={}", v.injection_score, v.is_ood);
-                Self::push(tr, name, b, StepStatus::Blocked(why.clone()), t, String::new(), mock);
+                let why = format!(
+                    "bloqué : injection={:.2} ood={}",
+                    v.injection_score, v.is_ood
+                );
+                Self::push(
+                    tr,
+                    name,
+                    b,
+                    StepStatus::Blocked(why.clone()),
+                    t,
+                    String::new(),
+                    mock,
+                );
                 Some(why)
             }
             Err(e) => {
                 let why = format!("garde-fou en échec (fail-closed) : {e}");
-                Self::push(tr, name, b, StepStatus::Failed(why.clone()), t, String::new(), mock);
+                Self::push(
+                    tr,
+                    name,
+                    b,
+                    StepStatus::Failed(why.clone()),
+                    t,
+                    String::new(),
+                    mock,
+                );
                 Some(why)
             }
         }
@@ -181,7 +243,12 @@ impl Pipeline<'_> {
             ROUTE_RAG.to_owned()
         };
         let Some(s1) = self.system1.as_deref_mut() else {
-            return fallback(tr, StepStatus::Unavailable("Laya absent".into()), "repli explicite sur RAG".into(), false);
+            return fallback(
+                tr,
+                StepStatus::Unavailable("Laya absent".into()),
+                "repli explicite sur RAG".into(),
+                false,
+            );
         };
         let mock = s1.is_mock();
         match s1.choice(prompt, &route_options()) {
@@ -192,11 +259,19 @@ impl Pipeline<'_> {
             }
             Ok(v) => fallback(
                 tr,
-                StepStatus::Skipped(format!("confiance {:.2} < {:.2}", v.confidence, self.cfg.min_choice_confidence)),
+                StepStatus::Skipped(format!(
+                    "confiance {:.2} < {:.2}",
+                    v.confidence, self.cfg.min_choice_confidence
+                )),
                 format!("proposé : {} — repli sur RAG", v.selected_option),
                 mock,
             ),
-            Err(e) => fallback(tr, StepStatus::Failed(e.to_string()), "repli explicite sur RAG".into(), mock),
+            Err(e) => fallback(
+                tr,
+                StepStatus::Failed(e.to_string()),
+                "repli explicite sur RAG".into(),
+                mock,
+            ),
         }
     }
 
@@ -204,26 +279,64 @@ impl Pipeline<'_> {
         let t = Instant::now();
         let b = Brick::Maieutik;
         let Some(search) = self.search.as_deref_mut() else {
-            Self::push(tr, "Maieutik · recherche", b, StepStatus::Unavailable("aucun adaptateur de recherche".into()), t, String::new(), false);
+            Self::push(
+                tr,
+                "Maieutik · recherche",
+                b,
+                StepStatus::Unavailable("aucun adaptateur de recherche".into()),
+                t,
+                String::new(),
+                false,
+            );
             return Ok(());
         };
         let want = self.cfg.top_k * self.cfg.overfetch.max(1);
         let mut hits = match search.search(prompt, want) {
             Ok(h) => h,
             Err(e) if e.is_absent() => {
-                Self::push(tr, "Maieutik · recherche", b, StepStatus::Unavailable(e.to_string()), t, String::new(), false);
+                Self::push(
+                    tr,
+                    "Maieutik · recherche",
+                    b,
+                    StepStatus::Unavailable(e.to_string()),
+                    t,
+                    String::new(),
+                    false,
+                );
                 return Ok(());
             }
             Err(e) => {
-                Self::push(tr, "Maieutik · recherche", b, StepStatus::Failed(e.to_string()), t, String::new(), false);
+                Self::push(
+                    tr,
+                    "Maieutik · recherche",
+                    b,
+                    StepStatus::Failed(e.to_string()),
+                    t,
+                    String::new(),
+                    false,
+                );
                 return Err(e.to_string());
             }
         };
         let before = hits.len();
         // eval/ n'est jamais servi, même si l'appelant le coche.
-        hits.retain(|h| h.collection.allowed_in_production() && self.cfg.collections.contains(&h.collection));
+        hits.retain(|h| {
+            h.collection.allowed_in_production() && self.cfg.collections.contains(&h.collection)
+        });
         let dropped = before - hits.len();
-        Self::push(tr, "Maieutik · recherche", b, StepStatus::Ok, t, format!("{} · {} passage(s), {dropped} filtré(s) par collection", self.cfg.search_mode.label(), hits.len()), false);
+        Self::push(
+            tr,
+            "Maieutik · recherche",
+            b,
+            StepStatus::Ok,
+            t,
+            format!(
+                "{} · {} passage(s), {dropped} filtré(s) par collection",
+                self.cfg.search_mode.label(),
+                hits.len()
+            ),
+            false,
+        );
 
         self.step_rerank(prompt, &mut hits, tr);
         hits.truncate(self.cfg.top_k);
@@ -235,15 +348,39 @@ impl Pipeline<'_> {
         let t = Instant::now();
         let (name, b) = ("Score · reranking", Brick::LayaScore);
         if !self.cfg.rerank {
-            Self::push(tr, name, b, StepStatus::Skipped("désactivé".into()), t, String::new(), false);
+            Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Skipped("désactivé".into()),
+                t,
+                String::new(),
+                false,
+            );
             return;
         }
         let Some(s1) = self.system1.as_deref_mut() else {
-            Self::push(tr, name, b, StepStatus::Unavailable("Laya absent — ordre dense conservé".into()), t, String::new(), false);
+            Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Unavailable("Laya absent — ordre dense conservé".into()),
+                t,
+                String::new(),
+                false,
+            );
             return;
         };
         if hits.is_empty() {
-            Self::push(tr, name, b, StepStatus::Skipped("aucun passage".into()), t, String::new(), false);
+            Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Skipped("aucun passage".into()),
+                t,
+                String::new(),
+                false,
+            );
             return;
         }
         let mock = s1.is_mock();
@@ -255,14 +392,38 @@ impl Pipeline<'_> {
                         h.relevance = Some(sc.relevance);
                     }
                 }
-                hits.sort_by(|a, b| b.relevance.partial_cmp(&a.relevance).unwrap_or(std::cmp::Ordering::Equal));
-                Self::push(tr, name, b, StepStatus::Ok, t, format!("{} évalué(s)", v.chunks_evaluated), mock);
+                hits.sort_by(|a, b| {
+                    b.relevance
+                        .partial_cmp(&a.relevance)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                Self::push(
+                    tr,
+                    name,
+                    b,
+                    StepStatus::Ok,
+                    t,
+                    format!("{} évalué(s)", v.chunks_evaluated),
+                    mock,
+                );
             }
             Ok(v) => {
-                let d = format!("{} scores pour {} passages — ordre dense conservé", v.scores.len(), hits.len());
+                let d = format!(
+                    "{} scores pour {} passages — ordre dense conservé",
+                    v.scores.len(),
+                    hits.len()
+                );
                 Self::push(tr, name, b, StepStatus::Failed(d.clone()), t, d, mock);
             }
-            Err(e) => Self::push(tr, name, b, StepStatus::Failed(e.to_string()), t, "ordre dense conservé".into(), mock),
+            Err(e) => Self::push(
+                tr,
+                name,
+                b,
+                StepStatus::Failed(e.to_string()),
+                t,
+                "ordre dense conservé".into(),
+                mock,
+            ),
         }
     }
 
@@ -271,16 +432,40 @@ impl Pipeline<'_> {
         let b = Brick::Odysseus;
         let Some(agent) = self.agent.as_deref_mut() else {
             let why = "Odysseus non configuré".to_owned();
-            Self::push(tr, "Odysseus · agent", b, StepStatus::Unavailable(why.clone()), t, String::new(), false);
+            Self::push(
+                tr,
+                "Odysseus · agent",
+                b,
+                StepStatus::Unavailable(why.clone()),
+                t,
+                String::new(),
+                false,
+            );
             return Outcome::AgentUnavailable(why);
         };
         match agent.submit(prompt) {
             Ok(_) => {
-                Self::push(tr, "Odysseus · agent", b, StepStatus::Ok, t, "tâche déléguée".into(), false);
+                Self::push(
+                    tr,
+                    "Odysseus · agent",
+                    b,
+                    StepStatus::Ok,
+                    t,
+                    "tâche déléguée".into(),
+                    false,
+                );
                 Outcome::Retrieved(0)
             }
             Err(e) => {
-                Self::push(tr, "Odysseus · agent", b, StepStatus::Unavailable(e.to_string()), t, String::new(), false);
+                Self::push(
+                    tr,
+                    "Odysseus · agent",
+                    b,
+                    StepStatus::Unavailable(e.to_string()),
+                    t,
+                    String::new(),
+                    false,
+                );
                 Outcome::AgentUnavailable(e.to_string())
             }
         }
@@ -292,17 +477,46 @@ impl Pipeline<'_> {
         let n = tr.hits.len();
         match self.generator.as_deref_mut() {
             None => {
-                let why = "génération System 2 non câblée (jamais exécutée — VERIFICATION.md)".to_owned();
-                Self::push(tr, "LLM · génération", b, StepStatus::Unavailable(why.clone()), t, String::new(), false);
-                if route == ROUTE_DIRECT { Outcome::DirectUnavailable(why) } else { Outcome::Retrieved(n) }
+                let why =
+                    "génération System 2 non câblée (jamais exécutée — VERIFICATION.md)".to_owned();
+                Self::push(
+                    tr,
+                    "LLM · génération",
+                    b,
+                    StepStatus::Unavailable(why.clone()),
+                    t,
+                    String::new(),
+                    false,
+                );
+                if route == ROUTE_DIRECT {
+                    Outcome::DirectUnavailable(why)
+                } else {
+                    Outcome::Retrieved(n)
+                }
             }
             Some(g) => match g.answer(prompt, &tr.hits) {
                 Ok(_) => {
-                    Self::push(tr, "LLM · génération", b, StepStatus::Ok, t, "réponse produite".into(), false);
+                    Self::push(
+                        tr,
+                        "LLM · génération",
+                        b,
+                        StepStatus::Ok,
+                        t,
+                        "réponse produite".into(),
+                        false,
+                    );
                     Outcome::Retrieved(n)
                 }
                 Err(e) => {
-                    Self::push(tr, "LLM · génération", b, StepStatus::Failed(e.to_string()), t, String::new(), false);
+                    Self::push(
+                        tr,
+                        "LLM · génération",
+                        b,
+                        StepStatus::Failed(e.to_string()),
+                        t,
+                        String::new(),
+                        false,
+                    );
                     Outcome::Failed(e.to_string())
                 }
             },

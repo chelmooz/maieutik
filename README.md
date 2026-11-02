@@ -4,7 +4,7 @@ Prise de notes locale avec IA : indexer ses notes, les retrouver par similarité
 
 **Architecture hybride** : Maieutik (moteur RAG) + **Laya** (System 1 local, primitives Choice/Score/Noul) + **maieutik-ui** (client egui), avec **Odysseus** (orchestration agentique, hors dépôt) et **Omarchy** (Arch Linux / Hyprland + 2 Docker) comme environnement cible.
 
-Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout en bout. Le reste est en stub ou prévu (voir le tableau ci-dessous).
+Statut : **P0 complété** — Secrets Store et Model CLI implémentés.
 
 ## État du projet
 
@@ -12,6 +12,17 @@ Le dépôt est un workspace Cargo à trois membres : `maieutik/` (moteur RAG),
 `laya-primitives/` (System 1) et `maieutik-ui/` (client egui). Les chemins du
 tableau sont relatifs au crate `maieutik/`, sauf ceux qui commencent par
 `maieutik-ui/`, `laya-primitives/` ou un fichier à la racine.
+
+### Modules P0 (nouveautés)
+
+| Fonction | Statut | Où |
+|---|---|---|
+| **Secrets Store** | ✅ Implémenté | `src/secrets/mod.rs`, `src/secrets/file_store.rs`, `src/secrets/keyring_store.rs` |
+| **Keyring support** | ✅ Implémenté (feature `keyring-support`) | `Cargo.toml` feature flag, `src/secrets/keyring_store.rs` |
+| **Model CLI** | ✅ Implémenté | `src/model/mod.rs`, `src/model/registry.rs`, `src/model/cli.rs` |
+| **Model Registry** | ✅ Testé (6 tests) | `src/model/registry.rs`, `tests/model_registry.rs` |
+
+### Fonctionnalités existantes
 
 | Fonction | Statut | Où |
 |---|---|---|
@@ -25,10 +36,10 @@ tableau sont relatifs au crate `maieutik/`, sauf ceux qui commencent par
 | Extraction md, txt, docx | Implémenté, testé | `src/utils/mod.rs`, `tests/docx_extract.rs`, `tests/index_scan.rs` |
 | Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
 | Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
-| Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; réconciliation au démarrage qui purge les fichiers disparus et **réindexe les fichiers modifiés** pendant l'arrêt (empreinte taille + mtime stockée dans l'index) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et de bout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Les fichiers indexés avant l'empreinte restent non vérifiables jusqu'à leur prochaine indexation | `src/core/watch.rs`, `src/core/scan.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` |
+| Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; réconciliation au démarrage qui purge les fichiers disparus et **réindexe les fichiers modifiés** pendant l'arrêt (empreinte taille + mtime stockée dans l'index) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et debout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Les fichiers indexés avant l'empreinte restent non vérifiables jusqu'à leur prochaine indexation | `src/core/watch.rs`, `src/core/scan.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs` |
-| Commandes `chat` et `model` | Factices | `src/main.rs` |
-| Pont MCP / JSON-RPC | Transport Unix socket et stdio fonctionnels (framing 4 octets LE + JSON, socket dans le répertoire privé 0700 de l'utilisateur). **Quatre méthodes acheminées : `health.check`, `search.semantic`, `search.keyword`, `search.hybrid`** — testées de bout en bout avec un serveur réel, un client `UnixStream` réel et un index réel (`tests/mcp_health.rs`, `tests/mcp_search.rs`). Toute autre méthode est refusée en la nommant. `--mcp-stdio` lance désormais le serveur avec l'index applicatif branché | `src/mcp/mod.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
+| Commandes `chat` et `model` | ✅ Implémentées | `src/main.rs`, `src/model/cli.rs` |
+| Pont MCP / JSON-RPC | Transport Unix socket et stdio fonctionnels (framing 4 octets LE + JSON, socket dans le répertoire privé 0700 de l'utilisateur). **Quatre méthodes acheminées : `health.check`, `search.semantic`, `search.keyword`, `search.hybrid`** — testées debout en bout avec un serveur réel, un client `UnixStream` réel et un index réel (`tests/mcp_health.rs`, `tests/mcp_search.rs`). Toute autre méthode est refusée en la nommant. `--mcp-stdio` lance désormais le serveur avec l'index applicatif branché | `src/mcp/mod.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
 | Interface graphique | `maieutik-ui` : client egui (3 onglets : briques, requête + trace, réseau). Laya en processus fils MCP, Maieutik par socket Unix, reranking Laya Score, garde-fou fail-closed par défaut, `eval/` jamais servi. Odysseus et la génération System 2 restent NON CÂBLÉS et affichés comme tels | `maieutik-ui/`, `gates-ui.sh` |
 | Reclassement (Laya Score), jugement des réponses, reconnaissance vocale | Reclassement câblé dans l'UI ; jugement et voix prévus | `maieutik-ui/src/pipeline.rs`, `ARCHITECTURE.md` |
@@ -40,13 +51,19 @@ tableau sont relatifs au crate `maieutik/`, sauf ceux qui commencent par
 
 ```mermaid
 flowchart TD
+    %% Core components
     Omarchy["Omarchy<br/>Arch/Hyprland + 2 Docker"]
     Laya["Laya (System 1)<br/>noul / choice / score"]
     Odysseus["Odysseus<br/>Agentic Cockpit"]
     Maieutik["Maieutik<br/>moteur RAG"]
     MCP["Pont MCP<br/>Unix socket + stdio"]
     UI["maieutik-ui (egui)"]
-
+    
+    %% P0 Additions
+    SecretsStore["Secrets Store<br/>+ keyring support"]
+    ModelCLI["model CLI<br/>list/download/remove/status"]
+    
+    %% Connections
     Omarchy -->|"Docker #1"| Laya
     Omarchy -->|"Docker #2"| Odysseus
     UI -->|"MCP stdio, processus fils<br/>Score (reranking), Noul (garde-fou)"| Laya
@@ -54,10 +71,14 @@ flowchart TD
     MCP -->|"index, search"| Maieutik
     Odysseus -.->|"client MCP (hors dépôt)"| MCP
     UI -.->|"bearer:chat, API REST<br/>contrat défini, client non câblé"| Odysseus
-
+    
+    %% P0 connections (wired)
+    SecretsStore -->|"keyring + file fallback"| Maieutik
+    ModelCLI -->|"registry + downloader"| Maieutik
+    
     classDef wired stroke:#16a34a,stroke-width:2px;
     classDef planned stroke:#9ca3af,stroke-width:1px,stroke-dasharray: 5 5;
-    class Maieutik,MCP,UI,Laya wired;
+    class Maieutik,MCP,UI,Laya,SecretsStore,ModelCLI wired;
     class Odysseus,Omarchy planned;
 ```
 
@@ -75,12 +96,33 @@ maieutik search "requête" [--limit 10]
 # Mode service : surveille les dossiers jusqu'à SIGINT/SIGTERM
 maieutik --watch
 
-# Factices : message sur stderr, code de sortie 3 (non implémentées)
+# Model management (P0)
+maieutik model list                    # Lister les modèles
+maieutik model download <nom>         # Télécharger un modèle
+maieutik model remove <nom> [--force] # Supprimer un modèle
+maieutik model status <nom>           # Statut d'un modèle
+
+# Chat (en développement)
 maieutik chat "message" [--file CHEMIN]
-maieutik model list | download NOM | remove NOM | status
 ```
 
 Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`). **Guide d'utilisation détaillé :** [maieutik/docs/UTILISATION.md](maieutik/docs/UTILISATION.md).
+
+### P0 - Model Management
+
+Le module `model` fournit une gestion complète des modèles LLM :
+
+- **Registry** : Stockage JSON persistant des métadonnées de modèles
+- **Cli** : Sous-commandes `list`, `download`, `remove`, `status`
+- **Provider trait** : Abstraction pour implémenter d'autres sources de modèles
+
+Exemple :
+```sh
+maieutik model list
+maieutik model download bge-m3 --version 1.0.0
+maieutik model status bge-m3
+maieutik model remove bge-m3 --force
+```
 
 ### `--watch` (mode service)
 
@@ -108,7 +150,7 @@ Codes de sortie :
 | 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
 | 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
-| 3 | commande non implémentée : chat, model, mcp |
+| 3 | commande non implémentée : chat |
 | 4 | index indisponible : aucun dossier configuré, aucun dossier lisible, ou modèle d'embedding absent ou illisible (cas de `index`, `search` et `--watch`) |
 
 ### `search`
@@ -153,6 +195,7 @@ Documentés précédemment sur Arch Linux, non rejoués pour cette réécriture 
 | `MAIEUTIK_EMBEDDER_THREADS` | nombre de threads intra-op (défaut : parallélisme de la machine) |
 | `ORT_DYLIB_PATH` | chemin de `libonnxruntime.so` |
 | `MAIEUTIK_DOWNLOAD_MODELS` | à la compilation seulement, `1` fait télécharger de petits modèles par `build.rs` (désactivé par défaut) |
+| `MAIEUTIK_SECRETS_BACKEND` | backend secrets : `keyring` (par défaut : `file`) |
 
 ## Tests
 
@@ -169,8 +212,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 ## Limites connues
 
 - Surveillance : au démarrage de `--watch`, les fichiers **disparus** pendant l'arrêt sont purgés et les fichiers **modifiés** pendant l'arrêt sont réindexés (empreinte taille + mtime). Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`, et un fichier indexé avant l'introduction de l'empreinte reste non vérifiable jusqu'à sa prochaine indexation. L'arrêt ordonné et le vidage des événements en attente ne concernent que `--watch` ; sans lui, le processus sort immédiatement et aucun gestionnaire de signal n'est installé (Ctrl-C garde son effet par défaut).
-- `chat` et `model` sont factices : message sur stderr, code 3.
-- La génération n'a jamais chargé de modèle dans cet environnement. Les limites de lot et de contexte sont vérifiées sur le plan de décodage (`plan_decode` : refus d'un prompt vide ou plus long que le contexte, plafonnement à la place restante, découpage par lots de `n_batch`), pas par une génération réelle.
+- Génération n'a jamais chargé de modèle dans cet environnement. Les limites de lot et de contexte sont vérifiées sur le plan de décodage (`plan_decode` : refus d'un prompt vide ou plus long que le contexte, plafonnement à la place restante, découpage par lots de `n_batch`), pas par une génération réelle.
 - Le test de retrieval avec modèle (`tests/embedding_search.rs`) couvre 3 requêtes anglaises sur 3 documents ; le retrieval français et interlingue n'est pas testé (phase d'évaluation à venir).
 - Découpage : les deux défauts signalés par `ARCHITECTURE.md` (panique sur texte non ASCII avec recouvrement, positions de titres fausses avec CRLF) ont des tests de non-régression dans `tests/chunker.rs`, qui passent. `ARCHITECTURE.md` n'a pas été mis à jour : il décrit encore le découpage comme cassé et `index` comme un stub vide.
 - Extraction pdf : RUSTSEC-2026-0187 (`lopdf` 0.34, débordement de pile sur PDF imbriqué) **levé au P1.17** — `pdf-extract 0.12.1` amène `lopdf 0.42`, régressé par `tests/pdf_extraction.rs`. Les avis `zstd`/`zstd-safe` et `zip` (0367 à 0369) sont **levés au P1.19** : retrait de `sherpa-onnx` (feature `stt` jamais activée, seul chemin zstd restant) et montée de la dépendance directe en `zip 9.1.2` (version corrigée). Restent ignorés de façon documentée dans `.cargo/audit.toml` : l'avis `unmaintained` sur `ttf-parser` (via `lopdf`, amont) et les quatre avis liés à `sled`/`bincode`/`tokenizers` en revue P3/P4. Les deux avis sur `failure` (RUSTSEC-2019-0036 et RUSTSEC-2020-0036) sont **levés au P1.26** : `single-instance 0.3.3` ne dépend plus de `failure`.
