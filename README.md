@@ -2,7 +2,7 @@
 
 Prise de notes locale avec IA : indexer ses notes, les retrouver par similarité sémantique et, à terme, reclasser les résultats, générer des réponses sourcées et juger ces réponses. Tout s'exécute localement ; chaque composant externe est placé derrière un trait Rust et choisi par configuration, jamais par le code.
 
-**Architecture hybride** : Maieutik (moteur RAG) + **Odysseus** (orchestration agentique, MCP) + **Laya** (System 1 local, primitives Choice/Score/Noul) + **Omarchy** (Arch Linux / Hyprland + 2 Docker dédiés).
+**Architecture hybride** : Maieutik (moteur RAG) + **Laya** (System 1 local, primitives Choice/Score/Noul) + **maieutik-ui** (client egui), avec **Odysseus** (orchestration agentique, hors dépôt) et **Omarchy** (Arch Linux / Hyprland + 2 Docker) comme environnement cible.
 
 Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout en bout. Le reste est en stub ou prévu (voir le tableau ci-dessous).
 
@@ -10,7 +10,8 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 
 Le dépôt est un workspace Cargo à trois membres : `maieutik/` (moteur RAG),
 `laya-primitives/` (System 1) et `maieutik-ui/` (client egui). Les chemins du
-tableau sont relatifs au crate `maieutik/`.
+tableau sont relatifs au crate `maieutik/`, sauf ceux qui commencent par
+`maieutik-ui/`, `laya-primitives/` ou un fichier à la racine.
 
 | Fonction | Statut | Où |
 |---|---|---|
@@ -31,44 +32,36 @@ tableau sont relatifs au crate `maieutik/`.
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
 | Interface graphique | `maieutik-ui` : client egui (3 onglets : briques, requête + trace, réseau). Laya en processus fils MCP, Maieutik par socket Unix, reranking Laya Score, garde-fou fail-closed par défaut, `eval/` jamais servi. Odysseus et la génération System 2 restent NON CÂBLÉS et affichés comme tels | `maieutik-ui/`, `gates-ui.sh` |
 | Reclassement (Laya Score), jugement des réponses, reconnaissance vocale | Reclassement câblé dans l'UI ; jugement et voix prévus | `maieutik-ui/src/pipeline.rs`, `ARCHITECTURE.md` |
-| **Odysseus (Agentic Cockpit, MCP Client)** | **Installé à `/home/chelmooz/Projects/odysseus`, MCP RAG Server opérationnel (`rag_server.py`)** | `opencode.json`, `mcp_servers/rag_server.py` |
-| **Laya (System 1 primitives : Choice, Score, Noul)** | **Binaires MCP compilés (`maieutik-mcp`), `is_loaded()` implémenté** | `laya-primitives/src/`, `maieutik-mcp-wrapper.sh` |
-| **Omarchy Host (Arch/Hyprland + 2 Docker)** | **Configuré ; 2 Docker dédiés : #1 Laya+MCP Bridge, #2 Ollama/vLLM+bge-m3** | `docker-compose.yml`, `maieutik-mcp-wrapper.sh` |
+| Odysseus (Agentic Cockpit, client MCP) | Hors dépôt (Python), installé sur la machine de l'auteur. Client MCP de Maieutik. Côté UI : sonde de présence seulement ; contrat HTTP `bearer:chat` défini, client **non câblé** | `maieutik-ui/src/odysseus.rs`, `maieutik-ui/contracts/odysseus-bridge.schema.json` |
+| Laya (System 1 : Choice, Score, Noul) | Crate `laya-primitives` ; binaire MCP `maieutik-mcp` compilé et appelé par l'UI. Têtes ONNX absentes du dépôt : fallbacks heuristiques, `health` répond `*_loaded: false` | `laya-primitives/src/mcp_server.rs`, `maieutik-ui/UI_ARCHITECTURE.md` |
+| Omarchy (Arch/Hyprland + 2 Docker) | Environnement de déploiement décrit (Docker #1 Laya, Docker #2 Ollama/vLLM + bge-m3) ; aucun `docker-compose.yml` dans le dépôt | `maieutik/docs/INSTALLATION.md` §7 |
 
 ## Architecture
 
 ```mermaid
 flowchart TD
-    %% Architecture hybride : Maieutik + Odysseus + Laya + Omarchy
-    %% Composants internes
+    Omarchy["Omarchy<br/>Arch/Hyprland + 2 Docker"]
+    Laya["Laya (System 1)<br/>noul / choice / score"]
+    Odysseus["Odysseus<br/>Agentic Cockpit"]
     Maieutik["Maieutik<br/>moteur RAG"]
-    LayaSys["Laya (System 1)<br/>noul / choice / score"]
     MCP["Pont MCP<br/>Unix socket + stdio"]
     UI["maieutik-ui (egui)"]
-    Odysseus["Odysseus<br/>Agentic Cockpit"]
-    Omarchy["Omarchy<br/>Arch/Hyprland + 2 Docker"]
 
-    %% Liaisons internes (implémentées)
-    Maieutik -->|index, search| MCP
-    MCP -->|Unix socket| Maieutik
-    MCP -->|stdin/stdout| UI
-    UI -->|recherche (semantic/keyword/hybrid)| Maieutik
-    UI -->|bearer:chat| Odysseus
-    LayaSys -->|reranking Score| Maieutik
-    LayaSys -->|Guardrail Noul| UI
-    Odysseus -->|API REST| UI
-    Omarchy -->|Docker #1| LayaSys
-    Omarchy -->|Docker #2| Odysseus
+    Omarchy -->|"Docker #1"| Laya
+    Omarchy -->|"Docker #2"| Odysseus
+    UI -->|"MCP stdio, processus fils<br/>Score (reranking), Noul (garde-fou)"| Laya
+    UI -->|"search.semantic / keyword / hybrid<br/>Unix socket"| MCP
+    MCP -->|"index, search"| Maieutik
+    Odysseus -.->|"client MCP (hors dépôt)"| MCP
+    UI -.->|"bearer:chat, API REST<br/>contrat défini, client non câblé"| Odysseus
 
-    %% Légende des traits
-    classDef solid stroke:#6b7280,stroke-width:2px;
-    classDef dashed stroke:#9ca3af,stroke-width:1px;
-    class Maieutik,LayaSys,MCP,UI,Odysseus,Omarchy solid;
-    classDef stub stroke:#d1d5db,stroke-width:1px,stroke-dasharray: 5 5;
-    class GEN,JUDGE stub;
+    classDef wired stroke:#16a34a,stroke-width:2px;
+    classDef planned stroke:#9ca3af,stroke-width:1px,stroke-dasharray: 5 5;
+    class Maieutik,MCP,UI,Laya wired;
+    class Odysseus,Omarchy planned;
 ```
 
-Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu ; **bleu = composants hybrides (Odysseus, Laya, Omarchy) non encore câblés dans Maieutik**.
+Légende : trait plein = implémenté et testé ; pointillé = contrat défini ou composant hors dépôt, non câblé ; contour vert = composant du dépôt, contour gris pointillé = Odysseus et Omarchy (hors dépôt).
 
 ## Commandes
 
@@ -87,7 +80,7 @@ maieutik chat "message" [--file CHEMIN]
 maieutik model list | download NOM | remove NOM | status
 ```
 
-Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`). **Guide d'utilisation détaillé :** [docs/UTILISATION.md](docs/UTILISATION.md).
+Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`). **Guide d'utilisation détaillé :** [maieutik/docs/UTILISATION.md](maieutik/docs/UTILISATION.md).
 
 ### `--watch` (mode service)
 
