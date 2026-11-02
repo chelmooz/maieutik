@@ -233,6 +233,65 @@ La commande affiche une ligne de bilan de la forme `N fichier(s) indexé(s), M �
 | « échec : chemin : invalid Zip archive » (code 1) | un fichier `.docx` est corrompu ou n'est pas un vrai fichier Word | Réexporter le fichier |
 | Rien n'est indexé et le programme se termine sans message | un fichier est plus gros que `MaxFileSize`, ou son extension n'est pas dans `Extensions` | Ajuster `MaxFileSize` ou `Extensions` |
 
-## 11. État de vérification
+## 11. Utiliser le chat avec Ollama (P3)
+
+Le chat avec Ollama est une fonctionnalité clé de P3. Voici comment l'utiliser :
+
+### Prérequis
+
+1. **Ollama installé et fonctionnel** :
+```sh
+# Installation Ollama (Linux)
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+2. **Modèle LLM chargé** (par défaut qwen2.5:7b) :
+```sh
+ollama pull qwen2.5:7b
+ollama run qwen2.5:7b  # Pour vérifier que le modèle fonctionne
+```
+
+### Configuration
+
+Définir la variable d'environnement `MAIEUTIK_LLM_MODEL` :
+
+```sh
+# Pour Ollama
+export MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b"
+
+# Ajoutez cette ligne dans votre ~/.bashrc ou ~/.zshrc
+echo 'export MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Utilisation CLI
+
+```sh
+# Chat interactif
+maieutik chat "Quel est le concept de RAG ?"
+
+# Chat avec message
+maieutik chat "Explique le LLM"
+```
+
+### Utilisation via MCP (chat.complete)
+
+Le serveur MCP expose également la méthode `chat.complete` :
+
+```sh
+# Via stdio
+echo '{"jsonrpc":"2.0","id":1,"method":"chat.complete","params":{"message":"Bonjour"}}' | maieutik --mcp-stdio
+
+# Via socket Unix
+# Le socket se trouve généralement dans /run/user/$(id -u)/maieutik_mcp.sock
+```
+
+### Modes de modèles supportés
+
+- `ollama://qwen2.5:7b` - Qwen2.5 7B via Ollama
+- `ollama://llama3.2:3b` - Llama 3.2 3B via Ollama
+- `ollama://<votre-modele>` - Tout modèle installé via Ollama
+
+## 12. État de vérification
 
 Ce guide a été écrit à partir du code et de sorties d'exécution du programme. L'installation complète n'a pas été rejouée sur une machine neuve. Non rejoués : la compilation release avec `scripts/release.sh`, le téléchargement d'onnxruntime et du modèle sur une machine vierge, et les tests avec modèle (voir [VERIFICATION.md](../VERIFICATION.md)).
