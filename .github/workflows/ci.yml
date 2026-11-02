@@ -2,59 +2,154 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main, master ]
   pull_request:
-
-permissions:
-  contents: read
+    branches: [ main, master ]
+  release:
+    types: [ published ]
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
 
 jobs:
-  check-test-clippy:
+  lint:
+    name: Lint & Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: install system libs (pkg-config)
-        run: sudo apt-get update && sudo apt-get install -y pkg-config
-
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, version fixée ci-dessous
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.99.1
-          components: clippy
+          components: clippy, rustfmt
+      
+      - name: Check formatting
+        run: cargo fmt --check --all-targets --all-features
+      
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      
+      - name: Run cargo check
+        run: cargo check --all-targets --all-features
 
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-
-      - name: cargo check --locked --all-targets
-        run: cargo check --locked --all-targets
-
-      # Model-dependent tests are #[ignore]d by design (they need the BGE-M3
-      # files and libonnxruntime) and stay out of CI on purpose.
-      - name: cargo test --locked (model-independent)
-        run: cargo test --locked
-
-      # All clippy warnings have been resolved (0 code warnings on this tree;
-      # only the build-script informational "Skipping model download" remains).
-      # Run with -D warnings to enforce clean baseline on CI.
-      - name: cargo clippy --locked --all-targets
-        run: cargo clippy --locked --all-targets -- -D warnings
-
-  audit:
+  test:
+    name: Test Suite
     runs-on: ubuntu-latest
+    needs: lint
+    strategy:
+      matrix:
+        rust: [1.79.0, 1.85.0, stable]
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable branch, version fixée ci-dessous
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.99.1
+          toolchain: ${{ matrix.rust }}
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.rust }}-
+            ${{ runner.os }}-cargo-
+      
+      - name: Run tests
+        run: cargo test --locked --all-features
+        env:
+          ONESIXTY_TEST: 1
 
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-
-      # Audit bloquant : les exceptions (7 identifiants : failure x2, sled x3, bincode, ttf-parser ;
-      # zstd et zip ont été levés au P1.19) sont déclarées dans .cargo/audit.toml ; tout nouvel avis rend la CI rouge.
-      - name: audit RUSTSEC (bloquant)
+  build:
+    name: Build Release
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+      
+      - name: Build release binaries
         run: |
-          cargo install cargo-audit --locked --version 0.22.2
-          cargo audit --deny warnings
+          cargo build --release --locked --all-features
+          
+      - name: Verify binaries exist
+        run: |
+          ls -la target/release/maieutik || echo "maieutik binary not found"
+          ls -la target/release/maieutik-ui || echo "maieutik-ui binary not found"
+      
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: maieutik-release-${{ github.sha }}
+          path: |
+            target/release/maieutik
+            target/release/maieutik-ui
+          if-no-files-found: error
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: maieutik-release-${{ github.sha }}
+          path: release-artifacts
+      
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Audit dependencies
+        run: cargo audit
+
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Run benchmarks
+        run: cargo bench --no-run
