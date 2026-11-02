@@ -8,11 +8,16 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 
 ## État du projet
 
+Le dépôt est un workspace Cargo à trois membres : `maieutik/` (moteur RAG),
+`laya-primitives/` (System 1) et `maieutik-ui/` (client egui). Les chemins du
+tableau sont relatifs au crate `maieutik/`.
+
 | Fonction | Statut | Où |
 |---|---|---|
 | Indexation par lot (`index`, `--force`) | Implémenté, testé sans modèle | `src/core/scan.rs`, `tests/index_scan.rs` |
 | Parcours des dossiers (extensions, taille, liens symboliques ignorés) | Implémenté, testé | `src/core/scan.rs`, `src/core/watch.rs` |
-| Recherche (`search`) | Implémenté | `src/main.rs`, `src/core/indexer/mod.rs`, `tests/index_search.rs` |
+| Recherche (`search`, modes `semantic`/`lexical`/`hybrid`) | Implémenté | `src/main.rs`, `src/core/indexer/mod.rs`, `tests/index_search.rs` |
+| Recherche hybride BM25 + RRF (near-dup 0.92, planchers dense/BM25, TryWholeFile, MergeAdjacent) | Implémenté, testé sans modèle | `src/core/retrieval/`, `tests/hybrid_search.rs` |
 | Index vectoriel (sled + HNSW) | Implémenté, testé | `src/core/indexer/mod.rs`, `tests/index_replace.rs` |
 | Embedder ONNX BGE-M3 (1024 dimensions) | Implémenté ; tests avec modèle rejoués au P1.24 sur l'arbre courant (3 passés, distances identiques à la calibration) | `src/core/indexer/mod.rs`, `src/core/ort_env.rs`, `tests/embedding_search.rs` |
 | Faux embedder déterministe (tests, CI) | Implémenté | `src/core/indexer/mod.rs` (`HashEmbedder`) |
@@ -22,10 +27,10 @@ Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout
 | Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; réconciliation au démarrage qui purge les fichiers disparus et **réindexe les fichiers modifiés** pendant l'arrêt (empreinte taille + mtime stockée dans l'index) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et de bout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Les fichiers indexés avant l'empreinte restent non vérifiables jusqu'à leur prochaine indexation | `src/core/watch.rs`, `src/core/scan.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` |
 | Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs` |
 | Commandes `chat` et `model` | Factices | `src/main.rs` |
-| Pont MCP / JSON-RPC | Transport Unix socket fonctionnel (framing 4 octets LE + JSON, boucle d'accept, socket dans le répertoire privé 0700 de l'utilisateur) ; **une seule méthode acheminée : `health.check`** — répond `ok` + la version du binaire, testée de bout en bout (`tests/mcp_health.rs` : serveur réel + client `UnixStream` réel). Toute autre méthode est refusée en la nommant ; le trait `McpServer` décrit le contrat cible sans être routé, `run_stdio` reste un stub, et **aucune commande du binaire ne lance encore le serveur** (`--mcp-stdio` sort en 3) | `src/mcp/mod.rs`, `tests/mcp_health.rs` |
+| Pont MCP / JSON-RPC | Transport Unix socket et stdio fonctionnels (framing 4 octets LE + JSON, socket dans le répertoire privé 0700 de l'utilisateur). **Quatre méthodes acheminées : `health.check`, `search.semantic`, `search.keyword`, `search.hybrid`** — testées de bout en bout avec un serveur réel, un client `UnixStream` réel et un index réel (`tests/mcp_health.rs`, `tests/mcp_search.rs`). Toute autre méthode est refusée en la nommant. `--mcp-stdio` lance désormais le serveur avec l'index applicatif branché | `src/mcp/mod.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
-| Interface graphique | Stub : build sans interface | `src/ui/mod.rs` |
-| Reclassement, recherche lexicale avec fusion, jugement des réponses (Laya, sidecar HTTP), reconnaissance vocale | Prévu | `ARCHITECTURE.md` |
+| Interface graphique | `maieutik-ui` : client egui (3 onglets : briques, requête + trace, réseau). Laya en processus fils MCP, Maieutik par socket Unix, reranking Laya Score, garde-fou fail-closed par défaut, `eval/` jamais servi. Odysseus et la génération System 2 restent NON CÂBLÉS et affichés comme tels | `maieutik-ui/`, `gates-ui.sh` |
+| Reclassement (Laya Score), jugement des réponses, reconnaissance vocale | Reclassement câblé dans l'UI ; jugement et voix prévus | `maieutik-ui/src/pipeline.rs`, `ARCHITECTURE.md` |
 | **Odysseus (Agentic Cockpit, MCP Client)** | **Installé à `/home/chelmooz/Projects/odysseus`, MCP RAG Server opérationnel (`rag_server.py`)** | `opencode.json`, `mcp_servers/rag_server.py` |
 | **Laya (System 1 primitives : Choice, Score, Noul)** | **Binaires MCP compilés (`maieutik-mcp`), `is_loaded()` implémenté** | `laya-primitives/src/`, `maieutik-mcp-wrapper.sh` |
 | **Omarchy Host (Arch/Hyprland + 2 Docker)** | **Configuré ; 2 Docker dédiés : #1 Laya+MCP Bridge, #2 Ollama/vLLM+bge-m3** | `docker-compose.yml`, `maieutik-mcp-wrapper.sh` |
@@ -150,6 +155,27 @@ Codes de sortie :
 ### `search`
 
 Affiche, pour chaque résultat, un score, le chemin et les 100 premiers caractères du chunk. L'index HNSW utilise la distance euclidienne sur des vecteurs normalisés L2. Si l'index est indisponible (modèle absent ou illisible), la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
+
+## Interface graphique (`maieutik-ui`)
+
+Client egui local (workspace member). Il ne parle qu'à la boucle locale : socket
+Unix pour Maieutik, processus fils MCP pour Laya.
+
+```sh
+# Démo : tout simulé, chaque étape marquée [simulé]
+cargo run -p maieutik-ui -- --demo
+
+# Réel : Laya en processus fils MCP + Maieutik par socket Unix
+cargo run -p maieutik-ui -- \
+  --laya-bin target/debug/maieutik-mcp \
+  --laya-real \
+  --mode hybrid
+```
+
+- `--mode semantic|keyword|hybrid` (défaut `hybrid`) choisit la méthode envoyée au pont.
+- Sans `--laya-real`, le serveur Laya est lancé avec `LAYA_MOCK=1` : le dashboard affiche `MOCK`, et le garde-fou par défaut (`RequireReal`) arrête la requête.
+- `--socket CHEMIN` et `--odysseus DOSSIER` ciblent le socket Maieutik et la racine Odysseus.
+- Gates : `bash gates-ui.sh` (G1–G5 en vert, 6 mutations en rouge attendu).
 
 ## Prérequis
 

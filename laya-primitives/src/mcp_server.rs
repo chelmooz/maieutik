@@ -226,7 +226,10 @@ impl ServerHandler for MaieutikLayaServer {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+    // stdout est le canal MCP : toute ligne de log y casserait le protocole.
+    tracing_subscriber::fmt()
+        .with_writer(std::io::stderr)
+        .init();
 
     info!("Starting Maieutik-Laya MCP Server...");
 

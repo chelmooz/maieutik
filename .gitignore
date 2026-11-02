@@ -10,3 +10,6 @@ models/
 *.pem
 *.key
 .cargo/config.toml
+
+# Cargo target dirs kept outside the repo (workspace-level)
+.target-*/

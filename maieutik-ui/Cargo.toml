@@ -1,0 +1,35 @@
+[package]
+name = "maieutik-ui"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+authors = { workspace = true }
+rust-version = { workspace = true }
+description = "Maieutik UI — client local (egui) reliant Maieutik, Laya (System 1) et Odysseus"
+
+[features]
+default = ["gui"]
+gui = ["dep:eframe"]
+
+[dependencies]
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+eframe = { version = "0.31", default-features = false, features = ["glow", "default_fonts", "x11", "wayland"], optional = true }
+
+[dev-dependencies]
+# Seam de bout en bout : le client de l'UI contre le vrai pont MCP de Maieutik.
+# Jamais lié au binaire livré (dev-dependency uniquement).
+maieutik = { path = "../maieutik" }
+tokio = { workspace = true }
+tempfile = { workspace = true }
+
+[[bin]]
+name = "maieutik-ui"
+path = "src/main.rs"
+required-features = ["gui"]
+
+[[bin]]
+name = "fake-laya"
+path = "src/bin/fake_laya.rs"

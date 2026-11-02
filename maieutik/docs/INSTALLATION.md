@@ -156,7 +156,28 @@ docker-compose up -d  # ou docker-compose.gpu-nvidia.yml pour GPU
 
 Voir `docker-compose.yml` et `docker-compose.gpu-nvidia.yml` dans le dépôt Odysseus.
 
-## 8. Configuration
+## 8. Interface graphique (`maieutik-ui`)
+
+Le client egui est un membre du workspace ; rien à installer de plus que la
+toolchain et les bibliothèques X11/Wayland.
+
+```sh
+cargo build -p maieutik-ui                       # GUI
+cargo build -p maieutik-ui --no-default-features # headless (tests, CI)
+
+# Démo, tout simulé et marqué comme tel
+cargo run -p maieutik-ui -- --demo
+
+# Réel : Laya en processus fils MCP + Maieutik par socket Unix
+ORT_DYLIB_PATH=/usr/lib/libonnxruntime.so.1.31.0 \
+  cargo run -p maieutik-ui -- --laya-bin target/debug/maieutik-mcp --laya-real --mode hybrid
+```
+
+Le garde-fou par défaut est `RequireReal` : sans têtes Laya réelles, la requête
+est arrêtée (fail-closed) et l'UI l'affiche. `--mode semantic|keyword|hybrid`
+choisit la méthode de recherche du pont (défaut `hybrid`).
+
+## 9. Configuration
 
 Au premier lancement, Maieutik crée ses dossiers de configuration et de données, mais pas le fichier de configuration. Il faut créer `config.json` :
 
@@ -183,7 +204,7 @@ Les clés du bloc `settings` sont en PascalCase :
 
 Les autres clés (interface, raccourcis) ont des valeurs par défaut et peuvent être omises.
 
-## 9. Vérifier
+## 10. Vérifier
 
 ```sh
 export ORT_DYLIB_PATH="$HOME/outils/onnxruntime-1.31.0/lib/libonnxruntime.so"
@@ -202,6 +223,6 @@ La commande affiche une ligne de bilan de la forme `N fichier(s) indexé(s), M �
 | « échec : chemin : invalid Zip archive » (code 1) | un fichier `.docx` est corrompu ou n'est pas un vrai fichier Word | Réexporter le fichier |
 | Rien n'est indexé et le programme se termine sans message | un fichier est plus gros que `MaxFileSize`, ou son extension n'est pas dans `Extensions` | Ajuster `MaxFileSize` ou `Extensions` |
 
-## 10. État de vérification
+## 11. État de vérification
 
 Ce guide a été écrit à partir du code et de sorties d'exécution du programme. L'installation complète n'a pas été rejouée sur une machine neuve. Non rejoués : la compilation release avec `scripts/release.sh`, le téléchargement d'onnxruntime et du modèle sur une machine vierge, et les tests avec modèle (voir [VERIFICATION.md](../VERIFICATION.md)).

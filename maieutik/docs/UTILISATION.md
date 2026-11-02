@@ -25,11 +25,27 @@ opencode mcp list
 Depuis opencode, les outils disponibles :
 
 - **odysseus-rag** : recherche RAG via `rag_server.py` (outils : `search`, `health`)
-- **maieutik-laya** : primitives System 1 (outils : `health`, `noul`, `choice`, `score`, `initialize`)
+- **maieutik-laya** : primitives System 1 (outils : `health`, `noul`, `choice`, `score`)
 
 Exemple d'usage dans opencode :
 - Demander à opencode d'utiliser `odysseus-rag` pour chercher dans tes notes Maieutik
 - Demander à opencode d'utiliser `maieutik-laya` pour router une intention (`choice`), scorer des chunks (`score`), ou filtrer une injection (`noul`)
+
+## Interface graphique (`maieutik-ui`)
+
+Trois onglets : **Tableau de bord** (état réel des briques), **Requête & RAG**
+(trace pas à pas, passages, pertinence), **Réseau & garde-fous** (canaux, egress).
+
+```sh
+cargo run -p maieutik-ui -- --demo          # tout simulé, marqué [simulé]
+cargo run -p maieutik-ui -- --laya-bin target/debug/maieutik-mcp --laya-real --mode hybrid
+```
+
+- Une brique n'est `UP` que si elle a répondu pour de vrai ; un moteur simulé est `MOCK`, un contrat absent `NON CÂBLÉ`.
+- Le garde-fou `Noul réel requis` (défaut) arrête la requête si Noul est simulé ou absent.
+- `--mode semantic|keyword|hybrid` (défaut `hybrid`) sélectionne la méthode du pont Maieutik ; le score affiché est une similarité (1 = meilleur).
+- `eval/` n'est jamais servi, même cochée.
+- Odysseus et la génération System 2 sont affichés `NON CÂBLÉ` : aucune réponse n'est inventée.
 
 ## --watch (mode service)
 
