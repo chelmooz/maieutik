@@ -178,25 +178,25 @@ impl SpeechSession {
 
 /// Meeting transcription controller (stub)
 pub mod meeting {
-    use crate::llm::ChatCompletionProvider;
     use crate::speech::SpeechService;
     use anyhow::Result;
     use std::path::Path;
     use std::sync::Arc;
     use tracing::info;
 
+    /// Stub for LLM chat completion - to be implemented in P2
+    pub type ChatCompletionProvider = ();
+
     pub struct MeetingController {
-        // Réservés au branchement de la transcription de réunion (stub) :
-        // conservés pour que l'API de `new` reste celle prévue, pas encore lus.
         #[allow(dead_code)]
         speech: Arc<SpeechService>,
         #[allow(dead_code)]
-        llm: Arc<dyn ChatCompletionProvider>,
+        llm: Arc<ChatCompletionProvider>,
         recording: bool,
     }
 
     impl MeetingController {
-        pub fn new(speech: Arc<SpeechService>, llm: Arc<dyn ChatCompletionProvider>) -> Self {
+        pub fn new(speech: Arc<SpeechService>, llm: Arc<ChatCompletionProvider>) -> Self {
             Self {
                 speech,
                 llm,
