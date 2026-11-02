@@ -53,32 +53,34 @@ flowchart TD
     GEN["Génération<br/>llama.cpp, jamais exécutée"]
     JUDGE["Jugement<br/>Laya, sidecar HTTP"]
     
-    %% Odysseus & Laya (System 1) components
-    ODYSSEUS["Odysseus<br/>Agentic Cockpit<br/>MCP Client Host"]
-    LAYA["Laya (System 1)<br/>/v1/systemone<br/>Choice/Score/Noul"]
-    OMARCHY["Omarchy Host<br/>Arch Linux / Hyprland<br/>2 Docker Dédiés"]
-    
-    subgraph UI_BRIDGE["Pont UI ⇄ Maieutik ⇄ Laya"]
-        UI["maieutik-ui (egui)"]
-        MCP["MCP bridge (4 méthodes)"]
-        LayaSys["Laya (noul/choice/score)"]
-    end
-    
-    ODYSSEUS -->|MCP Client| MCP
-    MCP -->|Unix socket| UI
-    UI -.->|bearer:chat| ODYSSEUS
-    UI -.->|Reranker Score| IDX
-    LayaSys -.->|Guardrail| UI
-    UI -.->|connexion locale| MCP
-    
-    %% Omarchy hosting
-    OMARCHY -->|Docker #1| LayaSys
-    OMARCHY -->|Docker #2| ODYSSEUS
+    %% Architecture hybride : Maieutik + Odysseus + Laya + Omarchy
+%% Composants internes
+Maieutik["Maieutik<br/>moteur RAG"]
+LayaSys["Laya (System 1)<br/>noul / choice / score"]
+MCP["Pont MCP<br/>Unix socket + stdio"]
+UI["maieutik-ui (egui)"]
+Odysseus["Odysseus<br/>Agentic Cockpit"]
+Omarchy["Omarchy<br/>Arch/Hyprland + 2 Docker"]
 
-    classDef planned stroke-dasharray: 5 5
-    class GEN,JUDGE,MCP,SPEECH,UI planned
-    classDef external stroke-dasharray: 5 5,stroke:#3b82f6
-    class ODYSSEUS,LAYA,OMARCHY external
+%% Liaisons internes (implémentées)
+Maieutik -->|index, search| MCP
+MCP -->|Unix socket| Maieutik
+MCP -->|stdin/stdout| UI
+UI -->|recherche (semantic/keyword/hybrid)| Maieutik
+UI -->|bearer:chat| Odysseus
+LayaSys -->|reranking Score| Maieutik
+LayaSys -->|Guardrail Noul| UI
+Odysseus -->|API REST| UI
+Omarchy -->|Docker #1| LayaSys
+Omarchy -->|Docker #2| Odysseus
+
+%% Légende des traits
+classDef solid stroke:#6b7280,stroke-width:2px;
+class dashed stroke:#9ca3af,stroke-width:1px;
+class Maieutik,LayaSys,MCP,UI Odysseus Omarchy solid;
+classDef stub stroke:#d1d5db,stroke-width:1px,stroke-dasharray: 5 5;
+class GEN,JUDGE planned;
+
 ```
 
 Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu ; **bleu = composants hybrides (Odysseus, Laya, Omarchy) non encore câblés dans Maieutik**.
