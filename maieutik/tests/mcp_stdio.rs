@@ -8,14 +8,29 @@ use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
-fn start_mcp_stdio() -> (Command, std::process::Child) {
+fn start_mcp_stdio(instance: &str) -> (tempfile::TempDir, Command, std::process::Child) {
+    // Bac à sable : sans isolation, le serveur lirait le config.json réel de
+    // l'utilisateur (et partagerait le verrou d'instance global).
+    let dir = tempfile::tempdir().expect("répertoire temporaire");
+    let home = dir.path().join("home");
+    let cfg = dir.path().join("cfg");
+    let data = dir.path().join("data");
+    let cache = dir.path().join("cache");
+    for d in [&home, &cfg, &data, &cache] {
+        std::fs::create_dir_all(d).unwrap();
+    }
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_maieutik"));
     cmd.arg("--mcp-stdio")
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", &cfg)
+        .env("XDG_DATA_HOME", &data)
+        .env("XDG_CACHE_HOME", &cache)
+        .env("MAIEUTIK_INSTANCE_NAME", instance)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     let child = cmd.spawn().expect("échec lancement maieutik --mcp-stdio");
-    (cmd, child)
+    (dir, cmd, child)
 }
 
 fn send_request(child: &mut std::process::Child, req: serde_json::Value) -> serde_json::Value {
@@ -35,7 +50,7 @@ fn send_request(child: &mut std::process::Child, req: serde_json::Value) -> serd
 
 #[tokio::test]
 async fn stdio_transport_responds_to_health_check() {
-    let (_, mut child) = start_mcp_stdio();
+    let (_sandbox, _, mut child) = start_mcp_stdio("test-mcp-stdio-health");
 
     // Wait a bit for server to start
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -79,7 +94,7 @@ async fn stdio_transport_responds_to_health_check() {
 
 #[tokio::test]
 async fn stdio_transport_rejects_unknown_method() {
-    let (_, mut child) = start_mcp_stdio();
+    let (_sandbox, _, mut child) = start_mcp_stdio("test-mcp-stdio-unknown");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let req = serde_json::json!({
@@ -100,7 +115,7 @@ async fn stdio_transport_rejects_unknown_method() {
 
 #[tokio::test]
 async fn stdio_transport_does_not_respond_to_notifications() {
-    let (_, mut child) = start_mcp_stdio();
+    let (_sandbox, _, mut child) = start_mcp_stdio("test-mcp-stdio-notifications");
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     let stdin = child.stdin.as_mut().expect("stdin");

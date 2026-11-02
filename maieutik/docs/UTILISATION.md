@@ -46,6 +46,18 @@ Garde le processus au premier plan et surveille les dossiers de `settings.Folder
 - Au démarrage, l'index est réconcilié : les fichiers supprimés pendant que le service était arrêté en sont retirés, donc ils ne remontent plus dans `search`. Un chemin dont les métadonnées sont illisibles est conservé et signalé : la réconciliation ne supprime rien sur une ambiguïté.
 - Un fichier **modifié** pendant l'arrêt est détecté au démarrage suivant et réindexé : l'index garde l'empreinte (taille + date de modification) de chaque version indexée. Un fichier indexé avant l'introduction de l'empreinte est conservé sans être vérifié jusqu'à sa prochaine indexation. Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`.
 
+## --mcp-stdio (mode service)
+
+```sh
+maieutik --mcp-stdio
+```
+
+Lance le pont MCP sur stdio : une ligne JSON-RPC 2.0 par requête sur stdin, une ligne de réponse sur stdout. Les journaux restent sur stderr, stdout ne porte que des réponses. Le serveur est relié à l'index : `initialize`, `health.check`, `search.semantic`, `search.keyword` et `search.hybrid` répondent. `search.*` accepte `{"query": "...", "limit": 10, "folders": ["Notes/"], "min_score": 0.3}` ; la limite est bornée à 100. Sans index (modèle absent), une recherche renvoie une erreur explicite, jamais une liste vide.
+
+- `--mcp-stdio` est un mode : `maieutik --mcp-stdio search "x"` est une erreur d'usage (code 2), comme la combinaison avec `--watch`.
+- Il détient le verrou d'instance : un `--mcp-stdio` et un `--watch` simultanés se refusent mutuellement (code 4 pour le second).
+- Les autres méthodes du contrat (`files.*`, `chat.*`, `settings.*`) sont refusées en les nommant.
+
 ## index
 
 ```sh
@@ -70,8 +82,8 @@ Un fichier en échec n'arrête pas les autres.
 |---|---|
 | 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
-| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
-| 3 | commande non implémentée : chat, model, mcp |
+| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio`, `--mcp-stdio` combiné à une sous-commande |
+| 3 | commande non implémentée : chat, model |
 | 4 | environnement indisponible : aucun dossier configuré, aucun dossier lisible, modèle d'embedding absent ou illisible, verrou d'instance non créable, ou une autre instance déjà en cours |
 
 ## search
@@ -79,17 +91,24 @@ Un fichier en échec n'arrête pas les autres.
 ```sh
 maieutik search "ma question"
 maieutik search "ma question" --limit 5
+maieutik search "ma question" --mode lexical
 ```
 
-`-l` est l'abréviation de `--limit`. Le défaut est 10 résultats.
+`-l` est l'abréviation de `--limit`. Le défaut est 10 résultats. `--mode` choisit la source :
+
+- `hybrid` (défaut) : fusionne la recherche vectorielle et BM25 (Reciprocal Rank Fusion, k = 60), puis garde les meilleurs passages — plancher de similarité dense 0.25, quasi-doublons écartés (Jaccard 0.92), deux passages par fichier au plus, budget d'environ 1200 tokens.
+- `semantic` (alias `dense`) : vecteurs seuls.
+- `lexical` (alias `bm25`, `keyword`) : BM25 seul (k1 = 1.2, b = 0.75), utile pour un identifiant de code ou un terme rare.
+
+Une requête courte (cinq mots ou moins) pèse plus lourd côté lexical ; une requête qui ressemble à un identifiant (`snake_case`, `camelCase`, `::`) encore plus.
 
 Chaque ligne de résultat a la forme :
 
 ```
-<distance> | <chemin du fichier> | <100 premiers caractères du passage>
+<score> | <chemin du fichier> | <100 premiers caractères du passage>
 ```
 
-La distance est la distance euclidienne entre la question et le passage, calculée sur des vecteurs normalisés : elle va de 0 à 2, et plus elle est petite, plus le passage est proche de la question. Les résultats sont triés du plus proche au plus éloigné.
+Le score est normalisé entre 0 et 1 (1 = meilleur) et n'est comparable qu'entre résultats d'un même mode. Les résultats sont triés du meilleur au moins bon. Une requête composée uniquement de mots vides (« the of and ») ne rend aucun résultat.
 
 Il faut avoir lancé `maieutik index` au moins une fois. Si le modèle d'embedding est absent ou illisible, la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
 

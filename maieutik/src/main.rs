@@ -3,14 +3,15 @@
 //! Codes de sortie :
 //!   0 succès complet (ou arrêt propre demandé par un signal en `--watch`)
 //!   1 échec partiel (fichier sans texte, corpus vide, dossier partiel, échec de fichier)
-//!   2 usage invalide (clap, `--watch` combiné à une autre commande)
-//!   3 commande non implémentée (`chat`, `model`, `--mcp-stdio`)
+//!   2 usage invalide (clap, `--watch` ou `--mcp-stdio` combiné à une autre commande)
+//!   3 commande non implémentée (`chat`, `model`)
 //!   4 environnement indisponible (modèle, index, `Folders` vide, dossiers absents)
 //! stdout ne porte que des résultats ; tous les diagnostics vont sur stderr.
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use maieutik::config;
+use maieutik::core::retrieval::SearchMode;
 use maieutik::{run_watcher, run_watcher_with_shutdown, AppState};
 use std::io::IsTerminal;
 use std::path::PathBuf;
@@ -82,6 +83,9 @@ enum Commands {
         /// Nombre maximal de résultats (>= 1)
         #[arg(short, long, default_value = "10", value_parser = parse_limit)]
         limit: usize,
+        /// Mode : semantic (dense), lexical (BM25) ou hybrid (fusion RRF)
+        #[arg(long, default_value = "hybrid", value_parser = parse_mode)]
+        mode: SearchMode,
     },
     /// Chat with notes
     Chat {
@@ -114,6 +118,11 @@ fn parse_limit(raw: &str) -> Result<usize, String> {
     } else {
         Ok(n)
     }
+}
+
+/// `--mode` accepte semantic/dense, lexical/bm25/keyword et hybrid.
+fn parse_mode(raw: &str) -> Result<SearchMode, String> {
+    raw.parse()
 }
 
 /// Journaux sur stderr, couleurs seulement sur un terminal, bruit ORT filtré.
@@ -170,16 +179,13 @@ async fn run(cli: Cli) -> Result<i32> {
         return Ok(EXIT_USAGE);
     }
 
-    // Commandes non implémentées : refus avant toute initialisation.
-    if cli.mcp_stdio {
-        // Lance le serveur MCP sur stdio — ne retourne que si la connexion se ferme.
-        let server = Arc::new(maieutik::mcp::McpServer::new());
-        if let Err(e) = server.run_stdio().await {
-            eprintln!("Erreur serveur MCP: {e}");
-            return Ok(EXIT_UNAVAILABLE);
-        }
-        return Ok(0);
+    // `--mcp-stdio` est un mode : il ne se combine pas avec une sous-commande.
+    if cli.mcp_stdio && cli.command.is_some() {
+        eprintln!("--mcp-stdio ne se combine pas avec une sous-commande.");
+        return Ok(EXIT_USAGE);
     }
+
+    // Commandes non implémentées : refus avant toute initialisation.
     if let Some(label) = cli.command.as_ref().and_then(not_implemented_label) {
         return Ok(not_implemented(label));
     }
@@ -240,6 +246,18 @@ async fn run(cli: Cli) -> Result<i32> {
     // Mode service explicite : le watcher tourne au premier plan, piloté par
     // le signal d'arrêt (voir `run_watcher_with_shutdown`).
     let state_arc = Arc::new(state);
+
+    // Serveur MCP sur stdio : mode service, avec l'index applicatif branché
+    // (recherche dense, lexicale et hybride). Ne retourne que si stdin se ferme.
+    if cli.mcp_stdio {
+        let server = Arc::new(maieutik::mcp::McpServer::with_state(state_arc.clone()));
+        if let Err(e) = server.run_stdio().await {
+            eprintln!("Erreur serveur MCP: {e}");
+            return Ok(EXIT_UNAVAILABLE);
+        }
+        return Ok(0);
+    }
+
     if cli.watch {
         return watch_mode(state_arc).await;
     }
@@ -414,17 +432,17 @@ async fn handle_command(cmd: Commands, state: Arc<AppState>) -> Result<i32> {
             );
             Ok(report.exit_code())
         }
-        Commands::Search { query, limit } => {
+        Commands::Search { query, limit, mode } => {
             let Some(idx) = &state.vector_index else {
                 return Ok(index_unavailable());
             };
-            let results = idx.search(&query, limit).await?;
-            for (path, text, score) in results {
+            let results = idx.search_mode(&query, limit, mode).await?;
+            for hit in results {
                 println!(
                     "{:.3} | {} | {}",
-                    score,
-                    path,
-                    text.chars().take(100).collect::<String>()
+                    hit.score,
+                    hit.file_path,
+                    hit.text.chars().take(100).collect::<String>()
                 );
             }
             Ok(0)

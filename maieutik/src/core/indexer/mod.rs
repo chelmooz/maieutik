@@ -1,6 +1,7 @@
 //! Vector index — ONNX embeddings (BGE-M3) + sled + HNSW (fast-hnsw).
 
 use crate::config::{Chunk, FileContent};
+use crate::core::retrieval::{self, Bm25Doc, Bm25Index, SearchHit, SearchMode};
 use anyhow::{Context, Result};
 use fast_hnsw::distance::Euclidean;
 use fast_hnsw::{Builder, Hnsw};
@@ -449,6 +450,8 @@ pub struct VectorIndex {
     meta_tree: sled::Tree,
     file_meta_tree: sled::Tree,
     hnsw: Arc<RwLock<Option<HnswIndex>>>,
+    /// Index lexical reconstruit depuis sled, comme HNSW.
+    bm25: Arc<RwLock<Option<Bm25Index>>>,
     embedder: Arc<dyn TextEmbedder>,
 }
 
@@ -534,33 +537,124 @@ impl VectorIndex {
             meta_tree,
             file_meta_tree,
             hnsw: Arc::new(RwLock::new(None)),
+            bm25: Arc::new(RwLock::new(None)),
             embedder: Arc::new(embedder),
         })
     }
 
-    /// Build/rebuild HNSW index from stored vectors
-    pub async fn build_hnsw(&self) -> Result<()> {
+    /// Reconstruit les index dérivés : HNSW (dense) et BM25 (lexical).
+    ///
+    /// Reconstruction complète utilisée au démarrage ou après changement de schéma.
+    /// Pour les mises à jour incrémentales, voir `update_bm25_for_file`.
+    pub async fn build_indexes(&self) -> Result<()> {
         let mut hnsw = HnswIndex::new(EMBEDDING_DIM);
-        let mut count = 0;
+        let mut docs = Vec::new();
 
         for item in self.vectors_tree.iter() {
             let (_, val) = item?;
             let record: VectorRecord = bincode::deserialize(&val)?;
             hnsw.add(record.id.clone(), &record.embedding)?;
-            count += 1;
+            docs.push(Bm25Doc {
+                id: record.id.clone(),
+                file_path: record.file_path.clone(),
+                text: record
+                    .index_text
+                    .as_deref()
+                    .unwrap_or(&record.text)
+                    .to_string(),
+                heading_path: record.heading_path.clone(),
+                chunk_index: record.chunk_index,
+            });
         }
 
-        info!("Built HNSW index with {} vectors", count);
+        let chunks = docs.len();
+        info!("Built HNSW index with {chunks} vectors and BM25 index with {chunks} chunks");
         *self.hnsw.write().await = Some(hnsw);
+        *self.bm25.write().await = Some(Bm25Index::from_docs(docs));
         Ok(())
+    }
+
+    /// Met à jour l'index BM25 pour un fichier spécifique (incrémental).
+    ///
+    /// Remplace les chunks du fichier dans l'index BM25 sans reconstruire
+    /// l'index complet. Si l'index n'existe pas encore, l'initialise.
+    /// L'index HNSW n'est PAS mis à jour ici.
+    pub async fn update_bm25_for_file(&self, file_path: &str, chunks: &[crate::config::Chunk]) -> Result<()> {
+        let mut bm25_guard = self.bm25.write().await;
+        let bm25 = bm25_guard.get_or_insert_with(Bm25Index::default);
+
+        let path_str = file_path.to_string();
+        if chunks.is_empty() {
+            bm25.remove_file(&path_str);
+        } else {
+            let bm25_docs: Vec<Bm25Doc> = chunks
+                .iter()
+                .enumerate()
+                .map(|(i, chunk)| Bm25Doc {
+                    id: format!("{}#{}", path_str, i),
+                    file_path: path_str.clone(),
+                    text: chunk.text.clone(),
+                    heading_path: chunk.heading_path.clone(),
+                    chunk_index: i,
+                })
+                .collect();
+            bm25.replace_file(&path_str, bm25_docs);
+        }
+
+        if bm25.dead_count() > bm25.len() / 2 && bm25.dead_count() > 100 {
+            bm25.compact();
+        }
+
+        Ok(())
+    }
+
+    /// Supprime un fichier de l'index BM25 (incrémental).
+    pub async fn remove_bm25_file(&self, file_path: &str) -> Result<()> {
+        let mut bm25_guard = self.bm25.write().await;
+        let Some(bm25) = bm25_guard.as_mut() else {
+            return Ok(());
+        };
+        bm25.remove_file(file_path);
+        if bm25.dead_count() > bm25.len() / 2 && bm25.dead_count() > 100 {
+            bm25.compact();
+        }
+        Ok(())
+    }
+
+    /// Nom historique conservé pour les appelants existants : construit HNSW
+    /// **et** BM25.
+    pub async fn build_hnsw(&self) -> Result<()> {
+        self.build_indexes().await
     }
 
     /// Upsert a file's chunks: embeddings first, then one atomic replace.
     /// Zero chunks (file emptied) purges the file's previous records.
+    /// Met à jour BM25 incrémentalement ; reconstruit HNSW (pas d'incrémental pour fast-hnsw).
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
         let fingerprint = FileFingerprint::read(file_path).ok().flatten();
+        let path_str = file_path.to_string_lossy().to_string();
+        let chunks = content.chunks.clone();
         self.store_file(file_path, content, fingerprint)?;
-        self.rebuild_hnsw_if_needed().await?;
+        // Mise à jour incrémentale BM25
+        self.update_bm25_for_file(&path_str, &chunks).await?;
+        // HNSW : reconstruction complète (fast-hnsw ne supporte pas l'incrémental)
+        self.rebuild_hnsw().await?;
+        Ok(())
+    }
+
+    /// Reconstruit seulement l'index HNSW (dense), sans toucher à BM25.
+    pub async fn rebuild_hnsw(&self) -> Result<()> {
+        let mut hnsw = HnswIndex::new(EMBEDDING_DIM);
+
+        for item in self.vectors_tree.iter() {
+            let (_, val) = item?;
+            let record: VectorRecord = bincode::deserialize(&val)?;
+            hnsw.add(record.id.clone(), &record.embedding)?;
+        }
+
+        let chunks = hnsw.len();
+        info!("Rebuilt HNSW index with {chunks} vectors (BM25 updated incrementally)");
+        *self.hnsw.write().await = Some(hnsw);
         Ok(())
     }
 
@@ -620,8 +714,12 @@ impl VectorIndex {
 
     /// Remove all chunks for a file
     pub async fn remove_file(&self, file_path: &Path) -> Result<()> {
-        self.purge_file(&file_path.to_string_lossy())?;
-        self.rebuild_hnsw_if_needed().await?;
+        let path_str = file_path.to_string_lossy().to_string();
+        self.purge_file(&path_str)?;
+        // Mise à jour incrémentale BM25
+        self.remove_bm25_file(&path_str).await?;
+        // HNSW : reconstruction complète
+        self.rebuild_hnsw().await?;
         Ok(())
     }
 
@@ -670,10 +768,195 @@ impl VectorIndex {
             .and_then(|bytes| bincode::deserialize(&bytes).ok()))
     }
 
-    async fn rebuild_hnsw_if_needed(&self) -> Result<()> {
-        // Simple strategy: rebuild on every change (OK for small indexes)
-        // TODO: incremental HNSW updates
-        self.build_hnsw().await
+    /// Enregistrement par identifiant de chunk, ou `None` s'il a disparu
+    /// entre la construction de l'index et la lecture.
+    fn record_by_id(&self, id: &str) -> Result<Option<VectorRecord>> {
+        match self.vectors_tree.get(id.as_bytes())? {
+            Some(val) => Ok(Some(bincode::deserialize(&val)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Candidats denses : `(id de chunk, similarité cosinus)`.
+    ///
+    /// fast-hnsw rend une distance euclidienne ; sur des vecteurs unitaires,
+    /// `cos = 1 - d² / 2`. L'erreur d'embedding est propagée : une panne du
+    /// modèle ne doit pas passer pour « aucun résultat ».
+    async fn semantic_candidates(&self, query: &str, pool: usize) -> Result<Vec<(String, f32)>> {
+        let query_emb = self.embedder.embed(query)?;
+        let hnsw = self.hnsw.read().await;
+        let hnsw = hnsw
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("HNSW not built"))?;
+        Ok(hnsw
+            .search(&query_emb, pool)?
+            .into_iter()
+            .filter_map(|(idx, distance)| {
+                hnsw.get_id(idx).map(|id| {
+                    let similarity = (1.0f32 - distance * distance / 2.0).clamp(0.0, 1.0);
+                    (id.clone(), similarity)
+                })
+            })
+            .collect())
+    }
+
+    /// Candidats lexicaux : `(id de chunk, score BM25)`.
+    async fn lexical_candidates(
+        &self,
+        analysis: &retrieval::QueryAnalysis,
+        pool: usize,
+    ) -> Result<Vec<(String, f64)>> {
+        let bm25 = self.bm25.read().await;
+        let Some(bm25) = bm25.as_ref() else {
+            return Ok(Vec::new());
+        };
+        Ok(bm25
+            .search(&analysis.tokens, pool)
+            .into_iter()
+            .map(|(idx, score)| (bm25.doc(idx).id.clone(), score))
+            .collect())
+    }
+
+    async fn semantic_hits(&self, query: &str, k: usize) -> Result<Vec<SearchHit>> {
+        let pool = (k * 4).max(20);
+        let candidates = self.semantic_candidates(query, pool).await?;
+        let mut hits = Vec::new();
+        for (id, similarity) in candidates.into_iter().take(k) {
+            if let Some(record) = self.record_by_id(&id)? {
+                hits.push(SearchHit {
+                    file_path: record.file_path,
+                    text: record.text,
+                    heading_path: record.heading_path,
+                    chunk_index: record.chunk_index,
+                    score: similarity,
+                    source: SearchMode::Semantic,
+                });
+            }
+        }
+        Ok(hits)
+    }
+
+    async fn lexical_hits(
+        &self,
+        analysis: &retrieval::QueryAnalysis,
+        k: usize,
+    ) -> Result<Vec<SearchHit>> {
+        let pool = (k * 4).max(20);
+        let candidates = self.lexical_candidates(analysis, pool).await?;
+        let raw: Vec<f64> = candidates.iter().map(|(_, score)| *score).collect();
+        let normalized = retrieval::normalize_max(&raw);
+        let mut hits = Vec::new();
+        for ((id, _), score) in candidates.into_iter().zip(normalized).take(k) {
+            if let Some(record) = self.record_by_id(&id)? {
+                hits.push(SearchHit {
+                    file_path: record.file_path,
+                    text: record.text,
+                    heading_path: record.heading_path,
+                    chunk_index: record.chunk_index,
+                    score: score as f32,
+                    source: SearchMode::Lexical,
+                });
+            }
+        }
+        Ok(hits)
+    }
+
+    async fn hybrid_hits(
+        &self,
+        query: &str,
+        analysis: &retrieval::QueryAnalysis,
+        k: usize,
+    ) -> Result<Vec<SearchHit>> {
+        let pool = (k * 4).max(20);
+        // HNSW absent → liste dense vide ; une erreur d'embedding, elle, remonte.
+        let dense = if self.hnsw.read().await.is_some() {
+            self.semantic_candidates(query, pool).await?
+        } else {
+            Vec::new()
+        };
+        let lexical = self.lexical_candidates(analysis, pool).await?;
+        if dense.is_empty() && lexical.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let dense_ids: Vec<String> = dense.iter().map(|(id, _)| id.clone()).collect();
+        let lexical_ids: Vec<String> = lexical.iter().map(|(id, _)| id.clone()).collect();
+        let fused = retrieval::rrf_fuse(&[
+            (dense_ids, analysis.dense_weight),
+            (lexical_ids, analysis.lexical_weight),
+        ]);
+        let fused_raw: Vec<f64> = fused.iter().map(|(_, score)| *score).collect();
+        let fused_scores = retrieval::normalize_max(&fused_raw);
+
+        let dense_map: HashMap<&str, f32> = dense
+            .iter()
+            .map(|(id, score)| (id.as_str(), *score))
+            .collect();
+        let lexical_rank: HashMap<&str, usize> = lexical
+            .iter()
+            .enumerate()
+            .map(|(i, (id, _))| (id.as_str(), i + 1))
+            .collect();
+
+        let mut candidates = Vec::new();
+        for ((id, _), score) in fused.iter().zip(fused_scores) {
+            if let Some(record) = self.record_by_id(id)? {
+                candidates.push(retrieval::Candidate {
+                    id: record.id.clone(),
+                    file_path: record.file_path.clone(),
+                    text: record.text.clone(),
+                    heading_path: record.heading_path.clone(),
+                    chunk_index: record.chunk_index,
+                    score: score as f32,
+                    dense_similarity: dense_map.get(id.as_str()).copied(),
+                    lexical_rank: lexical_rank.get(id.as_str()).copied(),
+                });
+            }
+        }
+
+        let selected = retrieval::select_passages(
+            candidates,
+            retrieval::passage::DEFAULT_MAX_TOKENS,
+            retrieval::passage::DEFAULT_PER_FILE_LIMIT,
+        );
+        Ok(selected
+            .into_iter()
+            .map(|candidate| SearchHit {
+                file_path: candidate.file_path,
+                text: candidate.text,
+                heading_path: candidate.heading_path,
+                chunk_index: candidate.chunk_index,
+                score: candidate.score,
+                source: SearchMode::Hybrid,
+            })
+            .collect())
+    }
+
+    /// Recherche selon le mode demandé.
+    ///
+    /// `Semantic` garde le comportement historique de [`VectorIndex::search`]
+    /// (mais rend une similarité normalisée et la provenance) ; `Lexical`
+    /// interroge BM25 seul ; `Hybrid` fusionne les deux listes par RRF puis
+    /// sélectionne les passages.
+    ///
+    /// Une requête sans terme porteur (uniquement des mots vides) rend une
+    /// liste vide dans tous les modes : le voisinage dense d'une requête vide
+    /// n'est pas une réponse.
+    pub async fn search_mode(
+        &self,
+        query: &str,
+        k: usize,
+        mode: SearchMode,
+    ) -> Result<Vec<SearchHit>> {
+        let analysis = retrieval::analyze(query);
+        if analysis.tokens.is_empty() {
+            return Ok(Vec::new());
+        }
+        match mode {
+            SearchMode::Semantic => self.semantic_hits(query, k).await,
+            SearchMode::Lexical => self.lexical_hits(&analysis, k).await,
+            SearchMode::Hybrid => self.hybrid_hits(query, &analysis, k).await,
+        }
     }
 
     /// Semantic search — returns top-k (file_path, chunk_text, score)

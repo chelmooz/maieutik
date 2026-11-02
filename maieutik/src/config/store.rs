@@ -75,7 +75,8 @@ pub fn ort_dylib_path() -> Option<PathBuf> {
 
 /// Returns the path to the config file.
 ///
-/// Errors if the settings directory cannot be determined.
+/// `MAIEUTIK_CONFIG_DIR` is already honoured by [`settings_dir`]; the file is
+/// always `<settings_dir>/config.json`.
 pub fn config_path() -> Result<PathBuf> {
     settings_dir().map(|d| d.join("config.json"))
 }
