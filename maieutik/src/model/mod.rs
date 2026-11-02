@@ -199,21 +199,34 @@ pub enum ModelError {
 
 pub use registry::LocalRegistry;
 
+mod downloader;
+mod installer;
 mod registry;
+
 pub mod cli;
 
 pub use cli::{run_model_cmd, ModelCmd};
+pub use downloader::Downloader;
+pub use installer::Installer;
 
-/// ModelManager - implémentation par défaut de ModelProvider
+/// ModelManager - implementation of ModelProvider using downloader/installer
 pub struct ModelManager {
     registry: LocalRegistry,
+    models_dir: std::path::PathBuf,
+    downloader: Downloader,
+    installer: Installer,
 }
 
 impl ModelManager {
-    /// Crée un nouveau ModelManager avec le répertoire de données spécifié
+    /// Create a new ModelManager with the data directory
     pub fn new(data_dir: &std::path::PathBuf) -> anyhow::Result<Self> {
+        let registry = LocalRegistry::new(data_dir)?;
+        let models_dir = data_dir.join("models");
         Ok(Self {
-            registry: LocalRegistry::new(data_dir)?,
+            registry,
+            models_dir: models_dir.clone(),
+            downloader: Downloader::new(),
+            installer: Installer::new(models_dir),
         })
     }
 }
@@ -233,26 +246,46 @@ impl ModelProvider for ModelManager {
         _progress: Option<ProgressCallback>,
     ) -> Result<ModelMetadata, ModelError> {
         Err(ModelError::DownloadFailed(format!(
-            "Download not yet implemented for '{}'",
+            "Download requires source URL for model '{}'",
             name
         )))
     }
 
     async fn install(
         &self,
-        _metadata: ModelMetadata,
-        _source_path: &std::path::PathBuf,
-        _force: bool,
+        metadata: ModelMetadata,
+        source_path: &std::path::PathBuf,
+        force: bool,
     ) -> Result<(), ModelError> {
-        Err(ModelError::InstallationFailed(
-            "Install not yet implemented (stub)".to_string(),
-        ))
+        // Install the model
+        let dest_path = self
+            .installer
+            .install(metadata.clone(), source_path, force)
+            .await
+            .map_err(|e| ModelError::InstallationFailed(e.to_string()))?;
+
+        // Update metadata with local path
+        let mut metadata = metadata;
+        metadata.local_path = Some(dest_path);
+        metadata.installed_at = Some(chrono::Utc::now().to_rfc3339());
+
+        // Register
+        self.registry
+            .add(metadata)
+            .map_err(|e| ModelError::InternalError(e.to_string()))?;
+
+        Ok(())
     }
 
     async fn remove(&self, name: &str) -> Result<(), ModelError> {
         self.registry
             .remove(name)
-            .map_err(|e| ModelError::InternalError(e.to_string()))
+            .map_err(|e| ModelError::InternalError(e.to_string()))?;
+
+        // Also remove the installed file
+        let _ = self.installer.remove(name).await;
+
+        Ok(())
     }
 
     async fn status(&self, name: &str) -> Result<ModelStatus, ModelError> {
@@ -262,6 +295,7 @@ impl ModelProvider for ModelManager {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 
