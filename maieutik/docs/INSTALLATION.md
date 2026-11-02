@@ -78,6 +78,7 @@ Variables d'environnement reconnues :
 | `MAIEUTIK_EMBEDDER_TOKENIZER` | chemin de `tokenizer.json` |
 | `MAIEUTIK_EMBEDDER_THREADS` | nombre de threads de calcul (défaut : parallélisme de la machine) |
 | `MAIEUTIK_INSTANCE_NAME` | nom du verrou d'instance unique (défaut : `maieutik`) ; à changer pour isoler deux bacs à sable sur le même poste |
+| `MAIEUTIK_LLM_MODEL` | modèle LLM pour le chat : `ollama://nom_modele` ou chemin GGUF local (défaut : non défini) |
 
 ## 5. Odysseus (Optionnel — Orchestration Agentique)
 

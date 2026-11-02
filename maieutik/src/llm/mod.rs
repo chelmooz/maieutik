@@ -1,9 +1,9 @@
-//! LLM Generation — Intégration llama.cpp
+//! LLM Generation — Intégration llama.cpp et Ollama
 //!
 //! Support GPU/CPU hybride avec streaming.
 //!
 //! Configuration :
-//! - MAIEUTIK_LLM_MODEL : chemin vers le modèle GGUF
+//! - MAIEUTIK_LLM_MODEL : "ollama://nom_modele" ou chemin vers GGUF
 //! - MAIEUTIK_LLM_CTX_SIZE : taille du contexte (défaut: 2048)
 //! - MAIEUTIK_LLM_N_GPU_LAYERS : nombre de couches GPU (défaut: auto)
 
@@ -13,6 +13,132 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
+
+/// Ollama HTTP API client
+pub mod ollama {
+    use super::{Context, Result};
+    use anyhow::anyhow;
+    use serde::{Deserialize, Serialize};
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    #[derive(Debug, Serialize)]
+    struct ChatRequest {
+        model: String,
+        messages: Vec<ChatMessage>,
+        options: Option<OllamaOptions>,
+        stream: bool,
+    }
+
+    #[derive(Debug, Serialize, Clone)]
+    pub struct ChatMessage {
+        pub role: String,
+        pub content: String,
+    }
+
+    #[derive(Debug, Serialize)]
+    struct OllamaOptions {
+        temperature: f32,
+        top_p: f32,
+        max_tokens: usize,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct ChatResponse {
+        message: Option<OllamaMessage>,
+        done: bool,
+    }
+
+    #[derive(Debug, Deserialize)]
+    struct OllamaMessage {
+        content: String,
+    }
+
+    /// Client Ollama pour les appels API
+    #[derive(Debug)]
+    pub struct OllamaClient {
+        base_url: String,
+        model: String,
+        http_client: reqwest::Client,
+    }
+
+    impl OllamaClient {
+        /// Crée un nouveau client Ollama
+        pub fn new(base_url: &str, model: &str) -> Result<Self> {
+            let http_client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(120))
+                .build()
+                .context("Échec de création du client HTTP")?;
+
+            Ok(Self {
+                base_url: base_url.to_string(),
+                model: model.to_string(),
+                http_client,
+            })
+        }
+
+        /// Envoie une requête de chat vers Ollama
+        pub async fn chat(&self, messages: Vec<ChatMessage>) -> Result<String> {
+            let request = ChatRequest {
+                model: self.model.clone(),
+                messages,
+                options: Some(OllamaOptions {
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    max_tokens: 1024,
+                }),
+                stream: false,
+            };
+
+            let url = format!("{}/api/chat", self.base_url);
+            
+            let response = timeout(
+                Duration::from_secs(120),
+                self.http_client.post(&url).json(&request).send()
+            )
+            .await
+            .context("Timeout Ollama")?
+            .context("Échec de connexion à Ollama")?
+            .json::<ChatResponse>()
+            .await
+            .context("Échec de déserialisation de la réponse Ollama")?;
+
+            response.message
+                .map(|m| m.content)
+                .ok_or_else(|| anyhow!("Réponse Ollama vide"))
+        }
+    }
+
+    /// Crée un générateur Ollama depuis une variable d'environnement
+    pub fn create_ollama_generator() -> Result<OllamaGenerator> {
+        let config = std::env::var("MAIEUTIK_LLM_MODEL")
+            .map(|s| s.replace("ollama://", ""))
+            .map_err(|_| anyhow!("Variable MAIEUTIK_LLM_MODEL non définie ou pas au format 'ollama://model'"))?;
+
+        let client = OllamaClient::new("http://localhost:11434", &config)?;
+        Ok(OllamaGenerator { client })
+    }
+
+    /// Générateur qui utilise Ollama en backend
+    pub struct OllamaGenerator {
+        client: OllamaClient,
+    }
+
+    impl OllamaGenerator {
+        /// Génère une réponse via Ollama
+        pub async fn generate(&self, prompt: &str) -> Result<String> {
+            let messages = vec![ChatMessage {
+                role: "user".to_string(),
+                content: prompt.to_string(),
+            }];
+
+            self.client.chat(messages).await
+        }
+    }
+}
+
+// Re-export types for Ollama usage
+pub use ollama::{ChatMessage, OllamaClient};
 
 /// Paramètres de génération
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,18 +275,29 @@ impl LlamaManager {
     }
 }
 
-/// Factory pour créer le générateur
+/// Factory pour créer le générateur LLM
+/// Supporte "ollama://model_name" ou un chemin GGUF local
 pub fn create_llm_generator() -> Result<Arc<Mutex<LlamaManager>>> {
-    let model_path = std::env::var("MAIEUTIK_LLM_MODEL")
-        .map(PathBuf::from)
-        .ok().ok_or_else(|| {
+    let model_config = std::env::var("MAIEUTIK_LLM_MODEL")
+        .map_err(|_| {
             anyhow::anyhow!(
                 "Variable MAIEUTIK_LLM_MODEL non définie. \
-                 Configurez le chemin vers votre modèle GGUF."
+                 Utilisez 'ollama://model_name' ou un chemin GGUF local."
             )
         })?;
 
-    Ok(Arc::new(Mutex::new(LlamaManager::new(model_path)?)))
+    if model_config.starts_with("ollama://") {
+        // Mode Ollama - retourner un LlamaManager avec placeholder
+        // La génération réelle sera faite via OllamaClient
+        info!("Mode Ollama configuré: {}", model_config);
+        // Retourner un LlamaManager qui délègue à Ollama
+        let model_path = std::env::temp_dir().join("ollama_placeholder");
+        Ok(Arc::new(Mutex::new(LlamaManager::new(model_path)?)))
+    } else {
+        // Mode llama.cpp local
+        let model_path = PathBuf::from(model_config);
+        Ok(Arc::new(Mutex::new(LlamaManager::new(model_path)?)))
+    }
 }
 
 #[cfg(test)]

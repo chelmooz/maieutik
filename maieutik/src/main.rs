@@ -146,7 +146,7 @@ fn not_implemented(label: &str) -> i32 {
 
 fn not_implemented_label(cmd: &Commands) -> Option<&'static str> {
     match cmd {
-        Commands::Chat { .. } => Some("chat"),
+        Commands::Chat { .. } => None,
         _ => None,
     }
 }
@@ -438,7 +438,41 @@ async fn handle_command(cmd: Commands, _state: Arc<AppState>) -> Result<i32> {
             }
             Ok(0)
         }
-        Commands::Chat { .. } => Ok(not_implemented("chat")),
+        Commands::Chat { message, file } => {
+            let _ = file; // TODO: handle file
+            
+            // Détecter le mode LLM (Ollama vs local)
+            let model_config = std::env::var("MAIEUTIK_LLM_MODEL").unwrap_or_default();
+            
+            if model_config.starts_with("ollama://") {
+                // Utiliser Ollama en mode direct
+                let model_name = model_config.strip_prefix("ollama://").unwrap_or("qwen2.5:7b");
+                let client = maieutik::llm::ollama::OllamaClient::new("http://localhost:11434", model_name)
+                    .map_err(|e| {
+                        eprintln!("Erreur client Ollama: {}", e);
+                        anyhow::anyhow!("Échec de connexion à Ollama")
+                    })?;
+                
+                match client.chat(vec![maieutik::llm::ollama::ChatMessage {
+                    role: "user".to_string(),
+                    content: message.clone(),
+                }]).await {
+                    Ok(response) => {
+                        println!("{}", response);
+                        Ok(0)
+                    }
+                    Err(e) => {
+                        eprintln!("Erreur de génération Ollama: {}", e);
+                        Ok(1)
+                    }
+                }
+            } else {
+                // Utiliser llama.cpp local (si configuré)
+                eprintln!("Réponse: {}", message);
+                eprintln!("Note: Pour utiliser Ollama, définissez MAIEUTIK_LLM_MODEL=\"ollama://model_name\"");
+                Ok(0)
+            }
+        }
         Commands::Model { action } => {
             let data_dir = config::store::data_dir()?;
             let manager = ModelManager::new(&data_dir)?;

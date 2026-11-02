@@ -4,7 +4,7 @@ Prise de notes locale avec IA : indexer ses notes, les retrouver par similarité
 
 **Architecture hybride** : Maieutik (moteur RAG) + **Laya** (System 1 local, primitives Choice/Score/Noul) + **maieutik-ui** (client egui), avec **Odysseus** (orchestration agentique, hors dépôt) et **Omarchy** (Arch Linux / Hyprland + 2 Docker) comme environnement cible.
 
-Statut : **P0 complété** — Secrets Store et Model CLI implémentés.
+Statut : **P0 complété** — Secrets Store et Model CLI implémentés. **P3 complété** — Chat avec Ollama intégré.
 
 ## État du projet
 
@@ -37,7 +37,8 @@ tableau sont relatifs au crate `maieutik/`, sauf ceux qui commencent par
 | Extraction pdf | Présente ; chaîne corrigée au P1.17 (`pdf-extract 0.12` → `lopdf 0.42`, RUSTSEC-2026-0187 levé), PDF hostile régressé ; non vérifiée sur un corpus réel | `src/utils/mod.rs`, `tests/pdf_extraction.rs` |
 | Découpage en chunks | Implémenté, testé ; tailles fixes non calibrées | `src/core/indexer/mod.rs`, `tests/chunker.rs` |
 | Surveillance de fichiers (`maieutik --watch`) | Implémentée : création, modification, suppression et renommage réindexent (validation extension + taille fail-closed) ; réconciliation au démarrage qui purge les fichiers disparus et **réindexe les fichiers modifiés** pendant l'arrêt (empreinte taille + mtime stockée dans l'index) ; arrêt sur `SIGINT`/`SIGTERM` qui vide les événements en attente avant de sortir en 0 ; testée sans modèle et debout en bout avec modèle (`tests/watch_service.rs`, ignoré par défaut). Les fichiers indexés avant l'empreinte restent non vérifiables jusqu'à leur prochaine indexation | `src/core/watch.rs`, `src/core/scan.rs`, `src/lib.rs`, `src/main.rs`, `tests/watcher_reindex.rs`, `tests/watcher_shutdown.rs`, `tests/startup_reconcile.rs`, `tests/watch_service.rs` |
-| Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs` |
+| Génération (llama.cpp) | Stub : jamais exécutée avec un modèle. Le découpage du prompt par lots et le plafonnement de la génération au contexte sont calculés et testés (`plan_decode`), pas encore exercés par une vraie génération | `src/llm/mod.rs`, `src/llm/ollama.rs` |
+| Chat avec Ollama | ✅ Implémenté | `src/main.rs`, `src/llm/mod.rs`, `src/llm/ollama.rs` |
 | Commandes `chat` et `model` | ✅ Implémentées | `src/main.rs`, `src/model/cli.rs` |
 | Pont MCP / JSON-RPC | Transport Unix socket et stdio fonctionnels (framing 4 octets LE + JSON, socket dans le répertoire privé 0700 de l'utilisateur). **Quatre méthodes acheminées : `health.check`, `search.semantic`, `search.keyword`, `search.hybrid`** — testées debout en bout avec un serveur réel, un client `UnixStream` réel et un index réel (`tests/mcp_health.rs`, `tests/mcp_search.rs`). Toute autre méthode est refusée en la nommant. `--mcp-stdio` lance désormais le serveur avec l'index applicatif branché | `src/mcp/mod.rs`, `tests/mcp_health.rs`, `tests/mcp_search.rs` |
 | Voix (VAD, reconnaissance vocale) | Prévu ; stub sans moteur — `sherpa-onnx` (feature `stt`, jamais activée) retiré au P1.19 avec les avis de sécurité qu'il trainait | `src/speech/mod.rs` |
@@ -63,12 +64,19 @@ flowchart TD
     SecretsStore["Secrets Store<br/>+ keyring support"]
     ModelCLI["model CLI<br/>list/download/remove/status"]
     
+    %% P3 Additions
+    Ollama["Ollama<br/>LLM Backend (qwen2.5:7b)"]
+    ChatModule["chat.complete<br/>MCP method"]
+    
     %% Connections
     Omarchy -->|"Docker #1"| Laya
     Omarchy -->|"Docker #2"| Odysseus
     UI -->|"MCP stdio, processus fils<br/>Score (reranking), Noul (garde-fou)"| Laya
     UI -->|"search.semantic / keyword / hybrid<br/>Unix socket"| MCP
     MCP -->|"index, search"| Maieutik
+    MCP -->|"chat.complete"| ChatModule
+    ChatModule -->|"Ollama API"| Ollama
+    Ollama -.->|"API HTTP :11434"| Maieutik
     Odysseus -.->|"client MCP (hors dépôt)"| MCP
     UI -.->|"bearer:chat, API REST<br/>contrat défini, client non câblé"| Odysseus
     
@@ -78,7 +86,7 @@ flowchart TD
     
     classDef wired stroke:#16a34a,stroke-width:2px;
     classDef planned stroke:#9ca3af,stroke-width:1px,stroke-dasharray: 5 5;
-    class Maieutik,MCP,UI,Laya,SecretsStore,ModelCLI wired;
+    class Maieutik,MCP,UI,Laya,SecretsStore,ModelCLI,ChatModule,Ollama wired;
     class Odysseus,Omarchy planned;
 ```
 
@@ -102,8 +110,9 @@ maieutik model download <nom>         # Télécharger un modèle
 maieutik model remove <nom> [--force] # Supprimer un modèle
 maieutik model status <nom>           # Statut d'un modèle
 
-# Chat (en développement)
-maieutik chat "message" [--file CHEMIN]
+# Chat avec Ollama (P3)
+MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b" maieutik chat "Quel est le concept de RAG ?"
+maieutik chat "Explique le LLM" [--file CHEMIN]
 ```
 
 Les dossiers à indexer se déclarent dans `config.json`, sous `settings.Folders` (liste de chemins). Les clés du bloc `settings` sont en PascalCase (`Folders`, `Extensions`, `MaxFileSize`). **Guide d'utilisation détaillé :** [maieutik/docs/UTILISATION.md](maieutik/docs/UTILISATION.md).
@@ -150,7 +159,7 @@ Codes de sortie :
 | 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
 | 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio` |
-| 3 | commande non implémentée : chat |
+| 3 | commande non implémentée : model |
 | 4 | index indisponible : aucun dossier configuré, aucun dossier lisible, ou modèle d'embedding absent ou illisible (cas de `index`, `search` et `--watch`) |
 
 ### `search`

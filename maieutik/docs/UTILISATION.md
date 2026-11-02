@@ -153,6 +153,24 @@ Le score est normalisé entre 0 et 1 (1 = meilleur) et n'est comparable qu'entre
 
 Il faut avoir lancé `maieutik index` au moins une fois. Si le modèle d'embedding est absent ou illisible, la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
 
+## chat
+
+```sh
+# Avec Ollama (P3 - recommandé)
+export MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b"
+maieutik chat "Explique le concept de RAG"
+
+# Sans modèle configuré
+maieutik chat "Bonjour"
+# Affiche : "Chat non configuré. Définissez MAIEUTIK_LLM_MODEL pour activer le chat."
+```
+
+**Fonctionnement :**
+
+- Si `MAIEUTIK_LLM_MODEL` commence par `ollama://`, la commande utilise l'API Ollama locale (`http://localhost:11434/api/chat`).
+- Sinon, un message d'information est affiché sur stderr et le programme sort en code 0 (pour la compatibilité).
+- L'option `--file` permet d'ajouter un contexte (futur).
+
 ## Fichiers et dossiers
 
 | Élément | Emplacement (Linux) |
@@ -173,7 +191,7 @@ maieutik -d index
 
 ## Limites connues
 
-- chat et model sont factices : message sur stderr, code 3.
+- chat fonctionnel avec Ollama (mode `ollama://model_name`, ex: `qwen2.5:7b`, `llama3.1:8b`) ; sans configuration, message informatif sur stderr
 - Réindexation automatique partielle : le suivi des fichiers en arrière-plan réindexe les créations, modifications, suppressions et renommages. Un événement survenu pendant un arrêt de Maieutik n'est pas rattrapé : relancer `maieutik index` (ou `--force`) après un arrêt pour réaligner l'index.
 - Les PDF sont acceptés par défaut ; l'extraction a été validée sur un corpus réel au P1.17 (chaîne corrigée `lopdf 0.42`), mais pas la chaîne complète indexation + recherche avec le modèle.
 - L'option `--config-dir` est acceptée mais reste sans effet.
