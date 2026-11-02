@@ -73,6 +73,31 @@ Lance le pont MCP sur stdio : une ligne JSON-RPC 2.0 par requête sur stdin, une
 - `--mcp-stdio` est un mode : `maieutik --mcp-stdio search "x"` est une erreur d'usage (code 2), comme la combinaison avec `--watch`.
 - Il détient le verrou d'instance : un `--mcp-stdio` et un `--watch` simultanés se refusent mutuellement (code 4 pour le second).
 - Les autres méthodes du contrat (`files.*`, `chat.*`, `settings.*`) sont refusées en les nommant.
+```
+
+## Pont Odysseus UI → Maieutik
+
+L'UI (`maieutik-ui`) peut interagir avec Odysseus via le pont MCP. Le contrat est défini dans
+`maieutik-ui/contracts/odysseus-bridge.schema.json`. L'échange suit ce scénario :
+
+1. **Session** : `POST /api/session` (authentifié `bearer:chat`) retourne un `id` de session.
+2. **Chat** : `POST /api/chat` (authentifié `bearer:chat`) envoie `{"message": "...", "session": "id"}`.
+3. **Résultat** : Odysseus renvoie `{"response": "...", "model": "...", "requested_model": "..."}`.
+4. **Affichage** : l'UI consigne la réponse, affiche le modèle utilisé, et garde le score de reranking Laya.
+
+**Activation** : définir les variables d'environnement avant de lancer l'UI :
+
+```sh
+export ODYSSEUS_ROOT=/chemin/vers/odysseus
+export ODYSSEUS_API_TOKEN=votre_token_api_ici
+cargo run -p maieutik-ui -- --odysseus $ODYSSEUS_ROOT --mode hybrid
+```
+
+**Règles consommateur** :
+- Toute réponse 2xx dont un champ requis manque est une erreur de protocole, jamais un succès vide.
+- Un hôte non local est refusé avant toute connexion (egress loopback strict).
+- Le jeton n'est jamais journalisé ni affiché ; l'UI n'affiche que sa présence.
+- Un échec Odysseus ne fait jamais retomber le pipeline sur une réponse fabriquée : l'issue reste `AgentUnavailable`/`Failed`.
 
 ## index
 

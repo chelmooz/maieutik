@@ -171,6 +171,15 @@ cargo run -p maieutik-ui -- --demo
 # Réel : Laya en processus fils MCP + Maieutik par socket Unix
 ORT_DYLIB_PATH=/usr/lib/libonnxruntime.so.1.31.0 \
   cargo run -p maieutik-ui -- --laya-bin target/debug/maieutik-mcp --laya-real --mode hybrid
+
+# Pont Odysseus : connexion UI → Odysseus (bearer token, scope chat)
+# Le contrat est défini dans maieutik-ui/contracts/odysseus-bridge.schema.json
+# Pour activer : définir ODYSSEUS_ROOT et exporter le token API
+#   export ODYSSEUS_ROOT=/home/user/Projects/odysseus
+#   # Générer un token via l'API admin d'Odysseus ou via `odysseus token create`
+#   export ODYSSEUS_API_TOKEN=votre_token_ici
+#   # L'UI chargera automatiquement le pont ; test : Route → Odysseus → recherche RAG
+cargo run -p maieutik-ui -- --odysseus $ODYSSEUS_ROOT --llm-url http://localhost:11434/v1
 ```
 
 Le garde-fou par défaut est `RequireReal` : sans têtes Laya réelles, la requête

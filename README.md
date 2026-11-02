@@ -58,42 +58,21 @@ flowchart TD
     LAYA["Laya (System 1)<br/>/v1/systemone<br/>Choice/Score/Noul"]
     OMARCHY["Omarchy Host<br/>Arch Linux / Hyprland<br/>2 Docker Dédiés"]
     
-    subgraph STUBS["Modules présents mais non reliés"]
-        MCP["mcp : pont JSON-RPC"]
-        SPEECH["speech : VAD, STT"]
-        UI["ui : build sans interface"]
+    subgraph UI_BRIDGE["Pont UI ⇄ Maieutik ⇄ Laya"]
+        UI["maieutik-ui (egui)"]
+        MCP["MCP bridge (4 méthodes)"]
+        LayaSys["Laya (noul/choice/score)"]
     end
-
-    subgraph EXTERNAL["Composants externes (Hybride)"]
-        ODYSSEUS
-        LAYA
-        OMARCHY
-    end
-
-    CLI --> STATE
-    CLI -- index --> SCAN
-    CLI -- search --> IDX
-    SCAN --> FILTER
-    SCAN --> EXTRACT
-    SCAN --> CHUNK
-    SCAN --> IDX
-    IDX --> EMB
-    EMB --> HASH
-    EMB --> ONNX
-    WATCHER --> FILTER
-    WATCHER --> IDX
-    CLI -.-> GEN
-    GEN -.-> JUDGE
     
-    %% Odysseus orchestration layer
     ODYSSEUS -->|MCP Client| MCP
-    ODYSSEUS -->|Appelle| LAYA
-    ODYSSEUS -->|Requête| IDX
-    LAYA -.->|Reranker Score| IDX
-    LAYE -.->|Guardrail Noul| CLI
+    MCP -->|Unix socket| UI
+    UI -.->|bearer:chat| ODYSSEUS
+    UI -.->|Reranker Score| IDX
+    LayaSys -.->|Guardrail| UI
+    UI -.->|connexion locale| MCP
     
     %% Omarchy hosting
-    OMARCHY -->|Docker #1| LAYA
+    OMARCHY -->|Docker #1| LayaSys
     OMARCHY -->|Docker #2| ODYSSEUS
 
     classDef planned stroke-dasharray: 5 5
