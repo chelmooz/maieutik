@@ -1,16 +1,48 @@
 # Utilisation
 
-Ce guide suppose que Maieutik est installé et configuré (voir [INSTALLATION.md](INSTALLATION.md)). Les exemples utilisent la commande `maieutik` ; si tu n'as pas copié le binaire dans ton `PATH`, remplace-la par `target/release/maieutik`.
+> **Guide rapide pour les nouveaux utilisateurs** : Suivez les étapes ci-dessous pour mettre en place et utiliser Maieutik en 5 minutes.
 
-**Architecture hybride** : Maieutik (RAG) + **Odysseus** (Agentic Cockpit, MCP) + **Laya** (System 1 : Choice/Score/Noul) + **Omarchy** (Host + 2 Docker).
+## 📋 Vue d'ensemble (Guide rapide)
 
-## En trois étapes
+1. **Installer les prérequis** : Rust, onnxruntime, modèle BGE-M3, Ollama
+2. **Configurer les dossiers** : Créez `~/.config/maieutik/config.json` avec vos dossiers de notes
+3. **Indexer** : `maieutik index` - Parse les fichiers et crée l'index
+4. **Chercher** : `maieutik search "ma question"` - Recherche dans vos notes
+5. **Chatter** : `MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b" maieutik chat "explique RAG"` - Chat avec IA
 
-1. Déclarer le dossier de notes dans `config.json` (clé `settings.Folders`).
-2. Indexer : `maieutik index`.
-3. Chercher : `maieutik search "ma question"`.
+Pour une installation complète, voir [INSTALLATION.md](INSTALLATION.md).
 
-`ORT_DYLIB_PATH` doit être défini dans le terminal où tu lances ces commandes (voir l'installation).
+Ce guide suppose que Maieutik est installé et configuré. Les exemples utilisent la commande `maieutik` ; si tu n'as pas copié le binaire dans ton `PATH`, remplace-la par `target/release/maieutik`.
+
+## 🔧 Prérequis
+
+Avant de commencer, assurez-vous d'avoir :
+
+- **Rust 1.99.1+** : `rustc --version`
+- **onnxruntime 1.31.0** : Téléchargé et `ORT_DYLIB_PATH` défini
+- **Modèle BGE-M3** : `model.onnx`, `model.onnx_data`, `tokenizer.json` dans `~/.local/share/maieutik/models/bge-m3/`
+- **Ollama** (optionnel, pour le chat) : Installé et un modèle chargé
+
+**Exemple de configuration initiale :**
+
+```sh
+# 1. Configurer onnxruntime
+export ORT_DYLIB_PATH="/usr/lib/libonnxruntime.so.1.31.0"
+
+# 2. Configurer les dossiers de notes
+mkdir -p ~/.config/maieutik/
+cat > ~/.config/maieutik/config.json << 'EOF'
+{
+  "version": 1,
+  "settings": {
+    "Folders": ["/home/$USER/notes"]
+  }
+}
+EOF
+
+# 3. Indexer (premier lancement)
+maieutik index
+```
 
 ## Intégration Odysseus + Laya (MCP)
 
@@ -62,18 +94,39 @@ Garde le processus au premier plan et surveille les dossiers de `settings.Folder
 - Au démarrage, l'index est réconcilié : les fichiers supprimés pendant que le service était arrêté en sont retirés, donc ils ne remontent plus dans `search`. Un chemin dont les métadonnées sont illisibles est conservé et signalé : la réconciliation ne supprime rien sur une ambiguïté.
 - Un fichier **modifié** pendant l'arrêt est détecté au démarrage suivant et réindexé : l'index garde l'empreinte (taille + date de modification) de chaque version indexée. Un fichier indexé avant l'introduction de l'empreinte est conservé sans être vérifié jusqu'à sa prochaine indexation. Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`.
 
-## --mcp-stdio (mode service)
+## --mcp-stdio (mode serveur MCP)
 
 ```sh
 maieutik --mcp-stdio
 ```
 
-Lance le pont MCP sur stdio : une ligne JSON-RPC 2.0 par requête sur stdin, une ligne de réponse sur stdout. Les journaux restent sur stderr, stdout ne porte que des réponses. Le serveur est relié à l'index : `initialize`, `health.check`, `search.semantic`, `search.keyword` et `search.hybrid` répondent. `search.*` accepte `{"query": "...", "limit": 10, "folders": ["Notes/"], "min_score": 0.3}` ; la limite est bornée à 100. Sans index (modèle absent), une recherche renvoie une erreur explicite, jamais une liste vide.
+Lance le pont MCP sur stdio : une ligne JSON-RPC 2.0 par requête sur stdin, une ligne de réponse sur stdout. Les journaux restent sur stderr, stdout ne porte que des réponses.
 
-- `--mcp-stdio` est un mode : `maieutik --mcp-stdio search "x"` est une erreur d'usage (code 2), comme la combinaison avec `--watch`.
-- Il détient le verrou d'instance : un `--mcp-stdio` et un `--watch` simultanés se refusent mutuellement (code 4 pour le second).
-- Les autres méthodes du contrat (`files.*`, `chat.*`, `settings.*`) sont refusées en les nommant.
+**Méthodes disponibles quand l'index est chargé :**
+
+- `initialize` - Initialise la connexion
+- `health.check` - Vérifie l'état du serveur
+- `search.semantic` - Recherche vectorielle
+- `search.keyword` - Recherche BM25
+- `search.hybrid` - Recherche hybride (par défaut)
+- `chat.complete` - Génère une réponse avec Ollama
+
+**Exemple d'utilisation :**
+
+```sh
+# Test de connexion
+echo '{"jsonrpc":"2.0","id":1,"method":"health.check"}' | maieutik --mcp-stdio
+# → {"ok":true,"result":{"version":"0.1.0"},"id":1}
+
+# Chat avec Ollama
+echo '{"jsonrpc":"2.0","id":1,"method":"chat.complete","params":{"message":"Quel est RAG?"}}' | maieutik --mcp-stdio
 ```
+
+**Limitations :**
+
+- `--mcp-stdio` est un mode : `maieutik --mcp-stdio search "x"` est une erreur d'usage (code 2)
+- sans index chargé, les recherches échouent
+- un deuxième serveur (`--mcp-stdio` ou `--watch`) est refusé (code 4)
 
 ## Pont Odysseus UI → Maieutik
 
@@ -124,7 +177,7 @@ Un fichier en échec n'arrête pas les autres.
 | 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
 | 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio`, `--mcp-stdio` combiné à une sous-commande |
-| 3 | commande non implémentée : chat, model |
+| 3 | commande non implémentée : feature future |
 | 4 | environnement indisponible : aucun dossier configuré, aucun dossier lisible, modèle d'embedding absent ou illisible, verrou d'instance non créable, ou une autre instance déjà en cours |
 
 ## search
