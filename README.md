@@ -39,48 +39,33 @@ tableau sont relatifs au crate `maieutik/`.
 
 ```mermaid
 flowchart TD
-    CLI["CLI : main.rs<br/>index, search, chat, model"]
-    STATE["AppState<br/>settings, vector_index (Option)"]
-    SCAN["core::scan<br/>collect_files, index_all"]
-    FILTER["core::watch<br/>filtres extension et taille"]
-    EXTRACT["utils::extract_text<br/>md, txt, docx, pdf"]
-    CHUNK["Chunker, extract_headings"]
-    IDX["VectorIndex<br/>sled + HNSW"]
-    EMB["TextEmbedder (trait)"]
-    HASH["HashEmbedder<br/>tests et CI"]
-    ONNX["Embedder ONNX BGE-M3<br/>core::ort_env"]
-    WATCHER["Watcher notify<br/>création, modification,<br/>suppression, renommage"]
-    GEN["Génération<br/>llama.cpp, jamais exécutée"]
-    JUDGE["Jugement<br/>Laya, sidecar HTTP"]
-    
     %% Architecture hybride : Maieutik + Odysseus + Laya + Omarchy
-%% Composants internes
-Maieutik["Maieutik<br/>moteur RAG"]
-LayaSys["Laya (System 1)<br/>noul / choice / score"]
-MCP["Pont MCP<br/>Unix socket + stdio"]
-UI["maieutik-ui (egui)"]
-Odysseus["Odysseus<br/>Agentic Cockpit"]
-Omarchy["Omarchy<br/>Arch/Hyprland + 2 Docker"]
+    %% Composants internes
+    Maieutik["Maieutik<br/>moteur RAG"]
+    LayaSys["Laya (System 1)<br/>noul / choice / score"]
+    MCP["Pont MCP<br/>Unix socket + stdio"]
+    UI["maieutik-ui (egui)"]
+    Odysseus["Odysseus<br/>Agentic Cockpit"]
+    Omarchy["Omarchy<br/>Arch/Hyprland + 2 Docker"]
 
-%% Liaisons internes (implémentées)
-Maieutik -->|index, search| MCP
-MCP -->|Unix socket| Maieutik
-MCP -->|stdin/stdout| UI
-UI -->|recherche (semantic/keyword/hybrid)| Maieutik
-UI -->|bearer:chat| Odysseus
-LayaSys -->|reranking Score| Maieutik
-LayaSys -->|Guardrail Noul| UI
-Odysseus -->|API REST| UI
-Omarchy -->|Docker #1| LayaSys
-Omarchy -->|Docker #2| Odysseus
+    %% Liaisons internes (implémentées)
+    Maieutik -->|index, search| MCP
+    MCP -->|Unix socket| Maieutik
+    MCP -->|stdin/stdout| UI
+    UI -->|recherche (semantic/keyword/hybrid)| Maieutik
+    UI -->|bearer:chat| Odysseus
+    LayaSys -->|reranking Score| Maieutik
+    LayaSys -->|Guardrail Noul| UI
+    Odysseus -->|API REST| UI
+    Omarchy -->|Docker #1| LayaSys
+    Omarchy -->|Docker #2| Odysseus
 
-%% Légende des traits
-classDef solid stroke:#6b7280,stroke-width:2px;
-class dashed stroke:#9ca3af,stroke-width:1px;
-class Maieutik,LayaSys,MCP,UI Odysseus Omarchy solid;
-classDef stub stroke:#d1d5db,stroke-width:1px,stroke-dasharray: 5 5;
-class GEN,JUDGE planned;
-
+    %% Légende des traits
+    classDef solid stroke:#6b7280,stroke-width:2px;
+    classDef dashed stroke:#9ca3af,stroke-width:1px;
+    class Maieutik,LayaSys,MCP,UI,Odysseus,Omarchy solid;
+    classDef stub stroke:#d1d5db,stroke-width:1px,stroke-dasharray: 5 5;
+    class GEN,JUDGE stub;
 ```
 
 Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu ; **bleu = composants hybrides (Odysseus, Laya, Omarchy) non encore câblés dans Maieutik**.
