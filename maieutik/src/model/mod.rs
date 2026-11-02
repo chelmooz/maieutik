@@ -18,6 +18,16 @@ pub enum ModelBackend {
     Safetensors,
 }
 
+impl ModelBackend {
+    pub fn file_extension(&self) -> &'static str {
+        match self {
+            ModelBackend::Onnx => "onnx",
+            ModelBackend::Gguf => "gguf",
+            ModelBackend::Safetensors => "safetensors",
+        }
+    }
+}
+
 impl std::fmt::Display for ModelBackend {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -54,6 +64,12 @@ pub struct ModelMetadata {
     pub installed_at: Option<String>,
     /// Backend du modèle
     pub backend: ModelBackend,
+    /// Description du modèle
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Mémoire minimale requise (en bytes)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min_free_memory: Option<u64>,
     /// Chemin local (calculé)
     #[serde(skip)]
     pub local_path: Option<PathBuf>,
@@ -259,6 +275,8 @@ mod tests {
             source_url: "https://huggingface.co/BAAI/bge-m3".to_string(),
             installed_at: None,
             backend: ModelBackend::Onnx,
+            description: None,
+            min_free_memory: None,
             local_path: None,
         };
 
@@ -281,6 +299,8 @@ mod tests {
             source_url: "https://example.com".to_string(),
             installed_at: None,
             backend: ModelBackend::Onnx,
+            description: None,
+            min_free_memory: None,
             local_path: None,
         };
 
@@ -300,6 +320,8 @@ mod tests {
             source_url: "https://example.com".to_string(),
             installed_at: None,
             backend: ModelBackend::Onnx,
+            description: None,
+            min_free_memory: None,
             local_path: None,
         };
 
