@@ -13,6 +13,8 @@ fn test_metadata(name: &str) -> ModelMetadata {
         source_url: "https://huggingface.co/test".to_string(),
         installed_at: None,
         backend: ModelBackend::Onnx,
+        description: None,
+        min_free_memory: None,
         local_path: None,
     }
 }

@@ -5,18 +5,18 @@
 //! événements encore en attente sont vidés au lieu d'être perdus, et
 //! `run_watcher_with_shutdown` retourne sur signal d'arrêt.
 
-use maieutik::config::AppSettings;
+use maieutik::config::ConfigStore;
 use maieutik::core::watch::{DebouncedProcessor, WatchEvent};
 use maieutik::{run_watcher_with_shutdown, AppState};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{mpsc, oneshot};
 
 /// État sans dossier surveillé ni index : le watcher démarre sans toucher au
 /// disque de l'utilisateur.
-fn app_state() -> Arc<AppState> {
+async fn app_state() -> Arc<AppState> {
     Arc::new(AppState {
-        settings: Arc::new(RwLock::new(AppSettings::default())),
+        config: Arc::new(ConfigStore::new(None).await.unwrap()),
         vector_index: None,
         embedder: None,
     })
@@ -61,7 +61,7 @@ async fn pending_events_are_flushed_on_close() {
 #[tokio::test]
 async fn watcher_returns_on_shutdown_signal() {
     let (tx, rx) = oneshot::channel::<()>();
-    let handle = tokio::spawn(run_watcher_with_shutdown(app_state(), async move {
+    let handle = tokio::spawn(run_watcher_with_shutdown(app_state().await, async move {
         let _ = rx.await;
     }));
 
