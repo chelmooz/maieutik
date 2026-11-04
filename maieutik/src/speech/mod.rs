@@ -333,4 +333,29 @@ mod tests {
         };
         assert!(!paths.all_exist());
     }
+
+    #[test]
+    fn meeting_controller_is_initially_not_recording() {
+        let controller = MeetingController {
+            speech: unsafe { std::sync::Arc::new(std::mem::zeroed()) },
+            llm: unsafe { std::sync::Arc::new(std::mem::zeroed()) },
+            recording: false,
+        };
+        assert!(!controller.is_recording());
+    }
+
+    #[tokio::test]
+    async fn meeting_controller_start_stop_toggles_recording() {
+        let mut controller = MeetingController {
+            speech: unsafe { std::sync::Arc::new(std::mem::zeroed()) },
+            llm: unsafe { std::sync::Arc::new(std::mem::zeroed()) },
+            recording: false,
+        };
+        let temp_dir = tempfile::tempdir().unwrap();
+        controller.start_meeting(temp_dir.path()).await.unwrap();
+        assert!(controller.is_recording());
+        let transcript = controller.stop_meeting().await.unwrap();
+        assert!(!controller.is_recording());
+        assert!(!transcript.is_empty());
+    }
 }
