@@ -377,11 +377,7 @@ mod tests {
     #[tokio::test]
     async fn meeting_controller_multiple_start_stop_cycles() {
         use crate::speech::meeting::MeetingController;
-        let controller = MeetingController {
-            speech: std::sync::Arc::new(unsafe { std::mem::zeroed() }),
-            llm: std::sync::Arc::new(unsafe { std::mem::zeroed() }),
-            recording: false,
-        };
+        let controller = MeetingController { recording: false };
         assert!(!controller.is_recording());
     }
 
