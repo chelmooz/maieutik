@@ -1,5 +1,9 @@
 //! Utilities — document extraction, hashing
 
+use anyhow::Result;
+use std::io::Read;
+use std::path::Path;
+
 pub fn parse_duration(s: &str) -> Option<u64> {
     s.trim().parse::<u64>().ok()
 }
@@ -15,10 +19,6 @@ pub fn escape_shell_chars(s: &str) -> String {
 pub fn sanitize_path(p: &str) -> String {
     p.chars().filter(|c| c.is_alphanumeric() || *c == '/' || *c == '.' || *c == '_' || *c == '-').collect()
 }
-
-use anyhow::Result;
-use std::io::Read;
-use std::path::Path;
 
 /// Extract text from various document formats
 pub fn extract_text(path: &Path) -> Result<String> {
@@ -222,22 +222,22 @@ mod tests {
 
     #[test]
     fn test_parse_duration() {
-        assert_eq!(parse_duration("123"), Some(123));
-        assert_eq!(parse_duration("abc"), None);
+        assert_eq!(super::parse_duration("123"), Some(123));
+        assert_eq!(super::parse_duration("abc"), None);
     }
 
     #[test]
     fn test_format_timestamp() {
-        assert_eq!(format_timestamp(12345), "12345");
+        assert_eq!(super::format_timestamp(12345), "12345");
     }
 
     #[test]
     fn test_escape_shell_chars() {
-        assert_eq!(escape_shell_chars("it's"), "it'\\''s");
+        assert_eq!(super::escape_shell_chars("it's"), "it'\\''s");
     }
 
     #[test]
     fn test_sanitize_path() {
-        assert_eq!(sanitize_path("a/b$c"), "ab/c");
+        assert_eq!(super::sanitize_path("a/b$c"), "a/bc");
     }
 }
