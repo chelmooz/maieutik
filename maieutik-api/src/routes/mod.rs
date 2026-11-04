@@ -11,7 +11,7 @@ pub async fn health() -> Json<Health> {
 #[derive(Deserialize)]
 pub struct SearchParams { pub query: String }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct SearchResult { pub query: String, pub hits: Vec<String> }
 
 pub async fn list_files() -> Json<Vec<String>> {
