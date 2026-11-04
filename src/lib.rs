@@ -9,6 +9,7 @@ pub mod mcp;
 pub mod model;
 pub mod secrets;
 pub mod speech;
+pub mod noul;
 
 pub mod ui;
 pub mod utils;
