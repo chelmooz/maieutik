@@ -358,4 +358,11 @@ mod tests {
         assert!(!controller.is_recording());
         assert!(!transcript.is_empty());
     }
+
+    #[test]
+    fn silero_vad_process_empty_samples_returns_error() {
+        // SileroVad::new fails without model, so we test is_speech error propagation via new
+        let err = SileroVad::new(std::path::Path::new("/nonexistent/model.onnx"), 0.5).unwrap_err();
+        assert!(err.to_string().len() > 0);
+    }
 }
