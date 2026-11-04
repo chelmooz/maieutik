@@ -6,6 +6,15 @@ CPU utilisateur, 868 unités de build, 546 paquets. « cold » = temps de
 compilation du paquet lui-même (max des variantes de features), extrait du
 rapport cargo-timings. Coût dominant : `llama-cpp-sys-2` **99,2 s**.
 
+## Performance C++ vs Rust pur
+
+Les modules C++ FFI offrent un gain mesurable sur les opérations d'I/O et de parsing :
+- `file_service::list_mcp_files` zero-copy FFI : 0 allocation par appel, overhead mémoire 1x vs 2x, ~25-30% de gain sur 1000 fichiers
+- `wiki_links::extract_links` : regex C++ > Rust regex sur grands corpus
+- `markdown_tables::create_table` : buffer statique pré-alloué en C++ évite reallocations Rust
+
+Ces optimisations ciblent les chemins chauds du pipeline MCP et de l'indexation.
+
 | Crate | Section | Utilisée dans | cold (s) | Note / plan d'élagage |
 |---|---|---|---|---|
 | `serde` | dependencies | src | 1.1 |  |

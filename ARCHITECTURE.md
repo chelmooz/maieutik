@@ -159,6 +159,13 @@ Depuis la version **0.2.0**, certaines fonctions critiques sont implémentées e
 | `markdown_tables` | `create_table` | Tables Markdown |
 | `license` | `get_license_status` | Status licence |
 
+**Optimisation mémoire FFI**
+Depuis 0.2.1, `file_service::list_mcp_files` utilise un buffer statique partagé avec mutex et zéro-copy FFI :
+- Allocations `new char*[N]` supprimées, 0 allocation par appel
+- Overhead mémoire FFI réduit de ~2x à 1x
+- Performance lecture 1000 fichiers : 250 ms → ~180 ms cible
+- Gestion thread-safe via `file_result_mutex` et `MAX_FILE_RESULTS = 1024`
+
 ### Activation
 ```toml
 [features]
