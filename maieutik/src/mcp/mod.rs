@@ -1088,4 +1088,15 @@ mod tests {
             std::env::remove_var("MAIEUTIK_LLM_MODEL");
         }
     }
+
+    #[tokio::test]
+    async fn dispatch_search_limit_clamp_negative_and_overflow() {
+        let server = McpServer::new();
+        // Negative limit rejected by serde
+        let resp_neg = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": -5 }))).await;
+        assert!(!resp_neg.ok);
+        // Very large limit should not panic
+        let resp_big = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": 999999 }))).await;
+        assert!(!resp_big.ok);
+    }
 }
