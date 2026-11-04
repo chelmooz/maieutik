@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "maieutik-ui/contracts/odysseus-bridge.schema.json",
+  "title": "Pont UI → Odysseus (contrat consommé)",
+  "description": "Sous-ensemble de l'API HTTP d'Odysseus consommé par maieutik-ui. Source de vérité : le code du fournisseur (Odysseus, hors dépôt) — routes/chat_routes.py, routes/session_routes.py, src/request_models.py, core/database.py. Ce fichier est l'artefact faisant autorité côté consommateur : toute divergence entre le serveur réel et ce schéma doit être corrigée ici puis dans les tests avant le code.",
+  "version": "1.0.0",
+  "transport": {
+    "scheme": "http",
+    "host_policy": "boucle locale uniquement (127.0.0.1, ::1) — l'UI refuse toute autre destination avant connexion",
+    "auth": {
+      "type": "bearer",
+      "header": "Authorization",
+      "value": "Bearer <token>",
+      "scope_required": "chat",
+      "token_source": "Odysseus UI -> Paramètres -> Tokens API (stocké haché côté serveur ; l'UI ne le stocke qu'en mémoire de processus)"
+    }
+  },
+  "endpoints": {
+    "GET /api/version": {
+      "auth": "none",
+      "response": {
+        "type": "object",
+        "required": ["version"],
+        "properties": {
+          "version": {"type": "string"},
+          "build": {"type": "string"},
+          "source_commit": {"type": "string"}
+        }
+      }
+    },
+    "GET /api/sessions": {
+      "auth": "bearer:chat",
+      "description": "Sonde d'authentification : 200 = jeton accepté ; 401/403 = refusé.",
+      "response": {"type": "object"}
+    },
+    "POST /api/session": {
+      "auth": "bearer:chat",
+      "request": {
+        "content_type": "application/x-www-form-urlencoded",
+        "required": ["name", "skip_validation"],
+        "properties": {
+          "name": {"type": "string", "description": "nom de session, ex. maieutik-ui"},
+          "skip_validation": {"type": "string", "enum": ["true"], "description": "session support sans LLM : Odysseus ne sonde pas /v1/models"}
+        }
+      },
+      "response": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {"type": "string", "description": "identifiant de session opaque, réutilisé tel quel"},
+          "name": {"type": "string"},
+          "model": {"type": "string"},
+          "rag": {"type": "boolean"},
+          "archived": {"type": "boolean"}
+        }
+      }
+    },
+    "POST /api/chat": {
+      "auth": "bearer:chat",
+      "request": {
+        "content_type": "application/json",
+        "required": ["message", "session"],
+        "properties": {
+          "message": {"type": "string", "minLength": 1, "maxLength": 50000},
+          "session": {"type": "string", "description": "id renvoyé par POST /api/session"}
+        }
+      },
+      "response": {
+        "type": "object",
+        "required": ["response"],
+        "properties": {
+          "response": {"type": "string", "description": "réponse de l'agent Odysseus"},
+          "model": {"type": "string"},
+          "requested_model": {"type": "string"},
+          "endpoint_label": {"type": "string"}
+        }
+      }
+    }
+  },
+  "errors": {
+    "401": {
+      "meaning": "jeton absent ou invalide",
+      "consumer": "Unavailable (jamais un succès)"
+    },
+    "403": {
+      "meaning": "jeton sans le scope chat",
+      "consumer": "Refused"
+    },
+    "404": {
+      "meaning": "session inconnue",
+      "consumer": "recréer la session une fois puis réessayer"
+    }
+  },
+  "consumer_rules": [
+    "Toute réponse 2xx dont un champ requis manque est une erreur de protocole, jamais un succès vide.",
+    "Un hôte non local est refusé avant toute connexion (egress loopback strict).",
+    "Le jeton n'est jamais journalisé ni affiché ; l'UI n'affiche que sa présence.",
+    "Un échec Odysseus ne fait jamais retomber le pipeline sur une réponse fabriquée : l'issue reste AgentUnavailable/Failed."
+  ]
+}

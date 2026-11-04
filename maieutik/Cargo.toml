@@ -1,0 +1,71 @@
+[package]
+name = "maieutik"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+description = "Maieutik — local-first notes with AI"
+
+[features]
+cpp-modules = []
+default = []
+encrypt-secrets = []
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+sled = { workspace = true }
+pdf-extract = { workspace = true }
+zip = { workspace = true }
+fast-hnsw = { workspace = true }
+ort = { workspace = true }
+llama-cpp-2 = { workspace = true }
+rand = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+blake3 = { workspace = true }
+base64 = { workspace = true }
+percent-encoding = { workspace = true }
+ndarray = { workspace = true }
+tokenizers = { workspace = true }
+async-trait = { workspace = true }
+config = { workspace = true }
+notify = { workspace = true }
+walkdir = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+single-instance = { workspace = true }
+directories = { workspace = true }
+bincode = { workspace = true }
+futures = { workspace = true }
+once_cell = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+hound = { workspace = true }
+chacha20poly1305 = { workspace = true }
+keyring = { workspace = true }
+schemars = { workspace = true }
+tokio-stream = { workspace = true }
+dirs = { workspace = true }
+reqwest = { workspace = true }
+jsonrpsee = { workspace = true }
+parking_lot = { workspace = true }
+sha2 = { workspace = true }
+cc = "1.11.0"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+pretty_assertions = { workspace = true }
+criterion = { workspace = true }
+wiremock = { workspace = true }
+
+[[bench]]
+name = "perf_baseline"
+harness = false
+
+[build-dependencies]
+cc = { workspace = true }
+reqwest = { workspace = true }

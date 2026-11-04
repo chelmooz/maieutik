@@ -1,0 +1,255 @@
+# Utilisation
+
+> **Guide rapide pour les nouveaux utilisateurs** : Suivez les étapes ci-dessous pour mettre en place et utiliser Maieutik en 5 minutes.
+
+## 📋 Vue d'ensemble (Guide rapide)
+
+1. **Installer les prérequis** : Rust, onnxruntime, modèle BGE-M3, Ollama
+2. **Configurer les dossiers** : Créez `~/.config/maieutik/config.json` avec vos dossiers de notes
+3. **Indexer** : `maieutik index` - Parse les fichiers et crée l'index
+4. **Chercher** : `maieutik search "ma question"` - Recherche dans vos notes
+5. **Chatter** : `MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b" maieutik chat "explique RAG"` - Chat avec IA
+
+Pour une installation complète, voir [INSTALLATION.md](INSTALLATION.md).
+
+Ce guide suppose que Maieutik est installé et configuré. Les exemples utilisent la commande `maieutik` ; si tu n'as pas copié le binaire dans ton `PATH`, remplace-la par `target/release/maieutik`.
+
+## 🔧 Prérequis
+
+Avant de commencer, assurez-vous d'avoir :
+
+- **Rust 1.99.1+** : `rustc --version`
+- **onnxruntime 1.31.0** : Téléchargé et `ORT_DYLIB_PATH` défini
+- **Modèle BGE-M3** : `model.onnx`, `model.onnx_data`, `tokenizer.json` dans `~/.local/share/maieutik/models/bge-m3/`
+- **Ollama** (optionnel, pour le chat) : Installé et un modèle chargé
+
+**Exemple de configuration initiale :**
+
+```sh
+# 1. Configurer onnxruntime
+export ORT_DYLIB_PATH="/usr/lib/libonnxruntime.so.1.31.0"
+
+# 2. Configurer les dossiers de notes
+mkdir -p ~/.config/maieutik/
+cat > ~/.config/maieutik/config.json << 'EOF'
+{
+  "version": 1,
+  "settings": {
+    "Folders": ["/home/$USER/notes"]
+  }
+}
+EOF
+
+# 3. Indexer (premier lancement)
+maieutik index
+```
+
+## Intégration Odysseus + Laya (MCP)
+
+Si Odysseus et Laya MCP sont configurés (voir [INSTALLATION.md#5-odysseus-optionnel--orchestration-agentique](INSTALLATION.md#5-odysseus-optionnel--orchestration-agentique)), opencode peut les utiliser comme serveurs MCP :
+
+```sh
+# Vérifier la connexion MCP
+opencode mcp list
+# Doit afficher : odysseus-rag ✓, maieutik-laya ✓ (avec rea, ux-ui-gates, vectorcraft)
+```
+
+Depuis opencode, les outils disponibles :
+
+- **odysseus-rag** : recherche RAG via `rag_server.py` (outils : `search`, `health`)
+- **maieutik-laya** : primitives System 1 (outils : `health`, `noul`, `choice`, `score`)
+
+Exemple d'usage dans opencode :
+- Demander à opencode d'utiliser `odysseus-rag` pour chercher dans tes notes Maieutik
+- Demander à opencode d'utiliser `maieutik-laya` pour router une intention (`choice`), scorer des chunks (`score`), ou filtrer une injection (`noul`)
+
+## Interface graphique (`maieutik-ui`)
+
+Trois onglets : **Tableau de bord** (état réel des briques), **Requête & RAG**
+(trace pas à pas, passages, pertinence), **Réseau & garde-fous** (canaux, egress).
+
+```sh
+cargo run -p maieutik-ui -- --demo          # tout simulé, marqué [simulé]
+cargo run -p maieutik-ui -- --laya-bin target/debug/maieutik-mcp --laya-real --mode hybrid
+```
+
+- Une brique n'est `UP` que si elle a répondu pour de vrai ; un moteur simulé est `MOCK`, un contrat absent `NON CÂBLÉ`.
+- Le garde-fou `Noul réel requis` (défaut) arrête la requête si Noul est simulé ou absent.
+- `--mode semantic|keyword|hybrid` (défaut `hybrid`) sélectionne la méthode du pont Maieutik ; le score affiché est une similarité (1 = meilleur).
+- `eval/` n'est jamais servi, même cochée.
+- Odysseus et la génération System 2 sont affichés `NON CÂBLÉ` : aucune réponse n'est inventée.
+
+## --watch (mode service)
+
+```sh
+maieutik --watch
+```
+
+Garde le processus au premier plan et surveille les dossiers de `settings.Folders` : une création, une modification, une suppression ou un renommage déclenche une réindexation du fichier (extension et taille vérifiées, un fichier illisible pour ses métadonnées est ignoré et signalé dans les journaux).
+
+- L'arrêt se fait par `Ctrl-C` (`SIGINT`) ou `SIGTERM`. Les événements détectés moins de 2 secondes avant le signal (fenêtre de regroupement) ne sont pas perdus : ils sont traités avant la sortie, puis le programme sort en 0.
+- Le service refuse de démarrer avec le code 4 s'il n'y a aucun dossier configuré, ou si l'index est indisponible (modèle d'embedding absent ou illisible) : il n'y a pas de mode dégradé qui tourne sans jamais pouvoir réindexer.
+- `--watch` est un mode, pas une option de commande : `maieutik --watch index` et `maieutik --watch --mcp-stdio` sont des erreurs d'usage (code 2).
+- Comme les autres commandes, il crée le verrou d'instance dans le dossier courant : un second `maieutik --watch` sort en 4.
+- Au démarrage, l'index est réconcilié : les fichiers supprimés pendant que le service était arrêté en sont retirés, donc ils ne remontent plus dans `search`. Un chemin dont les métadonnées sont illisibles est conservé et signalé : la réconciliation ne supprime rien sur une ambiguïté.
+- Un fichier **modifié** pendant l'arrêt est détecté au démarrage suivant et réindexé : l'index garde l'empreinte (taille + date de modification) de chaque version indexée. Un fichier indexé avant l'introduction de l'empreinte est conservé sans être vérifié jusqu'à sa prochaine indexation. Un dossier retiré de `settings.Folders` reste indexé jusqu'à `maieutik index --force`.
+
+## --mcp-stdio (mode serveur MCP)
+
+```sh
+maieutik --mcp-stdio
+```
+
+Lance le pont MCP sur stdio : une ligne JSON-RPC 2.0 par requête sur stdin, une ligne de réponse sur stdout. Les journaux restent sur stderr, stdout ne porte que des réponses.
+
+**Méthodes disponibles quand l'index est chargé :**
+
+- `initialize` - Initialise la connexion
+- `health.check` - Vérifie l'état du serveur
+- `search.semantic` - Recherche vectorielle
+- `search.keyword` - Recherche BM25
+- `search.hybrid` - Recherche hybride (par défaut)
+- `chat.complete` - Génère une réponse avec Ollama
+
+**Exemple d'utilisation :**
+
+```sh
+# Test de connexion
+echo '{"jsonrpc":"2.0","id":1,"method":"health.check"}' | maieutik --mcp-stdio
+# → {"ok":true,"result":{"version":"0.1.0"},"id":1}
+
+# Chat avec Ollama
+echo '{"jsonrpc":"2.0","id":1,"method":"chat.complete","params":{"message":"Quel est RAG?"}}' | maieutik --mcp-stdio
+```
+
+**Limitations :**
+
+- `--mcp-stdio` est un mode : `maieutik --mcp-stdio search "x"` est une erreur d'usage (code 2)
+- sans index chargé, les recherches échouent
+- un deuxième serveur (`--mcp-stdio` ou `--watch`) est refusé (code 4)
+
+## Pont Odysseus UI → Maieutik
+
+L'UI (`maieutik-ui`) peut interagir avec Odysseus via le pont MCP. Le contrat est défini dans
+`maieutik-ui/contracts/odysseus-bridge.schema.json`. L'échange suit ce scénario :
+
+1. **Session** : `POST /api/session` (authentifié `bearer:chat`) retourne un `id` de session.
+2. **Chat** : `POST /api/chat` (authentifié `bearer:chat`) envoie `{"message": "...", "session": "id"}`.
+3. **Résultat** : Odysseus renvoie `{"response": "...", "model": "...", "requested_model": "..."}`.
+4. **Affichage** : l'UI consigne la réponse, affiche le modèle utilisé, et garde le score de reranking Laya.
+
+**Activation** : définir les variables d'environnement avant de lancer l'UI :
+
+```sh
+export ODYSSEUS_ROOT=/chemin/vers/odysseus
+export ODYSSEUS_API_TOKEN=votre_token_api_ici
+cargo run -p maieutik-ui -- --odysseus $ODYSSEUS_ROOT --mode hybrid
+```
+
+**Règles consommateur** :
+- Toute réponse 2xx dont un champ requis manque est une erreur de protocole, jamais un succès vide.
+- Un hôte non local est refusé avant toute connexion (egress loopback strict).
+- Le jeton n'est jamais journalisé ni affiché ; l'UI n'affiche que sa présence.
+- Un échec Odysseus ne fait jamais retomber le pipeline sur une réponse fabriquée : l'issue reste `AgentUnavailable`/`Failed`.
+
+## index
+
+```sh
+maieutik index
+maieutik index --force
+```
+
+La commande parcourt les dossiers de `settings.Folders`, découpe chaque fichier retenu en passages, calcule leurs empreintes sémantiques avec le modèle et les enregistre dans l'index local.
+
+- Sans option, les passages s'ajoutent à l'index existant.
+- Avec `--force`, chaque fichier trouvé remplace ses passages, puis les fichiers disparus sont retirés : l'index est reconstruit à partir du corpus présent, sans jamais être vidé d'un bloc. Un fichier en échec d'extraction garde son ancien contenu et est compté comme échec.
+- Les fichiers dont l'extension n'est pas dans `Extensions`, ou plus gros que `MaxFileSize`, sont ignorés sans message par fichier ; si aucun fichier n'est retenu du tout, un message l'indique et le code est 1.
+
+Sortie :
+
+- stderr : une ligne `échec : chemin : cause` par fichier en erreur, une ligne `sans texte : chemin` par fichier dont aucun texte n'a pu être extrait, et un message si aucun fichier n'est retenu dans des dossiers lisibles (extension ou taille hors limites).
+- stdout : le résumé `N indexé(s), M sans texte, K échec(s)`.
+
+Un fichier en échec n'arrête pas les autres.
+
+| Code | Signification |
+|---|---|
+| 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
+| 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
+| 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio`, `--mcp-stdio` combiné à une sous-commande |
+| 3 | commande non implémentée : feature future |
+| 4 | environnement indisponible : aucun dossier configuré, aucun dossier lisible, modèle d'embedding absent ou illisible, verrou d'instance non créable, ou une autre instance déjà en cours |
+
+## search
+
+```sh
+maieutik search "ma question"
+maieutik search "ma question" --limit 5
+maieutik search "ma question" --mode lexical
+```
+
+`-l` est l'abréviation de `--limit`. Le défaut est 10 résultats. `--mode` choisit la source :
+
+- `hybrid` (défaut) : fusionne la recherche vectorielle et BM25 (Reciprocal Rank Fusion, k = 60), puis garde les meilleurs passages — plancher de similarité dense 0.25, quasi-doublons écartés (Jaccard 0.92), deux passages par fichier au plus, budget d'environ 1200 tokens.
+- `semantic` (alias `dense`) : vecteurs seuls.
+- `lexical` (alias `bm25`, `keyword`) : BM25 seul (k1 = 1.2, b = 0.75), utile pour un identifiant de code ou un terme rare.
+
+Une requête courte (cinq mots ou moins) pèse plus lourd côté lexical ; une requête qui ressemble à un identifiant (`snake_case`, `camelCase`, `::`) encore plus.
+
+Chaque ligne de résultat a la forme :
+
+```
+<score> | <chemin du fichier> | <100 premiers caractères du passage>
+```
+
+Le score est normalisé entre 0 et 1 (1 = meilleur) et n'est comparable qu'entre résultats d'un même mode. Les résultats sont triés du meilleur au moins bon. Une requête composée uniquement de mots vides (« the of and ») ne rend aucun résultat.
+
+Il faut avoir lancé `maieutik index` au moins une fois. Si le modèle d'embedding est absent ou illisible, la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
+
+## chat
+
+```sh
+# Avec Ollama (P3 - recommandé)
+export MAIEUTIK_LLM_MODEL="ollama://qwen2.5:7b"
+maieutik chat "Explique le concept de RAG"
+
+# Sans modèle configuré
+maieutik chat "Bonjour"
+# Affiche : "Chat non configuré. Définissez MAIEUTIK_LLM_MODEL pour activer le chat."
+```
+
+**Fonctionnement :**
+
+- Si `MAIEUTIK_LLM_MODEL` commence par `ollama://`, la commande utilise l'API Ollama locale (`http://localhost:11434/api/chat`).
+- Sinon, un message d'information est affiché sur stderr et le programme sort en code 0 (pour la compatibilité).
+- L'option `--file` permet d'ajouter un contexte (futur).
+
+## Fichiers et dossiers
+
+| Élément | Emplacement (Linux) |
+|---|---|
+| Configuration | `$XDG_CONFIG_HOME/maieutik/config.json` (défaut `~/.config/maieutik/config.json`) |
+| Modèle | `$XDG_DATA_HOME/maieutik/models/bge-m3/` (défaut `~/.local/share/maieutik/models/bge-m3/`) |
+| Index | `$XDG_DATA_HOME/maieutik/vector_index/` |
+
+Pour repartir de zéro, `maieutik index --force` suffit. Supprimer le dossier `vector_index/` a le même effet.
+
+## Journal
+
+L'option `-d` (ou `--debug`) augmente le niveau de détail du journal :
+
+```sh
+maieutik -d index
+```
+
+## Limites connues
+
+- chat fonctionnel avec Ollama (mode `ollama://model_name`, ex: `qwen2.5:7b`, `llama3.1:8b`) ; sans configuration, message informatif sur stderr
+- Réindexation automatique partielle : le suivi des fichiers en arrière-plan réindexe les créations, modifications, suppressions et renommages. Un événement survenu pendant un arrêt de Maieutik n'est pas rattrapé : relancer `maieutik index` (ou `--force`) après un arrêt pour réaligner l'index.
+- Les PDF sont acceptés par défaut ; l'extraction a été validée sur un corpus réel au P1.17 (chaîne corrigée `lopdf 0.42`), mais pas la chaîne complète indexation + recherche avec le modèle.
+- L'option `--config-dir` est acceptée mais reste sans effet.
+- Le verrou d'instance unique n'est plus un fichier : `single-instance` 0.3 lie un socket abstrait, **global au poste** (et non relatif au dossier courant, comme la version 0.1). Deux lancements simultanés se refusent donc mutuellement, même depuis des dossiers différents. Si une autre instance détient déjà le verrou, le programme écrit « Une autre instance de Maieutik est déjà en cours d'exécution. » sur stderr et sort avec le code 4 ; si le socket ne peut pas être créé, il écrit « Verrou d'instance indisponible » et sort aussi en 4. `MAIEUTIK_INSTANCE_NAME` change le nom du verrou (utile pour isoler un bac à sable de test) ; la valeur par défaut est `maieutik`.
+- La taille des passages (1200 caractères, avec 150 de chevauchement) n'a pas été calibrée.
+
+Voir aussi les limites listées dans le [README](../README.md).
+

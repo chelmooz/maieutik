@@ -6,36 +6,36 @@ pub mod config;
 pub mod core;
 pub mod llm;
 pub mod mcp;
+pub mod model;
+pub mod secrets;
 pub mod speech;
 
 pub mod ui;
 pub mod utils;
 
-use crate::config::store::{load_settings, save_settings};
+use crate::config::store::{save_settings, ConfigStore};
 use crate::config::AppSettings;
 use crate::core::indexer::{Embedder, VectorIndex};
 use crate::core::scan::index_path;
-use crate::core::watch::{
-    is_extension_allowed, is_within_size_limit, DebouncedProcessor, FileWatcher, WatchEvent,
-};
+use crate::core::watch::{is_indexable_file, DebouncedProcessor, FileWatcher, WatchEvent};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 
 #[derive(Debug)]
 pub struct AppState {
-    pub settings: Arc<RwLock<AppSettings>>,
+    pub config: Arc<ConfigStore>,
     pub vector_index: Option<Arc<VectorIndex>>,
     pub embedder: Option<Arc<Embedder>>,
 }
 
 impl AppState {
     pub async fn new() -> Result<Self> {
-        let settings = Arc::new(RwLock::new(load_settings()?));
+        let config = Arc::new(ConfigStore::new(None).await?);
         Ok(Self {
-            settings,
+            config,
             vector_index: None,
             embedder: None,
         })
@@ -70,7 +70,7 @@ where
     let (watch_tx, watch_rx) = mpsc::channel(100);
     let (process_tx, process_rx) = mpsc::channel(100);
 
-    let mut watcher = FileWatcher::new(state.settings.clone(), watch_tx.clone())?;
+    let mut watcher = FileWatcher::new(state.config.settings.clone(), watch_tx.clone())?;
     watcher.watch().await?;
 
     let processor = DebouncedProcessor::new(watch_rx, process_tx);
@@ -146,16 +146,13 @@ async fn reindex(state: &AppState, path: &Path) {
         return;
     }
     let allowed = {
-        let settings = state.settings.read().await;
-        if !is_extension_allowed(path, &settings) {
-            false
-        } else {
-            match is_within_size_limit(path, &settings) {
-                Ok(within) => within,
-                Err(e) => {
-                    warn!("taille illisible, ignoré {} : {e:#}", path.display());
-                    return;
-                }
+        let settings = state.config.settings.read().await;
+        // Même règle que `collect_files` et `reconcile_startup`.
+        match is_indexable_file(path, &settings) {
+            Ok(allowed) => allowed,
+            Err(e) => {
+                warn!("taille illisible, ignoré {} : {e:#}", path.display());
+                return;
             }
         }
     };

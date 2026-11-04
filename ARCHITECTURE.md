@@ -146,3 +146,45 @@ extractions must be visible instead of silently polluting retrieval.
 
 1. LLM model beyond the Qwen2.5 7B Q4 reference candidate (P5).
 2. Reranker artifact format (which ONNX export) — decided when P4 starts.
+
+## Modules C++ FFI
+
+Depuis la version **0.2.0**, certaines fonctions critiques sont implémentées en C++ pour performance :
+
+### Modules C++ disponibles
+| Module | Fonctions | Utilisation |
+|---|---|---|
+| `file_service` | `list_mcp_files`, `read_mcp_file` | Gestion fichiers MCP |
+| `wiki_links` | `extract_links` | Extraction liens `[[...]]` |
+| `markdown_tables` | `create_table` | Tables Markdown |
+| `license` | `get_license_status` | Status licence |
+
+### Activation
+```toml
+[features]
+default = ["cpp-modules"]
+cpp-modules = []
+```
+
+### Build
+```bash
+cargo build --features cpp-modules
+```
+
+### API Rust exposée
+```rust
+use maieutik::cpp_modules::*;
+
+// Fichiers (filtre .md/.txt)
+let files = list_mcp_files("/path/to/notes");
+let content = read_mcp_file("/path/to/note.md");
+
+// Liens wiki [[...]]
+let links = extract_links("See [[page1]] and [[page2]]");
+
+// Tables Markdown
+let table = create_table(3, 2, Some("Name|Age"));
+
+// Licence
+let license = get_license_status(); // "MIT"
+```

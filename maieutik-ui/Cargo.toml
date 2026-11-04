@@ -1,0 +1,38 @@
+[package]
+name = "maieutik-ui"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+rust-version = { workspace = true }
+description = "Maieutik UI"
+
+[features]
+default = ["gui"]
+gui = []
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+clap = { workspace = true }
+config = { workspace = true }
+directories = { workspace = true }
+thiserror = { workspace = true }
+serde_json = { workspace = true }
+laya-primitives = { path = "../laya-primitives" }
+maieutik = { path = "../maieutik" }
+eframe = { workspace = true }
+egui = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[[bin]]
+name = "maieutik-ui"
+path = "src/main.rs"
+
+[[bin]]
+name = "fake-laya"
+path = "src/bin/fake_laya.rs"

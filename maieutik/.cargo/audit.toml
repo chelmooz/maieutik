@@ -1,0 +1,20 @@
+# Exceptions d'audit : un avis present au lot P1.6, justifie, revu a la phase indiquee.
+[advisories]
+ignore = [
+  # LEVÉS au lot P1.26 : RUSTSEC-2019-0036 et RUSTSEC-2020-0036 visaient
+  # failure 0.1.8, tiré par single-instance 0.1.2. single-instance 0.3.3 ne
+  # dépend plus de failure (nix/thiserror/widestring) : plus aucune copie de
+  # failure dans le lock.
+  "RUSTSEC-2024-0384", # instant 0.1.13 <- parking_lot 0.11 <- sled ; revue P3/P4 (remplacement par SQLite)
+  "RUSTSEC-2024-0436", # paste 1.0.15 <- tokenizers ; amont
+  "RUSTSEC-2025-0057", # fxhash 0.2.1 <- sled ; revue P3/P4 (remplacement par SQLite)
+  "RUSTSEC-2025-0141", # bincode 1.3.3 direct ; revue P3/P4 (remplacement par SQLite)
+  # RUSTSEC-2026-0187 (lopdf 0.34 <- pdf-extract) LEVÉ au lot P1.17 :
+  # pdf-extract 0.12.1 -> lopdf 0.42.0 ; régression par tests/pdf_extraction.rs.
+  "RUSTSEC-2026-0192", # ttf-parser 0.25.1 <- lopdf 0.42 <- pdf-extract 0.12.1 ; crate non maintenue (avis de maintenance, pas de faille mémoire), amont, lopdf épingle =0.25.1 ; suivre les releases lopdf
+  # LEVÉS au lot P1.19 : tous les avis zstd/zstd-safe (0391, 0395 à 0406) et
+  # zip (0367, 0368, 0369). sherpa-onnx (feature `stt`, jamais activée) retiré
+  # du graphe — il amenait zip 2.6.1 + zstd/zstd-safe 7.3.0 ; la dépendance
+  # directe zip est passée de 0.6.6 à 2.6.1 (P1.18) puis 9.1.2 (version
+  # corrigée des avis zip). zstd/zstd-safe : plus aucune copie dans le lock.
+]

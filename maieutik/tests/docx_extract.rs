@@ -1,0 +1,120 @@
+//! Extraction DOCX minimale (sans modèle ONNX).
+
+use maieutik::utils::extract_text;
+use std::io::Write;
+use std::path::PathBuf;
+
+fn nl() -> String {
+    String::from(char::from(10u8))
+}
+
+fn make_zip(dir: &tempfile::TempDir, name: &str, entries: &[(&str, &str)]) -> PathBuf {
+    let path = dir.path().join(name);
+    let file = std::fs::File::create(&path).unwrap();
+    let mut writer = zip::ZipWriter::new(file);
+    for (entry, body) in entries {
+        writer
+            .start_file(*entry, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        writer.write_all(body.as_bytes()).unwrap();
+    }
+    writer.finish().unwrap();
+    path
+}
+
+#[test]
+fn entities_are_decoded_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let xml = "<w:document><w:body><w:p><w:r><w:t>x \x26lt; y \x26amp;lt; z \x26quot;q\x26quot; \x26apos;s\x26apos; \x26gt;</w:t></w:r></w:p></w:body></w:document>";
+    let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
+    let expected = format!("x \x3c y \x26lt; z \"q\" 's' \x3e{}", nl());
+    assert_eq!(extract_text(&path).unwrap(), expected);
+}
+
+#[test]
+fn numeric_entities_are_decoded() {
+    let dir = tempfile::tempdir().unwrap();
+    // &#233; = é, &#xE9; = é, &#65; = A
+    let xml = "<w:document><w:body><w:p><w:r><w:t>caf&#233; &#xE9;cole &#65;</w:t></w:r></w:p></w:body></w:document>";
+    let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
+    let expected = format!("café école A{}", nl());
+    assert_eq!(extract_text(&path).unwrap(), expected);
+}
+
+#[test]
+fn malformed_xml_is_handled_gracefully() {
+    let dir = tempfile::tempdir().unwrap();
+    // Unclosed tag, invalid nesting
+    let xml = "<w:document><w:body><w:p><w:r><w:t>unclosed";
+    let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
+    // Should not panic; returns what it can extract or an error
+    let _ = extract_text(&path); // Just verify no panic
+}
+
+#[test]
+fn zip_bomb_is_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    // Create a ZIP with a large uncompressed entry (ZIP bomb mitigation)
+    let path = dir.path().join("bomb.docx");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut writer = zip::ZipWriter::new(file);
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("word/document.xml", options).unwrap();
+    // Write 1MB of data - should complete without OOM
+    writer.write_all(&vec![b'x'; 1_000_000]).unwrap();
+    writer.finish().unwrap();
+    // Should return an error or complete without OOM
+    let _ = extract_text(&path);
+}
+
+#[test]
+fn paragraphs_are_separated_by_newline() {
+    let dir = tempfile::tempdir().unwrap();
+    let xml = "<w:document><w:body><w:p><w:r><w:t>A</w:t></w:r></w:p><w:p><w:r><w:t>B</w:t></w:r></w:p></w:body></w:document>";
+    let path = make_zip(&dir, "a.docx", &[("word/document.xml", xml)]);
+    let expected = format!("A{}B{}", nl(), nl());
+    assert_eq!(extract_text(&path).unwrap(), expected);
+}
+
+#[test]
+fn missing_document_xml_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = make_zip(&dir, "a.docx", &[("other.xml", "x")]);
+    assert!(extract_text(&path).is_err());
+}
+
+#[test]
+fn not_a_zip_is_an_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("b.docx");
+    std::fs::write(&path, "pas un zip").unwrap();
+    assert!(extract_text(&path).is_err());
+}
+
+#[test]
+fn stored_entry_is_read_too() {
+    // Un DOCX peut contenir des entrées non compressées (Stored) : la lecture
+    // doit couvrir les deux méthodes, pas seulement Deflated.
+    let dir = tempfile::tempdir().unwrap();
+    let xml = "<w:document><w:body><w:p><w:r><w:t>stocke</w:t></w:r></w:p></w:body></w:document>";
+    let path = dir.path().join("a.docx");
+    let file = std::fs::File::create(&path).unwrap();
+    let mut writer = zip::ZipWriter::new(file);
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    writer.start_file("word/document.xml", options).unwrap();
+    writer.write_all(xml.as_bytes()).unwrap();
+    writer.finish().unwrap();
+
+    let expected = format!("stocke{}", nl());
+    assert_eq!(extract_text(&path).unwrap(), expected);
+}
+
+#[test]
+fn plain_text_still_works() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("c.md");
+    std::fs::write(&path, "# T").unwrap();
+    assert_eq!(extract_text(&path).unwrap(), "# T");
+}

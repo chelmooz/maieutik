@@ -1,0 +1,34 @@
+//! UI module.
+//!
+//! The graphical interface is not implemented yet: the egui/tauri dependencies
+//! are disabled in `Cargo.toml`, so the binary runs headless (CLI, MCP server,
+//! watcher). `run_ui` stays as the single entry point the binary calls.
+
+pub mod egui_app {
+    use crate::AppState;
+    use anyhow::Result;
+    use std::sync::Arc;
+
+    pub async fn run_ui(_state: Arc<AppState>) -> Result<()> {
+        tracing::warn!(
+            "No graphical UI is available in this build; use the CLI (--help) or the MCP server"
+        );
+        Ok(())
+    }
+}
+
+pub use egui_app::run_ui;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn run_ui_is_a_no_op_in_headless_builds() {
+        // Sans interface graphique, `run_ui` doit rester un no-op réussi :
+        // le binaire tourne en CLI / MCP / watcher.
+        let state = Arc::new(crate::AppState::new().await.expect("état initial"));
+        assert!(run_ui(state).await.is_ok());
+    }
+}

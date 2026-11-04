@@ -180,3 +180,100 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 - Licence : MIT (`LICENSE`)
 - Dépôt : https://github.com/chelmooz/maieutik
 - Avis tiers : `THIRD_PARTY_NOTICES.md`
+---
+
+## 📊 Diagrammes d'Architecture
+
+### Architecture FFI Maieutik-Corrige
+
+```mermaid
+flowchart TB
+    subgraph "Layer 1: MCP Clients"
+        E2[MCP Clients<br/>OpenCode, Claude, etc.]
+    end
+    subgraph "Layer 2: Rust Core"
+        R3["MCP Dispatcher<br/>ffi: Rust ↔ C++"]
+        C1[Index Engine<br/>BM25 + HNSW + RRF]
+        C2[Vector Store<br/>sled + embeddings]
+        C3[Search<br/>semantic/keyword/hybrid]
+    end
+    subgraph "Layer 3: FFI C++"
+        F1[File Service<br/>list_mcp_files, read_mcp_file]
+        F2[Wiki Links<br/>extract_links, resolve]
+        F3[Markdown Tables<br/>create_table, format]
+        F4[License Checker<br/>get_license_status]
+    end
+    subgraph "Layer 4: Fichiers & Modèles"
+        E1[Filesystem<br/>markdown notes]
+        E3[Model Embeddings<br/>llama.cpp/ONNX]
+    end
+    E2 --> R3
+    R3 --> C1 & C2 & C3
+    R3 --> F1 & F2 & F3 & F4
+    C1 --> E1 & E3
+```
+
+### Roadmap Développement
+
+```mermaid
+gantt
+    title Maieutik Roadmap
+    dateFormat YYYY-MM-DD
+    section Core
+    Index BM25+HNSW      :done, des1, 2026-10-01, 2026-10-15
+    Recherche Hybrid     :done, des2, 2026-10-15, 2026-10-30
+    Watcher + Reconcile  :done, des3, 2026-11-01, 2026-11-10
+    section FFI C++
+    File Service         :done, ffi1, 2026-11-04, 2026-11-04
+    Wiki Links           :done, ffi2, 2026-11-04, 2026-11-04
+    Markdown Tables      :done, ffi3, 2026-11-04, 2026-11-04
+    License              :done, ffi4, 2026-11-04, 2026-11-04
+    section System 1
+    Encoder ONNX         :active, s1, 2026-11-15, 2026-11-30
+    Noul Guardrail       :s2, 2026-12-01, 2026-12-15
+    Choice Router        :s3, 2026-12-15, 2026-12-30
+    Score Critiquer      :s4, 2027-01-05, 2027-01-20
+    section AI
+    Génération llama.cpp :gen1, 2027-02-01, 2027-02-28
+    Laya Sidecar HTTP    :lay1, 2027-03-01, 2027-03-31
+```
+
+### Dépendances Rust ↔ C++
+
+```mermaid
+flowchart LR
+    subgraph "Rust"
+        R1[build.rs]
+        R2[src/cpp_modules.rs]
+        R3["ffi extern C"]
+    end
+    subgraph "C++"
+        C1[file_service.cpp]
+        C2[wiki_links.cpp]
+        C3[markdown_tables.cpp]
+        C4[license.cpp]
+    end
+    subgraph "Build"
+        CC[cc crate]
+        STATIC[libcpp_modules.a]
+    end
+    R1 --> CC
+    CC --> C1 & C2 & C3 & C4
+    C1 & C2 & C3 & C4 --> STATIC
+    R2 --> R3
+    STATIC -.-> R3
+```
+
+### 🛠️ Utilisation
+
+Compilation avec FFI C++ :
+
+```bash
+cargo build --features cpp-modules
+```
+
+Tests :
+
+```bash
+cargo test --features cpp-modules
+```
