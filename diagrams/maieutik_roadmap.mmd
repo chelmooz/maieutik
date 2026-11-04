@@ -1,0 +1,25 @@
+%% Roadmap Maieutik-Corrige v2.6
+%% Timeline: Q4 2026 → Q1 2027
+
+gantt
+    dateFormat  YYYY-MM-DD
+    section Phase 1: Foundation
+    FFI Integration           :done,    ffi1, 2026-11-01, 2d
+    C++ Modules               :done,    c1,   after ffi1, 3d
+    MCP File Tools            :done,    files1, after c1, 4d
+    License Module            :done,    lic1,  after files1, 2d
+    
+    section Phase 2: System 1
+    Wiki Links Extension      :active,  wiki1, 2026-11-12, 3d
+    Tables Markdown           :         table1, 2026-11-15, 2d
+    Chat Stream MCP           :         chat1, 2026-11-18, 3d
+    
+    section Phase 3: Integration
+    Settings MCP Router       :         set1,   2026-11-25, 2d
+    Graph Retrieval MCP       :         graph1, 2026-11-28, 3d
+    Hybrid Search MCP         :         hybrid1, 2026-12-05, 2d
+    
+    section Phase 4: Polish
+    Documentation Update      :         doc1,   2026-12-15, 3d
+    Performance Benchmarks    :         bench1, 2026-12-20, 2d
+    Release Candidate         :         rc1,    2026-12-25, 3d

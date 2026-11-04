@@ -1,0 +1,22 @@
+%% Flux d'appel FFI C++ vers Rust
+
+sequenceDiagram
+    title Appel FFI: Fichier -> C++
+    
+    participant RUST as Rust Codebase
+    participant FFI as extern "C" Function
+    participant CPP as C++ Implementation
+    participant FS as Filesystem
+    
+    RUST->>FFI: list_mcp_files("/path")
+    activate FFI
+    FFI->>CPP: list_mcp_files(path.c_str())
+    activate CPP
+    CPP->>FS: read directory
+    FS-->>CPP: file listing
+    CPP-->>FFI: allocate string array
+    FFI-->>RUST: return char**
+    deactivate FFI
+    
+    Note over RUST,CPP: Mémoire allouée par C++ doit être libérée
+    RUST->>FFI: free_strings(ptr, count)

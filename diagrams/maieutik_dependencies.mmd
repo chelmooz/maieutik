@@ -1,0 +1,42 @@
+%% Graph des dépendances Maieutik-Corrige
+
+graph LR
+    subgraph "External"
+        OLLAMA[Ollama API]
+        ONX[ONNX Models]
+        FS[Filesystem]
+    end
+
+    subgraph "Core Crates"
+        LLM[llm] -->|llama-cpp-2| ONX
+        MCP[mcp] -->|jsonrpsee| MCP_CLIENT[MCP Client]
+        CORE[core] -->|sled| FS
+        CORE -->|fast-hnsw| HNSW[HNSW Index]
+        CORE -->|bm25| BM25[BM25 Index]
+    end
+
+    subgraph "Extensions"
+        FS_EXT[file_service.cpp] -.->|FFI| CPP[llama-cpp-2]
+        WIKI[wiki_links.cpp] -.->|FFI| CPP
+        TABLES[markdown_tables.cpp] -.->|FFI| CPP
+    end
+
+    subgraph "System 1"
+        LAYA[laya-primitives] --> Noul[Noul]
+        LAYA --> Choice[Choice]
+        LAYA --> Score[Score]
+        LAYA --> Encoder[Encoder]
+    end
+
+    MCP --> CORE
+    CORE --> LLM
+
+    classDef external fill:#4ade80,stroke:#16a34a
+    classDef core fill:#60a5fa,stroke:#1d4ed8
+    classDef ext fill:#facc15,stroke:#eab308
+    classDef sys1 fill:#a78bfa,stroke:#7c3aed
+    
+    class OLLAMA,ONX,FS external
+    class LLM,MCP,CORE,BM25,HNSW core
+    class FS_EXT,WIKI,TABLES ext
+    class LAYA,Noul,Choice,Score,Encoder sys1

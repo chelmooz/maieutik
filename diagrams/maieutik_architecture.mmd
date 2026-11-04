@@ -1,0 +1,62 @@
+%% Diagramme Architecture Maieutik-Corrige
+%% Roadmap et composants principaux
+
+%%{init: {'theme':'dark','themeVariables':{'primaryColor':'#1e40af','primaryTextColor':'#ffffff','secondaryColor':'#334155'}}%%
+
+flowchart TB
+    subgraph "Niveau 1: Interfaces"
+        I1[CLI<br/>cargo run]
+        I2[MCP Server<br/>stdio/JSON-RPC]
+        I3[UI Frontend<br/>egui/eframe]
+    end
+
+    subgraph "Niveau 2: Core Modules"
+        C1[Index Engine<br/>BM25 + HNSW + RRF]
+        C2[Vector Store<br/>sled + embeddings]
+        C3[Search<br/>semantic/keyword/hybrid]
+        C4[Watch Service<br/>file change detection]
+    end
+
+    subgraph "Niveau 3: System 1 Features"
+        S1[Encoder<br/>ONNX/Multimodal]
+        S2[Noul Guardrail<br/>injection/OOD/null]
+        S3[Choice Router<br/>context-aware selection]
+        S4[Score Critiquer<br/>RAG relevance]
+    end
+
+    subgraph "Niveau 4: C++ Extensions (FFI)"
+        F1[File Service<br/>list/read/write/delete]
+        F2[Wiki Links<br/>extract/resolve]
+        F3[Markdown Tables<br/>generate/format]
+        F4[License Checker<br/>status]
+    end
+
+    subgraph "Niveau 5: External"
+        E1[Model Files<br/>llama.cpp/ONNX]
+        E2[Filesystem<br/>markdown notes]
+        E3[MCP Clients<br/>OpenCode/Claude]
+    end
+
+    %% Flows
+    I1 --> C1
+    I2 --> C1 & C2 & C3
+    I3 --> C4
+    C1 --> S1 & S2 & S3 & S4
+    C2 --> E1
+    C3 --> E2
+    I2 -.-> F1 & F2 & F3 & F4
+    F1 --> E2
+    F4 --> E1
+    
+    %% Styles
+    classDef interface fill:#3b82f6,stroke:#1e40af,color:#fff,stroke-width:2px
+    classDef core fill:#60a5fa,stroke:#1d4ed8,color:#000
+    classDef system1 fill:#a78bfa,stroke:#7c3aed,color:#fff
+    classDef cpp fill:#facc15,stroke:#eab308,color:#000
+    classDef external fill:#34d399,stroke:#16a34a,color:#000
+    
+    class I1,I2,I3 interface
+    class C1,C2,C3,C4 core
+    class S1,S2,S3,S4 system1
+    class F1,F2,F3,F4 cpp
+    class E1,E2,E3 external

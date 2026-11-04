@@ -1,0 +1,42 @@
+%% Diagramme Architecture FFI Maieutik-Corrige
+%% Généré automatiquement
+
+flowchart TB
+    subgraph "Layer 1: MCP Clients"
+        E2[MCP Clients<br/>OpenCode, Claude, etc.]
+    end
+
+    subgraph "Layer 2: Rust Core (maieutik)"
+        R3[MCP Dispatcher<br/>routes méthodes]
+        R4[Search Engine<br/>BM25/RRF/Hybrid]
+        R5[Index Manager<br/>vectors / metadata]
+    end
+
+    subgraph "Layer 3: C++ Extensions (FFI)"
+        C1["File Service<br/>list_files, read_file"]
+        C2["Wiki Links<br/>extract_links, resolve"]
+        C3["Markdown Tables<br/>create_table, format"]
+        C4["License Checker<br/>get_license_status"]
+    end
+
+    subgraph "Layer 4: Files"
+        E1[Filesystem]
+        E3[Model Embeddings]
+    end
+
+    E2 --> R3
+    R3 --> C1 & C2 & C3 & C4
+    C1 --> E1
+    C4 --> E3
+    R4 --> E1 & E3
+    R5 --> E1 & E3
+
+    classDef layer1 fill:#e6fffa,stroke:#38a169
+    classDef layer2 fill:#ebf8ff,stroke:#3182ce
+    classDef layer3 fill:#fffaf5,stroke:#805ad5
+    classDef layer4 fill:#fff5ef,stroke:#dd6b20
+    
+    class E2 layer1
+    class R3,R4,R5 layer2
+    class C1,C2,C3,C4 layer3
+    class E1,E3 layer4
