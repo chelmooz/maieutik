@@ -13,3 +13,6 @@ models/
 *.pem
 *.key
 .cargo/config.toml
+maieutik/mcp-search-ULsVhl/
+*.backup
+target/compiled/
