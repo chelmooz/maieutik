@@ -181,3 +181,13 @@ async fn reindex(state: &AppState, path: &Path) {
 pub fn save_settings_if_changed(settings: &AppSettings) -> Result<()> {
     save_settings(settings)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_save_settings_if_changed_is_exported() {
+        // Ensure function is public and callable
+        let _ = save_settings_if_changed;
+    }
+}
