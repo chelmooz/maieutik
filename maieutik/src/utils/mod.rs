@@ -1,5 +1,21 @@
 //! Utilities — document extraction, hashing
 
+pub fn parse_duration(s: &str) -> Option<u64> {
+    s.trim().parse::<u64>().ok()
+}
+
+pub fn format_timestamp(ts: u64) -> String {
+    format!("{ts}")
+}
+
+pub fn escape_shell_chars(s: &str) -> String {
+    s.replace('\'', "'\\''")
+}
+
+pub fn sanitize_path(p: &str) -> String {
+    p.chars().filter(|c| c.is_alphanumeric() || *c == '/' || *c == '.' || *c == '_' || *c == '-').collect()
+}
+
 use anyhow::Result;
 use std::io::Read;
 use std::path::Path;
@@ -202,5 +218,26 @@ mod tests {
     fn mixed_valid_and_invalid_entities() {
         let input = "A &#65; B &#xZZ; C &#x1F642; D";
         assert_eq!(decode_numeric_entities(input), "A A B &#xZZ; C 🙂 D");
+    }
+
+    #[test]
+    fn test_parse_duration() {
+        assert_eq!(parse_duration("123"), Some(123));
+        assert_eq!(parse_duration("abc"), None);
+    }
+
+    #[test]
+    fn test_format_timestamp() {
+        assert_eq!(format_timestamp(12345), "12345");
+    }
+
+    #[test]
+    fn test_escape_shell_chars() {
+        assert_eq!(escape_shell_chars("it's"), "it'\\''s");
+    }
+
+    #[test]
+    fn test_sanitize_path() {
+        assert_eq!(sanitize_path("a/b$c"), "ab/c");
     }
 }
