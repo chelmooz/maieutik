@@ -147,6 +147,19 @@ extractions must be visible instead of silently polluting retrieval.
 1. LLM model beyond the Qwen2.5 7B Q4 reference candidate (P5).
 2. Reranker artifact format (which ONNX export) — decided when P4 starts.
 
+## Web Layer
+
+### maieutik-web
+Frontend React + TypeScript + Vite, destiné à l'interface utilisateur web moderne.
+- Stack : React 18, TypeScript 5, Vite 5, Axios, Zustand, React Router
+- Communication via `maieutik-api` REST
+
+### maieutik-api
+Backend API Rust Axum exposant des routes REST pour le frontend :
+- `GET /health` : health check
+- `GET /api/files` : lister fichiers markdown
+- `POST /api/search` : recherche BM25/hybrid
+
 ## Modules C++ FFI
 
 Depuis la version **0.2.0**, certaines fonctions critiques sont implémentées en C++ pour performance :
