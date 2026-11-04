@@ -312,4 +312,25 @@ mod tests {
         };
         assert!(err.to_string().len() > 0, "erreur vide inattendue");
     }
+
+    #[test]
+    fn speech_model_paths_default_fields_are_populated() {
+        let paths = SpeechModelPaths::default();
+        assert!(!paths.vad_model.to_string_lossy().is_empty());
+        assert!(!paths.stt_model.to_string_lossy().is_empty());
+    }
+
+    #[test]
+    fn speech_model_paths_all_exist_returns_false_for_empty_dir() {
+        use std::fs;
+        use tempfile::tempdir;
+        let dir = tempdir().unwrap();
+        std::env::set_var("MAIEUTIK_DATA_DIR", dir.path());
+        // paths point to non-existent files
+        let paths = SpeechModelPaths {
+            vad_model: dir.path().join("missing.vad.onnx"),
+            stt_model: dir.path().join("missing.stt.onnx"),
+        };
+        assert!(!paths.all_exist());
+    }
 }
