@@ -122,3 +122,41 @@ fn save_registry(path: &PathBuf, models: &HashMap<String, ModelMetadata>) -> Res
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{ModelMetadata, ModelStatus};
+    use tempfile::tempdir;
+
+    #[test]
+    fn registry_new_creates_empty_registry() {
+        let dir = tempdir().unwrap();
+        let reg = LocalRegistry::new(dir.path()).unwrap();
+        assert!(reg.list().unwrap().is_empty());
+    }
+
+    #[test]
+    fn registry_add_and_get() {
+        let dir = tempdir().unwrap();
+        let reg = LocalRegistry::new(dir.path()).unwrap();
+        let meta = ModelMetadata {
+            name: "test-model".into(),
+            version: "1.0".into(),
+            backend: "llama".into(),
+            sha256: "abc".into(),
+            size: 0,
+        };
+        reg.add(meta.clone()).unwrap();
+        let got = reg.get("test-model").unwrap().unwrap();
+        assert_eq!(got.name, meta.name);
+    }
+
+    #[test]
+    fn registry_remove_not_found_error() {
+        let dir = tempdir().unwrap();
+        let reg = LocalRegistry::new(dir.path()).unwrap();
+        let err = reg.remove("missing").unwrap_err();
+        assert!(err.to_string().contains("not found"));
+    }
+}
