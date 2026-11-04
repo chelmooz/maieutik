@@ -40,7 +40,7 @@ pub fn list_mcp_files<P: AsRef<std::path::Path>>(path: P) -> Vec<String> {
                     .into_owned(),
             );
         }
-        cpp_free_strings(ptr, count);
+        // Zero-copy version: memory managed statically in C++, no free needed
         result
     }
 }
