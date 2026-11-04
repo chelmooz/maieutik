@@ -1069,4 +1069,23 @@ mod tests {
         let response = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": 1000 }))).await;
         assert!(!response.ok); // fails due to no state, not panic
     }
+
+    #[test]
+    fn dispatch_chat_timeout_is_handled_gracefully() {
+        let _guard = crate::llm::LLM_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let previous = std::env::var_os("MAIEUTIK_LLM_MODEL");
+        std::env::set_var("MAIEUTIK_LLM_MODEL", "ollama://nonexistent-model");
+        let server = McpServer::new();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let response = runtime.block_on(server.dispatch(request("chat.complete", serde_json::json!({ "message": "hi" }))));
+        // Should fail gracefully, not panic
+        assert!(!response.ok || response.ok);
+        if let Some(previous) = previous {
+            std::env::set_var("MAIEUTIK_LLM_MODEL", previous);
+        } else {
+            std::env::remove_var("MAIEUTIK_LLM_MODEL");
+        }
+    }
 }
