@@ -143,7 +143,7 @@ mod tests {
         let meta = ModelMetadata {
             name: "test-model".into(),
             version: "1.0".into(),
-            backend: "llama".into(),
+            backend: crate::model::ModelBackend::Onnx,
             sha256: "abc".into(),
             size_bytes: 0,
             source_url: "".into(),
