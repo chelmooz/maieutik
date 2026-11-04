@@ -366,6 +366,16 @@ mod tests {
         assert!(err.to_string().len() > 0);
     }
 
+    #[test]
+    fn silero_vad_new_with_dummy_onnx_fails_gracefully() {
+        let path = std::path::Path::new("/tmp/dummy_silero.onnx");
+        std::fs::write(path, b"dummy").unwrap();
+        let err = SileroVad::new(path, 0.5).unwrap_err();
+        assert!(err.to_string().contains("ONNX") || err.to_string().len() > 0);
+        let _ = std::fs::remove_file(path);
+    }
+}
+
     #[tokio::test]
     async fn meeting_controller_multiple_start_stop_cycles() {
         let mut controller = MeetingController {
