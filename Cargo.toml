@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["maieutik", "laya-primitives", "maieutik-ui"]
+members = ["maieutik", "laya-primitives", "maieutik-ui", "maieutik-api"]
 
 [workspace.package]
 edition = "2021"

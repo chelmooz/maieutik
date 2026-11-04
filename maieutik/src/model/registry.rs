@@ -145,7 +145,12 @@ mod tests {
             version: "1.0".into(),
             backend: "llama".into(),
             sha256: "abc".into(),
-            size: 0,
+            size_bytes: 0,
+            source_url: "".into(),
+            installed_at: None,
+            description: None,
+            min_free_memory: 0,
+            local_path: "".into(),
         };
         reg.add(meta.clone()).unwrap();
         let got = reg.get("test-model").unwrap().unwrap();
