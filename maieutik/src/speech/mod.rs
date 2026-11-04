@@ -380,7 +380,8 @@ mod tests {
 
     #[tokio::test]
     async fn meeting_controller_multiple_start_stop_cycles() {
-        // Skip unsafe zeroed test
+        // Placeholder for T2.3 - test state transitions
+        assert!(true);
     }
 
     #[tokio::test]

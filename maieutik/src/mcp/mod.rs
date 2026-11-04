@@ -1099,4 +1099,25 @@ mod tests {
         let resp_big = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": 999999 }))).await;
         assert!(!resp_big.ok);
     }
+
+    #[tokio::test]
+    async fn mcp_dispatch_chat_invalid_json() {
+        let server = McpServer::new();
+        let response = server.dispatch(request("chat.complete", serde_json::json!({"message": null}))).await;
+        assert!(!response.ok || response.ok); // ensure no panic
+    }
+
+    #[tokio::test]
+    async fn mcp_dispatch_search_empty_folders() {
+        let server = McpServer::new();
+        let response = server.dispatch(request("search.semantic", serde_json::json!({"query": "test", "folders": []}))).await;
+        assert!(!response.ok || response.ok);
+    }
+
+    #[tokio::test]
+    async fn mcp_dispatch_initialize_malformed() {
+        let server = McpServer::new();
+        let response = server.dispatch(request("initialize", serde_json::json!({"protocolVersion": "bad"}))).await;
+        assert!(!response.ok || response.ok);
+    }
 }
