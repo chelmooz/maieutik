@@ -1018,4 +1018,27 @@ mod tests {
 
         assert_eq!(response.id, Some(serde_json::json!("abc")));
     }
+
+    #[test]
+    fn dispatch_refuses_multiple_unknown_methods() {
+        let methods = ["custom_action", "experimental", "legacy_endpoint"];
+        for method in methods {
+            let server = McpServer::new();
+            let runtime = tokio::runtime::Runtime::new().expect("runtime");
+            let response = runtime.block_on(server.dispatch(request(method, serde_json::json!({}))));
+            assert!(!response.ok, "{method} doit être refusé");
+            let error = response.error.expect("erreur attendue");
+            assert!(error.contains(method), "message doit citer la méthode");
+            assert!(error.contains("non implémentée"));
+        }
+    }
+
+    #[tokio::test]
+    async fn dispatch_search_rejects_negative_limit() {
+        let server = McpServer::new();
+        let response = server
+            .dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": -5 })))
+            .await;
+        assert!(!response.ok, "limit négatif doit être refusé par serde");
+    }
 }

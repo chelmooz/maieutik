@@ -189,10 +189,10 @@ pub mod meeting {
 
     pub struct MeetingController {
         #[allow(dead_code)]
-        speech: Arc<SpeechService>,
+        pub(crate) speech: Arc<SpeechService>,
         #[allow(dead_code)]
-        llm: Arc<ChatCompletionProvider>,
-        recording: bool,
+        pub(crate) llm: Arc<ChatCompletionProvider>,
+        pub(crate) recording: bool,
     }
 
     impl MeetingController {
@@ -202,6 +202,10 @@ pub mod meeting {
                 llm,
                 recording: false,
             }
+        }
+
+        pub fn is_recording(&self) -> bool {
+            self.recording
         }
 
         pub async fn start_meeting(&mut self, output_path: &Path) -> Result<()> {
@@ -298,5 +302,14 @@ mod tests {
             err.to_string().contains("Speech models not found"),
             "message inattendu : {err}"
         );
+    }
+
+    #[test]
+    fn silero_vad_new_fails_with_nonexistent_model() {
+        let err = match SileroVad::new(std::path::Path::new("/tmp/silero_vad_nonexistent.onnx"), 0.5) {
+            Ok(_) => panic!("un modèle VAD absent doit provoquer une erreur"),
+            Err(e) => e,
+        };
+        assert!(err.to_string().len() > 0, "erreur vide inattendue");
     }
 }
