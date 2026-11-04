@@ -164,4 +164,30 @@ mod tests {
         let err = reg.remove("missing").unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
+
+    #[test]
+    fn registry_list_is_installed_status_update() {
+        let dir = tempdir().unwrap();
+        let reg = LocalRegistry::new(dir.path()).unwrap();
+        let meta = ModelMetadata {
+            name: "m1".into(),
+            version: "1".into(),
+            backend: crate::model::ModelBackend::Onnx,
+            sha256: "abc".into(),
+            size_bytes: 0,
+            source_url: "".into(),
+            installed_at: None,
+            description: None,
+            min_free_memory: Some(0),
+            local_path: None,
+        };
+        reg.add(meta).unwrap();
+        assert_eq!(reg.list().unwrap().len(), 1);
+        assert!(reg.is_installed("m1").unwrap());
+        let status = reg.status("m1").unwrap();
+        assert!(matches!(status, crate::model::ModelStatus::Installed { .. }));
+        reg.update_sha256("m1", "def".into()).unwrap();
+        let got = reg.get("m1").unwrap().unwrap();
+        assert_eq!(got.sha256, "def");
+    }
 }

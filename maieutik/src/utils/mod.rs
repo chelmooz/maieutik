@@ -240,4 +240,18 @@ mod tests {
     fn test_sanitize_path() {
         assert_eq!(super::sanitize_path("a/b$c"), "a/bc");
     }
+
+    #[test]
+    fn test_strip_xml_tags_basic() {
+        let xml = "<w:p>Hello</w:p><w:p>World</w:p>";
+        let out = super::strip_xml_tags(xml);
+        assert!(out.contains("Hello"));
+        assert!(out.contains("World"));
+    }
+
+    #[test]
+    fn test_decode_numeric_entities_valid() {
+        let s = "A &#65; B";
+        assert_eq!(super::decode_numeric_entities(s), "A A B");
+    }
 }

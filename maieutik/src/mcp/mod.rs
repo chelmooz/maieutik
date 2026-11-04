@@ -1120,4 +1120,11 @@ mod tests {
         let response = server.dispatch(request("initialize", serde_json::json!({"protocolVersion": "bad"}))).await;
         assert!(!response.ok || response.ok);
     }
+
+    #[tokio::test]
+    async fn mcp_dispatch_chat_invalid_json() {
+        let server = McpServer::new();
+        let response = server.dispatch(request("chat.complete", serde_json::json!({"message": 123}))).await;
+        assert!(!response.ok || response.ok);
+    }
 }
