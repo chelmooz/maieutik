@@ -365,4 +365,20 @@ mod tests {
         let err = SileroVad::new(std::path::Path::new("/nonexistent/model.onnx"), 0.5).unwrap_err();
         assert!(err.to_string().len() > 0);
     }
+
+    #[tokio::test]
+    async fn meeting_controller_multiple_start_stop_cycles() {
+        let mut controller = MeetingController {
+            speech: unsafe { std::sync::Arc::new(std::mem::zeroed()) },
+            llm: unsafe { std::sync::Arc::new(std::mem::zeroed()) },
+            recording: false,
+        };
+        let temp_dir = tempfile::tempdir().unwrap();
+        for _ in 0..3 {
+            controller.start_meeting(temp_dir.path()).await.unwrap();
+            assert!(controller.is_recording());
+            controller.stop_meeting().await.unwrap();
+            assert!(!controller.is_recording());
+        }
+    }
 }
