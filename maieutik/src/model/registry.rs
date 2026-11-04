@@ -149,8 +149,8 @@ mod tests {
             source_url: "".into(),
             installed_at: None,
             description: None,
-            min_free_memory: 0,
-            local_path: "".into(),
+            min_free_memory: Some(0),
+            local_path: None,
         };
         reg.add(meta.clone()).unwrap();
         let got = reg.get("test-model").unwrap().unwrap();
