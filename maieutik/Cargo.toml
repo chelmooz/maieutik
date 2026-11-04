@@ -18,6 +18,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 sled = { workspace = true }
 pdf-extract = { workspace = true }
+lopdf = "0.42"
 zip = { workspace = true }
 fast-hnsw = { workspace = true }
 ort = { workspace = true }

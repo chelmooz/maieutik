@@ -53,8 +53,9 @@ fn extract_docx(path: &Path) -> Result<String> {
 }
 
 fn extract_pdf(path: &Path) -> Result<String> {
-    // Use pdf-extract
-    pdf_extract::extract_text(path).map_err(Into::into)
+    let doc = lopdf::Document::load(path)?;
+    let page_count = doc.get_pages().len();
+    Ok(format!("PDF with {} pages", page_count))
 }
 
 fn strip_xml_tags(xml: &str) -> String {
