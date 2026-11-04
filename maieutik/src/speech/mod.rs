@@ -381,4 +381,15 @@ mod tests {
             assert!(!controller.is_recording());
         }
     }
+
+    #[tokio::test]
+    async fn speech_service_new_without_download_fails_fast() {
+        // When models are absent, new() should fail without attempting download
+        if SpeechModelPaths::default().all_exist() {
+            // Models present, skip
+            return;
+        }
+        let err = SpeechService::new().await.unwrap_err();
+        assert!(err.to_string().contains("Speech models not found"));
+    }
 }
