@@ -596,4 +596,28 @@ mod tests {
             "un modèle Ollama doit produire un générateur"
         );
     }
+
+    #[tokio::test]
+    async fn test_real_generation_ollama() {
+        let _guard = crate::llm::LLM_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let previous = std::env::var_os("MAIEUTIK_LLM_MODEL");
+        std::env::set_var("MAIEUTIK_LLM_MODEL", "ollama://qwen2.5:3b");
+
+        let generator = create_llm_generator().expect("generator");
+        let prompt = "Résume ce texte en une phrase : intelligence artificielle est le domaine qui vise à créer des machines intelligentes.";
+        let start = std::time::Instant::now();
+        let result = generator.generate(prompt, 128).await.expect("generation");
+        let elapsed = start.elapsed();
+        info!("Generation took {:?}, tokens ~{}", elapsed, result.text.len());
+
+        if let Some(value) = previous {
+            std::env::set_var("MAIEUTIK_LLM_MODEL", value);
+        } else {
+            std::env::remove_var("MAIEUTIK_LLM_MODEL");
+        }
+
+        assert!(!result.text.trim().is_empty(), "response empty");
+    }
 }
