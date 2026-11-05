@@ -33,6 +33,20 @@ maieutik --mcp-stdio
 
 Lance le pont MCP sur stdio : une ligne JSON-RPC 2.0 par requête sur stdin, une ligne de réponse sur stdout. Les journaux restent sur stderr, stdout ne porte que des réponses. Le serveur est relié à l'index : `initialize`, `health.check`, `search.semantic`, `search.keyword` et `search.hybrid` répondent. `search.*` accepte `{"query": "...", "limit": 10, "folders": ["Notes/"], "min_score": 0.3}` ; la limite est bornée à 100. Sans index (modèle absent), une recherche renvoie une erreur explicite, jamais une liste vide.
 
+## API Sidecar HTTP
+
+Serveur Axum exposé par `maieutik-api`. Endpoints :
+- `GET /health` → `{status:"ok"}`
+- `POST /chat` → intègre Choice/Laya, Noul guardrail, Score. Exemple :
+```bash
+curl -X POST http://localhost:8080/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message":"Explique Rust"}'
+```
+- `GET /search?q=...&limit=10` → recherche hybride avec filtres dossiers/min_score
+
+Le sidecar utilise le même état applicatif que la CLI et le mode MCP.
+
 - `--mcp-stdio` est un mode : `maieutik --mcp-stdio search "x"` est une erreur d'usage (code 2), comme la combinaison avec `--watch`.
 - Il détient le verrou d'instance : un `--mcp-stdio` et un `--watch` simultanés se refusent mutuellement (code 4 pour le second).
 - Les autres méthodes du contrat (`files.*`, `chat.*`, `settings.*`) sont refusées en les nommant.

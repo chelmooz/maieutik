@@ -28,6 +28,14 @@ cd maieutik
 scripts/release.sh
 ```
 
+Build par défaut headless (CLI + MCP + watcher). UI graphique désactivée via `#[cfg(feature = "gui")]` dans `src/ui/mod.rs`. Activer l'UI expérimentale :
+```sh
+cargo build --features cpp-modules,gui
+```
+Variables utiles :
+- `MAIEUTIK_LLM_MODEL=ollama://model_name` pour utiliser Ollama
+- `MAIEUTIK_INSTANCE_NAME` pour le verrou d'instance unique
+
 Le binaire est produit dans `target/release/maieutik`. Le script lance `cargo build --release --locked` en remplaçant dans le binaire les chemins personnels (dossier de l'utilisateur, dossier du projet) ; voir [scripts/release.sh](../scripts/release.sh).
 
 La compilation release est longue : le profil utilise `lto = "fat"`, et le crate `llama-cpp-sys-2` est le plus lent à compiler (environ 99 s sur la machine de développement, d'après [DEPENDENCIES.md](DEPENDENCIES.md)).
