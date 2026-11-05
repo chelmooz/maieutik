@@ -54,8 +54,8 @@ Ces optimisations ciblent les chemins chauds du pipeline MCP et de l'indexation.
 | `url` | dependencies | build.rs | 1.4 | **RETIRÉ (P1.6-2)** |
 | `tokio-named-pipes` | dependencies | UNUSED | 0.1 | **RETIRÉ (P1.5-S2)** |
 | `docx-rs` | dependencies | UNUSED | 5.6 | **RETIRÉ (P1.11-3)** |
-| `lopdf` | dependencies | UNUSED | 7.4 | **RETIRÉ (P1.5-S5)** |
-| `pdf-extract` | dependencies | src | 2.7 |  |
+| `lopdf` | dependencies | src | 7.4 | **REINTRODUIT 2026-06-05** pour extraction PDF, stub page count |
+| `pdf-extract` | dependencies | src | 2.7 | legacy, remplacé partiellement |
 | `zip` | dependencies | src, tests | 1.9 |  |
 | `hunspell` | dependencies | UNUSED | 0.1 | **RETIRÉ (P1.5-S6)** |
 | `petgraph` | dependencies | UNUSED | 2.5 | **RETIRÉ (P1.5-S9)** |
