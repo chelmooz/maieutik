@@ -6,6 +6,8 @@
 **Repo Local:** `/home/chelmooz/Work/maieutik`  
 **Repo GitHub:** https://github.com/chelmooz/maieutik
 
+> **📚 Document complet équipe :** Pour le RTOC + COT production avec guides par rôle (DevOps, Développeurs, Webdesigners, AI Engineers, Data Scientists, Helpdesk), FAQ et checklists, voir **[docs/RTOC_COT_PRODUCTION.md](RTOC_COT_PRODUCTION.md)** (Score 98/100).
+
 ---
 
 ## 📋 Table des matières

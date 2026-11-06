@@ -37,6 +37,20 @@ L'architecture suit 5 couches : Frontend → API → Core → FFI → Système. 
 
 Consulte [docs/UTILISATION.md](docs/UTILISATION.md) pour le guide d'utilisation.
 
+## 📚 Documentation Équipe (RTOC + COT Production)
+
+| Guide | Public | Lien |
+|-------|--------|------|
+| **RTOC + COT Complet** | Équipe complète (DevOps, Dev, Webdesign, AI, Data, Helpdesk) | [docs/RTOC_COT_PRODUCTION.md](docs/RTOC_COT_PRODUCTION.md) |
+| **Guide DevOps** | Déploiement, Docker, K8s, Monitoring, Sécurité | [docs/guides/DEVOPS.md](docs/guides/DEVOPS.md) |
+| **Guide Développeurs** | API REST, MCP, SDK Rust, Plugins, Tests | [docs/guides/DEVELOPPEURS.md](docs/guides/DEVELOPPEURS.md) |
+| **Guide Webdesigners** | React/TypeScript, egui, Thèmes, Composants | [docs/guides/WEBDESIGNERS.md](docs/guides/WEBDESIGNERS.md) |
+| **Guide AI Engineers** | Modèles ONNX, Fine-tuning, Optimisation, Benchmarks | [docs/guides/AI_ENGINEERS.md](docs/guides/AI_ENGINEERS.md) |
+| **Guide Data Scientists** | Export embeddings, RAG, Clustering, Évaluation | [docs/guides/DATA_SCIENTISTS.md](docs/guides/DATA_SCIENTISTS.md) |
+| **Guide Helpdesk** | Support, FAQ, Tickets, Escalade, Dépannage | [docs/guides/HELPDESK.md](docs/guides/HELPDESK.md) |
+| **FAQ Utilisateur** | Installation, Config, Recherche, Chat, MCP | [docs/FAQ.md](docs/FAQ.md) |
+| **Checklists** | Installation, Déploiement, Dev, Quotidien, Release | [docs/CHECKLISTS.md](docs/CHECKLISTS.md) |
+
 ## État du projet
 
 | Fonction | Statut | Où |
