@@ -303,49 +303,30 @@ flowchart TB
 ### Roadmap Développement
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6c5ce7', 'primaryTextColor': '#fff', 'lineColor': '#a29bfe'}}}%%
 gantt
-    title 🎯 Maieutik Roadmap 2026-2027
+    title Maieutik Roadmap 2026-2027
     dateFormat YYYY-MM-DD
-    todayMarker stroke-width:2px,stroke:#ff6b6b,stroke-dasharray: 5 5
-    barHeight 30
-    axisFormat %b-%Y
-
-    section 🟢 Core (Terminé)
-    Index BM25+HNSW          :done, core1, 2026-10-01, 2026-10-15
-    Recherche Hybrid        :done, core2, 2026-10-15, 2026-10-30
-    Watcher + Reconcile     :done, core3, 2026-11-01, 2026-11-10
-
-    section 🟢 FFI C++ (Terminé)
-    File Service            :done, ffi1, 2026-11-04, 2026-11-04
-    Wiki Links              :done, ffi2, 2026-11-04, 2026-11-04
-    Markdown Tables         :done, ffi3, 2026-11-04, 2026-11-04
-    License                 :done, ffi4, 2026-11-04, 2026-11-04
-
-    section 🔵 System 1 (En cours)
-    Encoder ONNX            :active, sys1, 2026-11-15, 2026-11-30
-    Noul Guardrail          :sys2, 2026-12-01, 2026-12-15
-    Choice Router           :sys3, 2026-12-15, 2026-12-30
-    Score Critiquer         :sys4, 2027-01-05, 2027-01-20
-
-    section 🟡 AI (Prévu)
-    Génération llama.cpp    :gen1, 2027-02-01, 2027-02-28
-    Laya Sidecar HTTP       :lay1, 2027-03-01, 2027-03-31
-
-    section 🟣 Optimisations (Futur)
-    Cache LRU Embeddings    :opt1, after sys1, 7d
-    HNSW Incremental        :opt2, after opt1, 14d
-    Compression f16        :done, opt3, 2026-11-05, 2026-11-06
-
-    classDef done fill:#e8f5e9,stroke:#4caf50
-    classDef active fill:#e3f2fd,stroke:#2196f3
-    classDef future fill:#fff3e0,stroke:#ff9800
-    classDef opt fill:#f3e5f5,stroke:#9c27b0
-
-    class core1,core2,core3,ffi1,ffi2,ffi3,ffi4,opt3 done
-    class sys1 active
-    class sys2,sys3,sys4,gen1,lay1 future
-    class opt1,opt2 opt
+    section Core
+    Index BM25+HNSW      :done, core1, 2026-10-01, 2026-10-15
+    Recherche Hybrid     :done, core2, 2026-10-15, 2026-10-30
+    Watcher + Reconcile  :done, core3, 2026-11-01, 2026-11-10
+    section FFI C++
+    File Service         :done, ffi1, 2026-11-04, 2026-11-04
+    Wiki Links           :done, ffi2, 2026-11-04, 2026-11-04
+    Markdown Tables      :done, ffi3, 2026-11-04, 2026-11-04
+    License              :done, ffi4, 2026-11-04, 2026-11-04
+    section System 1
+    Encoder ONNX         :active, sys1, 2026-11-15, 2026-11-30
+    Noul Guardrail       :sys2, 2026-12-01, 2026-12-15
+    Choice Router        :sys3, 2026-12-15, 2026-12-30
+    Score Critiquer      :sys4, 2027-01-05, 2027-01-20
+    section AI
+    Génération llama.cpp :gen1, 2027-02-01, 2027-02-28
+    Laya Sidecar HTTP    :lay1, 2027-03-01, 2027-03-31
+    section Optimisations
+    Cache LRU Embeddings :opt1, after sys1, 7d
+    HNSW Incremental     :opt2, after opt1, 14d
+    Compression f16      :done, opt3, 2026-11-05, 2026-11-06
 ```
 
 ### Dépendances Rust ↔ C++
