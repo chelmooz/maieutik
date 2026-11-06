@@ -15,6 +15,31 @@ Les modules C++ FFI offrent un gain mesurable sur les opérations d'I/O et de pa
 
 Ces optimisations ciblent les chemins chauds du pipeline MCP et de l'indexation.
 
+## Catégories de dépendances
+
+| Catégorie | Exemples | Impact performance |
+|---|---|---|
+| Core | sled, fast-hnsw, tokio, serde, ort, tokenizers | Indexation, recherche, embedding |
+| FFI | cc, cpp-modules (file_service, wiki_links, markdown_tables, license) | I/O rapide, parsing, zero-copy |
+| UI | (React/Tauri côté web) | Frontend, pas de dépendance Rust |
+| Tests | tempfile, proptest, pretty_assertions | Validation, non-shipping |
+
+### Optimisations C++ FFI mises en évidence
+
+- **Zero-copy FFI** : `file_service::list_mcp_files` utilise buffer statique partagé avec mutex, 0 allocation par appel, overhead mémoire réduit de 2x à 1x.
+- **Parsing regex C++** : `wiki_links::extract_links` plus rapide que regex Rust sur grands corpus.
+- **Buffer pré-alloué** : `markdown_tables::create_table` évite reallocations Rust.
+- **Résultats ciblés** : gains 25-30% sur 1000 fichiers, pipeline MCP accéléré.
+
+## Roadmap de consolidation
+
+| Phase | Objectif | Actions |
+|---|---|---|
+| P3 | Réduction surface | Retrait dépendances UNUSED confirmées (uuid, parking_lot, etc.) |
+| P4 | Consolidation FFI | Unifier bindings C++, ajouter tests de perf comparatifs |
+| P5 | Core minimal | Migrer BM25 vers structure plus compacte si corpus > mémoire |
+| P6 | Web/UI | Séparer dépendances frontend, réduire taille binaire Rust |
+
 | Crate | Section | Utilisée dans | cold (s) | Note / plan d'élagage |
 |---|---|---|---|---|
 | `serde` | dependencies | src | 1.1 |  |

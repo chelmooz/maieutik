@@ -8,6 +8,35 @@ Prise de notes locale avec IA : indexer ses notes, les retrouver par similarité
 
 Statut : expérimental. Seules l'indexation et la recherche fonctionnent de bout en bout. Le reste est en stub ou prévu (voir le tableau ci-dessous).
 
+## Architecture rapide
+
+Vue d'ensemble de l'architecture en couches et flux de données :
+- Documentation complète : [ARCHITECTURE.md](ARCHITECTURE.md)
+- Détail par couches : [docs/ARCHITECTURE_LAYERS.md](docs/ARCHITECTURE_LAYERS.md)
+
+L'architecture suit 5 couches : Frontend → API → Core → FFI → Système. Chaque composant externe est derrière un trait Rust configurable.
+
+## Stack technologique par couche
+
+| Couche | Technologies |
+|---|---|
+| Frontend | React, TypeScript, Tauri |
+| API | Axum, serde, tokio, MCP |
+| Core | Rust, sled, fast-hnsw, BM25 |
+| FFI | C++ (file_service, wiki_links, markdown_tables, license), cc crate |
+| Système | std::fs, notify, onnxruntime, llama.cpp |
+
+## Comment contribuer
+
+1. Fork le dépôt et crée une branche `feat/nom-feature`
+2. Respecte la structure en couches ; ajoute/modifie des traits dans `core` si nécessaire
+3. Ajoute des tests dans `tests/` avec preuves de fonctionnement
+4. Mets à jour la documentation dans `docs/`
+5. Lance `cargo check --features cpp-modules` et `cargo test --locked`
+6. Ouvre une Pull Request avec description des changements et preuves
+
+Consulte [docs/UTILISATION.md](docs/UTILISATION.md) pour le guide d'utilisation.
+
 ## État du projet
 
 | Fonction | Statut | Où |

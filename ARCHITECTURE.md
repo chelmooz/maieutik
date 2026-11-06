@@ -5,6 +5,81 @@ rerank, generate sourced answers, judge the answers. Everything runs locally;
 every external component sits behind a Rust trait and is selected by
 configuration, never by code.
 
+## Vue stratégique (Layered View)
+
+L'architecture suit une vue en couches stricte, documentée dans [docs/ARCHITECTURE_LAYERS.md](docs/ARCHITECTURE_LAYERS.md) :
+
+| Couche | Responsabilité | Technologies |
+|---|---|---|
+| 1 - Frontend | Interface utilisateur | React, TypeScript, Tauri |
+| 2 - API | Points d'entrée HTTP/MCP | Axum, serde, tokio |
+| 3 - Core | Logique métier, traits | Rust traits : Embedder, Retriever, Generator, Judge, Transcriber |
+| 4 - FFI | Performance critiques | C++ modules : file_service, wiki_links, markdown_tables, license |
+| 5 - Système | I/O bas niveau | std::fs, tokio, serde_json |
+
+Principe : dépendances dirigées vers l'intérieur, aucune couche ne contourne le trait Core.
+
+## Data Flow clair
+
+```mermaid
+flowchart TD
+    A[Utilisateur / Frontend] --> B[API Axum/Tauri Bridge]
+    B --> C[Core Traits]
+    C --> D[Implémentations Rust]
+    C --> E[FFI C++ Modules]
+    D --> F[Système : fichiers, réseau]
+    E --> F
+    F --> D
+    D --> B
+    B --> A
+```
+
+Légende :
+- Trait plein = flux synchronisé
+- Trait pointillé = flux asynchrone / événementiel
+- Le Core orchestre, les implémentations sont interchangeables via config
+
+## Décisions architecturales clés (ADR)
+
+| ID | Décision | Contexte | Conséquence |
+|---|---|---|---|
+| ADR-001 | BM25 en mémoire, pas SQLite FTS5 | Éviter dépendance, rebuild identique à HNSW | Simplicité, limite taille corpus en mémoire |
+| ADR-002 | Traits pour chaque composant externe | Séparation configuration / code | Testabilité, remplacement sans modifier le cœur |
+| ADR-003 | FFI C++ pour chemins chauds | Performance I/O/parsing | Zero-copy, réduction allocations |
+| ADR-004 | ORT environnement partagé process-wide | Deux sessions simultanées | Économie mémoire ONNX |
+
+## Tableau des compétences et responsabilités
+
+| Équipe / Domaine | Composants | Responsabilité principale |
+|---|---|---|
+| Frontend | React/Tauri, UI | Expérience utilisateur, rendu, événements |
+| API | Axum, MCP bridge | Routage, validation, sérialisation |
+| Core | Traits Rust | Logique métier, orchestration, tests |
+| FFI | C++ modules | Optimisations critiques, bindings |
+| Système | Watcher, extraction | I/O fichiers, surveillance, persistance |
+
+## Pipeline amélioré avec légendes explicites
+
+```
+fichier
+  → extraction (utils) [tested at small scale — P3]  # décodage docx/pdf/txt
+  → chunk (Chunker) [tested — P3]                     # 1200c / 150 overlap
+  → embed (Embedder) [tested]                         # BGE-M3 1024-dim
+  → index (VectorIndex: sled + HNSW) [tested]         # rebuild par upsert
+  → recherche dense (Retriever) [tested]              # HNSW
+  → recherche lexicale (BM25 en mémoire) [tested]     # k1=1.2 b=0.75
+  → fusion RRF [tested]                               # k=60
+  → rerank (Reranker) [à faire — P4]                  # cross-encoder
+  → génération (Generator + sources) [never executed — P5] # llama.cpp
+  → jugement (Judge) [à faire — P7]                   # Laya sidecar
+```
+
+Légende pipeline :
+- **[tested]** : run automatisé avec modèle réel, preuves dans tests/
+- **[tested at small scale]** : tests unitaires, pas corpus réel
+- **[à faire — Px]** : phase planifiée
+- **[never executed]** : code stub, jamais exécuté avec modèle
+
 ## Component table (real status, evidence-backed)
 
 | Component | Trait / module | Status | Evidence |
