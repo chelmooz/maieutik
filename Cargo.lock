@@ -3661,6 +3661,7 @@ dependencies = [
  "pretty_assertions",
  "proptest",
  "rand 0.8.8",
+ "rayon",
  "reqwest",
  "schemars",
  "serde",
@@ -3685,7 +3686,10 @@ dependencies = [
 name = "maieutik-api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "axum",
+ "maieutik",
  "serde",
  "serde_json",
  "tokio",
