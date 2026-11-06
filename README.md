@@ -61,6 +61,7 @@ Consulte [docs/UTILISATION.md](docs/UTILISATION.md) pour le guide d'utilisation.
 
 ## Architecture
 
+```mermaid
 %%{init: {'theme': 'default', 'themeVariables': { 'primaryColor': '#6c5ce7', 'primaryTextColor': '#fff', 'lineColor': '#a29bfe', 'secondaryColor': '#fd79a8', 'tertiaryColor': '#fdcb6e'}}}%%
 flowchart TB
     subgraph CLI["🎯 CLI (main.rs)"]
@@ -243,6 +244,7 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 
 ### Architecture FFI Maieutik-Corrige
 
+```mermaid
 %%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#bb86fc', 'primaryTextColor': '#000', 'lineColor': '#03dac6', 'secondaryColor': '#3700b3', 'tertiaryColor': '#ffd700'}}}%%
 flowchart TB
     subgraph Clients["💻 Layer 1: MCP Clients"]
@@ -300,6 +302,7 @@ flowchart TB
 
 ### Roadmap Développement
 
+```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6c5ce7', 'primaryTextColor': '#fff', 'lineColor': '#a29bfe'}}}%%
 gantt
     title 🎯 Maieutik Roadmap 2026-2027
@@ -347,6 +350,7 @@ gantt
 
 ### Dépendances Rust ↔ C++
 
+```mermaid
 %%{init: {'theme': 'neutral', 'themeVariables': { 'primaryColor': '#e74c3c', 'primaryTextColor': '#fff', 'lineColor': '#3498db', 'secondaryColor': '#2ecc71', 'tertiaryColor': '#f39c12'}}}%%
 flowchart LR
     subgraph Rust["🦀 Rust Side"]

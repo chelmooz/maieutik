@@ -21,6 +21,7 @@ Principe : dépendances dirigées vers l'intérieur, aucune couche ne contourne 
 
 ## Data Flow clair
 
+```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ff6b6b', 'primaryTextColor': '#fff', 'lineColor': '#4ecdc4', 'secondaryColor': '#45b7d1', 'tertiaryColor': '#f9ca24'}}}%%
 flowchart TD
     subgraph Frontend["🖥️ Frontend"]
