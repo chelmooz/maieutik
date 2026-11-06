@@ -47,6 +47,7 @@ async fn search_returns_the_matching_file_first() {
             .await
             .unwrap();
     }
+    index.rebuild_hnsw().await.unwrap();
     let hits = index.search("rust borrow checker", 3).await.unwrap();
     assert_eq!(hits[0].0, "rust.md");
 }
