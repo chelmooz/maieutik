@@ -194,7 +194,8 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
     };
     let chunks = chunker.chunk(&base);
     let has_text = !chunks.is_empty();
-    index.store_file(path, &FileContent { chunks, ..base }, fingerprint)?;
+    // Utiliser store_file_batch pour éviter la reconstruction HNSW dans la boucle
+    index.store_file_batch(path, &FileContent { chunks: chunks.clone(), ..base }, fingerprint)?;
     Ok(has_text)
 }
 

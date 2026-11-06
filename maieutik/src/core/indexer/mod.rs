@@ -703,7 +703,11 @@ impl VectorIndex {
 
     /// Upsert a file's chunks: embeddings first, then one atomic replace.
     /// Zero chunks (file emptied) purges the file's previous records.
-    /// Met à jour BM25 incrémentalement ; reconstruit HNSW (pas d'incrémental pour fast-hnsw).
+    /// Met à jour BM25 incrémentalement.
+    /// NOTE: HNSW n'est PAS reconstruit ici car fast-hnsw v1.0 ne supporte pas
+    /// l'insertion incrémentalement. Cette méthode est utilisée par le watcher
+    /// pour les mises à jour en temps réel. Pour l'indexation par lot, utiliser
+    /// store_file_batch() suivi de build_hnsw().
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
         let fingerprint = FileFingerprint::read(file_path).ok().flatten();
         let path_str = file_path.to_string_lossy().to_string();
@@ -711,9 +715,20 @@ impl VectorIndex {
         self.store_file(file_path, content, fingerprint)?;
         // Mise à jour incrémentale BM25
         self.update_bm25_for_file(&path_str, &chunks).await?;
-        // HNSW : reconstruction complète (fast-hnsw ne supporte pas l'incrémental)
-        self.rebuild_hnsw().await?;
+        // HNSW : marquer pour rebuild (prochain appel à build_hnsw)
+        // La reconstruction différée sera gérée par build_hnsw_if_needed()
         Ok(())
+    }
+
+    /// Stocke les chunks d'un fichier SANS déclencher de reconstruction HNSW.
+    /// Utilisé pour l'indexation par lot : appeler build_hnsw() une fois à la fin.
+    pub fn store_file_batch(
+        &self,
+        file_path: &Path,
+        content: &FileContent,
+        fingerprint: Option<FileFingerprint>,
+    ) -> Result<()> {
+        self.store_file(file_path, content, fingerprint)
     }
 
     /// Reconstruit seulement l'index HNSW (dense), sans toucher à BM25.
