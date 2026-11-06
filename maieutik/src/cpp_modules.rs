@@ -1,7 +1,9 @@
 //! C++ FFI bindings pour fonctions critiques (fichiers, liens wiki, tables, licence)
 
+use anyhow::{Context, Result};
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
+use std::path::Path;
 
 extern "C" {
     // file_service
@@ -23,14 +25,18 @@ extern "C" {
 }
 
 /// Liste les fichiers .md et .txt dans un répertoire (pour MCP)
-pub fn list_mcp_files<P: AsRef<std::path::Path>>(path: P) -> Vec<String> {
+///
+/// # Errors
+/// Returns an error if the path cannot be converted to a C string.
+pub fn list_mcp_files<P: AsRef<Path>>(path: P) -> Result<Vec<String>> {
     let path_str = path.as_ref().to_string_lossy();
-    let c_path = CString::new(path_str.as_ref()).unwrap();
+    let c_path = CString::new(path_str.as_ref())
+        .context("Failed to create CString from path")?;
     unsafe {
         let mut ptr: *mut *mut c_char = std::ptr::null_mut();
         let count = cpp_list_mcp_files(c_path.as_ptr(), &mut ptr);
         if count <= 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let mut result = Vec::with_capacity(count as usize);
         for i in 0..count {
@@ -41,33 +47,41 @@ pub fn list_mcp_files<P: AsRef<std::path::Path>>(path: P) -> Vec<String> {
             );
         }
         // Zero-copy version: memory managed statically in C++, no free needed
-        result
+        Ok(result)
     }
 }
 
 /// Lit le contenu d'un fichier
-pub fn read_mcp_file<P: AsRef<std::path::Path>>(path: P) -> Option<String> {
+///
+/// # Errors
+/// Returns an error if the path cannot be converted to a C string.
+pub fn read_mcp_file<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
     let path_str = path.as_ref().to_string_lossy();
-    let c_path = CString::new(path_str.as_ref()).unwrap();
+    let c_path = CString::new(path_str.as_ref())
+        .context("Failed to create CString from path")?;
     unsafe {
         let ptr = cpp_read_mcp_file(c_path.as_ptr());
         if ptr.is_null() {
-            return None;
+            return Ok(None);
         }
         let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
         cpp_free_string(ptr);
-        Some(s)
+        Ok(Some(s))
     }
 }
 
 /// Extrait les liens wiki [[...]] d'un contenu
-pub fn extract_links(content: &str) -> Vec<String> {
-    let c_content = CString::new(content).unwrap();
+///
+/// # Errors
+/// Returns an error if the content cannot be converted to a C string.
+pub fn extract_links(content: &str) -> Result<Vec<String>> {
+    let c_content = CString::new(content)
+        .context("Failed to create CString from content")?;
     unsafe {
         let mut ptr: *mut *mut c_char = std::ptr::null_mut();
         let count = cpp_extract_links(c_content.as_ptr(), &mut ptr);
         if count <= 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let mut result = Vec::with_capacity(count as usize);
         for i in 0..count {
@@ -78,31 +92,45 @@ pub fn extract_links(content: &str) -> Vec<String> {
             );
         }
         cpp_free_links(ptr, count);
-        result
+        Ok(result)
     }
 }
 
 /// Crée une table Markdown
-pub fn create_table(rows: usize, cols: usize, headers: Option<&str>) -> String {
+///
+/// # Errors
+/// Returns an error if the headers cannot be converted to a C string.
+pub fn create_table(rows: usize, cols: usize, headers: Option<&str>) -> Result<String> {
     // Keep CString alive for the duration of the call
-    let c_headers_opt = headers.map(|h| CString::new(h).unwrap());
+    let c_headers_opt = headers.map(|h| {
+        CString::new(h)
+            .context("Failed to create CString from headers")
+    }).transpose()?;
     let headers_ptr = c_headers_opt
         .as_ref()
         .map_or(std::ptr::null(), |h| h.as_ptr());
     unsafe {
         let ptr = cpp_create_table(rows as i32, cols as i32, headers_ptr);
         if ptr.is_null() {
-            return String::new();
+            return Ok(String::new());
         }
         let s = CStr::from_ptr(ptr).to_string_lossy().into_owned();
         cpp_free_table(ptr);
-        s
+        Ok(s)
     }
 }
 
 /// Récupère le statut de la licence
+///
+/// # Panics
+/// Panics if the license status from C++ is not valid UTF-8.
+/// This is acceptable as it indicates a serious bug in the C++ code.
 pub fn get_license_status() -> &'static str {
-    unsafe { CStr::from_ptr(cpp_get_license_status()).to_str().unwrap() }
+    unsafe {
+        let c_str = CStr::from_ptr(cpp_get_license_status());
+        c_str.to_str()
+            .expect("License status from C++ must be valid UTF-8")
+    }
 }
 
 #[cfg(test)]
@@ -119,7 +147,7 @@ mod tests {
         fs::write(dir.path().join("test3.rs"), "content3").unwrap();
         fs::create_dir(dir.path().join("subdir")).unwrap();
 
-        let files = list_mcp_files(dir.path());
+        let files = list_mcp_files(dir.path()).expect("list_mcp_files should succeed");
         assert!(!files.is_empty());
         // Should only find .md and .txt files
         for file in &files {
@@ -134,14 +162,14 @@ mod tests {
         let file_path = dir.path().join("test.md");
         fs::write(&file_path, "Hello, World!").unwrap();
 
-        let content = read_mcp_file(&file_path);
+        let content = read_mcp_file(&file_path).expect("read_mcp_file should succeed");
         assert_eq!(content, Some("Hello, World!".to_string()));
     }
 
     #[test]
     fn test_extract_links() {
         let content = "See [[link1]] and [[link2]] and [[link3]]";
-        let links = extract_links(content);
+        let links = extract_links(content).expect("extract_links should succeed");
         assert_eq!(links.len(), 3);
         assert!(links.contains(&"link1".to_string()));
         assert!(links.contains(&"link2".to_string()));
@@ -150,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_create_table() {
-        let table = create_table(2, 3, Some("Name|Age|City"));
+        let table = create_table(2, 3, Some("Name|Age|City")).expect("create_table should succeed");
         println!("Table output:\n{}", table);
         assert!(table.contains("| Name | Age | City |"));
         assert!(table.contains("|---|---|---|"));

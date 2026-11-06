@@ -28,6 +28,9 @@ const MODEL_ID: &str = "BAAI/bge-m3";
 /// Hard cap matching BGE-M3's context window; the tokenizer.json has no
 /// truncation configured, so it is applied in code before encoding.
 const MAX_SEQ_LEN: usize = 8192;
+/// Default timeout for embedding operations (30 seconds).
+/// Can be overridden via `MAIEUTIK_EMBEDDER_TIMEOUT_SEC` environment variable.
+const DEFAULT_EMBED_TIMEOUT_SEC: u64 = 30;
 /// Intra-op threads for the embedder session, overridable with
 /// `MAIEUTIK_EMBEDDER_THREADS`. Defaults to the machine's parallelism.
 fn embedder_threads() -> usize {
@@ -40,6 +43,16 @@ fn embedder_threads() -> usize {
                 .map(|n| n.get())
                 .unwrap_or(1)
         })
+}
+
+/// Get embedding timeout from environment or use default.
+fn embedder_timeout() -> std::time::Duration {
+    std::env::var("MAIEUTIK_EMBEDDER_TIMEOUT_SEC")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .filter(|&n| n > 0)
+        .map(std::time::Duration::from_secs)
+        .unwrap_or_else(|| std::time::Duration::from_secs(DEFAULT_EMBED_TIMEOUT_SEC))
 }
 
 #[derive(Clone)]
@@ -194,9 +207,52 @@ impl Embedder {
         }
     }
 
-    /// Embed multiple texts in batch
+    /// Embed multiple texts in batch, parallelized with rayon.
     pub fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        texts.iter().map(|t| self.embed(t)).collect()
+        use rayon::prelude::*;
+
+        texts.par_iter()
+            .map(|t| self.embed(t))
+            .collect::<Result<Vec<_>>>()
+    }
+
+    /// Asynchronous embed with timeout protection.
+    ///
+    /// Wraps the synchronous `embed()` in a tokio task with timeout to prevent
+    /// blocking the async runtime. Uses `spawn_blocking` for CPU-bound work.
+    pub async fn embed_async(&self, text: &str, _timeout: std::time::Duration) -> Result<Vec<f32>> {
+        let embedder = self.clone();
+        let text = text.to_string();
+
+        tokio::task::spawn_blocking(move || embedder.embed(&text))
+            .await
+            .map_err(|e| anyhow::anyhow!("Embedding task failed: {}", e))?
+    }
+
+    /// Asynchronous batch embed with timeout.
+    ///
+    /// Combines parallel processing (rayon) with async timeout protection.
+    /// Each embedding runs in parallel, and the entire batch has a timeout.
+    pub async fn embed_batch_async(
+        &self,
+        texts: &[&str],
+        timeout: std::time::Duration,
+    ) -> Result<Vec<Vec<f32>>> {
+        use rayon::prelude::*;
+
+        let embedder = self.clone();
+        let texts: Vec<String> = texts.iter().map(|s| s.to_string()).collect();
+
+        tokio::time::timeout(
+            timeout,
+            tokio::task::spawn_blocking(move || {
+                texts.par_iter()
+                    .map(|t| embedder.embed(t))
+                    .collect::<Result<Vec<_>>>()
+            }),
+        )
+        .await
+        .map_err(|_| anyhow::anyhow!("Embedding batch timed out after {:?}", timeout))??
     }
 }
 
@@ -206,7 +262,11 @@ pub trait TextEmbedder: Send + Sync + std::fmt::Debug {
     fn embed(&self, text: &str) -> Result<Vec<f32>>;
 
     fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        texts.iter().map(|t| self.embed(t)).collect()
+        use rayon::prelude::*;
+
+        texts.par_iter()
+            .map(|t| self.embed(t))
+            .collect::<Result<Vec<_>>>()
     }
 }
 

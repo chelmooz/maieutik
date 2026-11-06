@@ -55,6 +55,7 @@ jsonrpsee = { workspace = true }
 parking_lot = { workspace = true }
 sha2 = { workspace = true }
 cc = "1.11.0"
+rayon = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
