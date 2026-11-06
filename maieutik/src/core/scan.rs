@@ -1,10 +1,11 @@
 //! Parcours des dossiers configurés et indexation par lot.
 
-use crate::config::{AppSettings, FileContent};
+use crate::config::{AppSettings, Chunk, FileContent};
 use crate::core::indexer::{extract_headings, Chunker, FileFingerprint, VectorIndex};
 use crate::core::watch::is_indexable_file;
 use crate::utils::extract_text;
 use anyhow::Result;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
@@ -133,16 +134,38 @@ pub async fn index_all(
         return Ok(report);
     }
     let chunker = Chunker::new(CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS);
-    for path in &files {
-        match index_one(index, &chunker, path) {
-            Ok(true) => report.indexed += 1,
-            Ok(false) => {
-                warn!("no text {}", path.display());
-                report.no_text.push(path.to_path_buf());
+
+    // Phase 1 : Indexation parallèle des fichiers (rayon).
+    // Chaque thread lit, découpe, embarque et écrit dans sled (thread-safe).
+    // Retourne (chemin, has_text, chunks) pour la phase BM25 ci-dessous.
+    let results: Vec<(PathBuf, Result<(bool, Vec<Chunk>)>)> = files
+        .par_iter()
+        .map(|path| {
+            let path_clone = path.clone();
+            let res = index_one(index, &chunker, path);
+            (path_clone, res)
+        })
+        .collect();
+
+    // Phase 2 : Mise à jour BM25 incrémentale (async, séquentielle car RwLock).
+    for (path, result) in &results {
+        match result {
+            Ok((has_text, chunks)) => {
+                if *has_text {
+                    report.indexed += 1;
+                } else {
+                    warn!("no text {}", path.display());
+                    report.no_text.push(path.clone());
+                }
+                let path_str = path.to_string_lossy().to_string();
+                if let Err(e) = index.update_bm25_for_file(&path_str, chunks).await {
+                    warn!("bm25 update error {}: {:#}", path.display(), e);
+                    report.failed.push((path.clone(), format!("{e:#}")));
+                }
             }
             Err(e) => {
                 warn!("index error {}: {:#}", path.display(), e);
-                report.failed.push((path.to_path_buf(), format!("{e:#}")));
+                report.failed.push((path.clone(), format!("{e:#}")));
             }
         }
     }
@@ -166,7 +189,7 @@ pub async fn index_all(
             }
         }
     }
-    index.build_hnsw().await?;
+    index.rebuild_hnsw().await?;
     info!(
         "indexed {} file(s), {} without text, {} failure(s)",
         report.indexed,
@@ -176,10 +199,15 @@ pub async fn index_all(
     Ok(report)
 }
 
-/// Renvoie `true` si le fichier a produit au moins un chunk. Un fichier sans
-/// texte est quand même transmis à l'index (liste de chunks vide) afin de
-/// purger ses anciens enregistrements.
-fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool> {
+/// Renvoie `true` si le fichier a produit au moins un chunk, avec les chunks
+/// produits pour la mise à jour BM25 incrémentale. Un fichier sans texte est
+/// quand même transmis à l'index (liste de chunks vide) afin de purger ses
+/// anciens enregistrements.
+fn index_one(
+    index: &VectorIndex,
+    chunker: &Chunker,
+    path: &Path,
+) -> Result<(bool, Vec<crate::config::Chunk>)> {
     // Empreinte AVANT la lecture : une écriture survenue pendant la lecture
     // fait diverger la date enregistrée, et la prochaine réconciliation
     // réindexe au lieu de croire le contenu à jour. Illisible -> None
@@ -195,8 +223,15 @@ fn index_one(index: &VectorIndex, chunker: &Chunker, path: &Path) -> Result<bool
     let chunks = chunker.chunk(&base);
     let has_text = !chunks.is_empty();
     // Utiliser store_file_batch pour éviter la reconstruction HNSW dans la boucle
-    index.store_file_batch(path, &FileContent { chunks: chunks.clone(), ..base }, fingerprint)?;
-    Ok(has_text)
+    index.store_file_batch(
+        path,
+        &FileContent {
+            chunks: chunks.clone(),
+            ..base
+        },
+        fingerprint,
+    )?;
+    Ok((has_text, chunks))
 }
 
 /// Bilan d'une réconciliation au démarrage.
@@ -261,7 +296,17 @@ pub async fn reconcile_startup(
                         Ok(true) => {
                             info!("réconciliation : modifié pendant l'arrêt, réindexé {stored}");
                             match index_one(index, &chunker, Path::new(&stored)) {
-                                Ok(_) => report.reindexed.push(stored),
+                                Ok((_has_text, chunks)) => {
+                                    let path_str = stored.clone();
+                                    if let Err(e) =
+                                        index.update_bm25_for_file(&path_str, &chunks).await
+                                    {
+                                        report
+                                            .failed
+                                            .push((stored.clone(), format!("bm25 update : {e:#}")));
+                                    }
+                                    report.reindexed.push(stored);
+                                }
                                 Err(e) => report
                                     .failed
                                     .push((stored, format!("réindexation : {e:#}"))),
@@ -307,7 +352,7 @@ pub async fn reconcile_startup(
         }
     }
     if !report.removed.is_empty() || !report.reindexed.is_empty() {
-        index.build_hnsw().await?;
+        index.rebuild_hnsw().await?;
     }
     Ok(report)
 }
@@ -319,8 +364,10 @@ pub async fn reconcile_startup(
 /// l'existence, l'extension et la taille avant l'appel.
 pub async fn index_path(index: &VectorIndex, path: &Path) -> Result<bool> {
     let chunker = Chunker::new(CHUNK_MAX_CHARS, CHUNK_OVERLAP_CHARS);
-    let has_text = index_one(index, &chunker, path)?;
-    index.build_hnsw().await?;
+    let (has_text, chunks) = index_one(index, &chunker, path)?;
+    let path_str = path.to_string_lossy().to_string();
+    index.update_bm25_for_file(&path_str, &chunks).await?;
+    index.rebuild_hnsw().await?;
     Ok(has_text)
 }
 

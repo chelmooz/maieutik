@@ -12,7 +12,7 @@ fn test_list_files_performance() {
         fs::write(path, "content").unwrap();
     }
     let start = Instant::now();
-    let files = list_mcp_files(dir.path());
+    let files = list_mcp_files(dir.path()).expect("list_mcp_files should succeed");
     let duration = start.elapsed();
     println!("Listed {} files in {:?}", files.len(), duration);
     assert!(files.len() <= 1000);
@@ -24,6 +24,6 @@ fn test_list_files_performance() {
 fn test_memory_safety_no_leaks() {
     let dir = tempdir().unwrap();
     fs::write(dir.path().join("a.md"), "x").unwrap();
-    let files = list_mcp_files(dir.path());
+    let files = list_mcp_files(dir.path()).expect("list_mcp_files should succeed");
     assert!(!files.is_empty());
 }

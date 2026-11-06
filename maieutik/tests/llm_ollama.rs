@@ -76,7 +76,7 @@ fn test_llm_generate_simple_prompt() -> Result<()> {
         return Ok(());
     }
 
-    let manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
+    let mut manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
     let params = test_params("Bonjour, comment ça va?");
 
     let result: GenerationResult = manager.generate(params)?;
@@ -92,7 +92,7 @@ fn test_llm_generate_with_custom_params() -> Result<()> {
         return Ok(());
     }
 
-    let manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
+    let mut manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
     let params = GenerationParams {
         prompt: "Répète exactement: 'Test déterministe'".to_string(),
         max_tokens: Some(100),
@@ -112,7 +112,7 @@ fn test_llm_generate_long_context() -> Result<()> {
         return Ok(());
     }
 
-    let manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
+    let mut manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
     let long_context = "Voici un long contexte. ".repeat(50);
     let params = test_params(&long_context);
 
@@ -132,7 +132,7 @@ fn test_llm_generate_with_timeout() -> Result<()> {
         return Ok(());
     }
 
-    let manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
+    let mut manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
     let params = GenerationParams {
         prompt: "Génère un texte court".to_string(),
         max_tokens: Some(100),
@@ -155,7 +155,7 @@ fn test_llm_generate_error_handling() -> Result<()> {
         return Ok(());
     }
 
-    let manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
+    let mut manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
 
     let huge_prompt = "A".repeat(100000);
     let params = test_params(&huge_prompt);
@@ -172,7 +172,7 @@ fn test_llm_manager_recoverable_after_error() -> Result<()> {
         return Ok(());
     }
 
-    let manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
+    let mut manager = LlamaManager::new(PathBuf::from("mistral:7b"))?;
 
     let _ = LlamaManager::new(PathBuf::from("invalid-model"));
 

@@ -118,7 +118,7 @@ impl EmbeddingCache {
     /// Statistiques du cache (pour debug/metrics)
     pub fn stats(&self) -> (usize, usize) {
         let guard = self.cache.read();
-        (guard.len(), guard.cap().get())
+        (guard.len(), self.capacity)
     }
 }
 

@@ -8,6 +8,7 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use parking_lot::RwLock;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
@@ -35,12 +36,23 @@ struct SecretsFile {
 const SECRETS_VERSION: u32 = 1;
 
 /// File-based secrets store with atomic writes and optional encryption.
-#[derive(Debug)]
+#[cfg_attr(not(feature = "encrypt-secrets"), derive(Debug))]
 pub struct FileStore {
     path: PathBuf,
     cache: Arc<RwLock<SecretsFile>>,
     #[cfg(feature = "encrypt-secrets")]
     cipher: Option<XChaCha20Poly1305>,
+}
+
+#[cfg(feature = "encrypt-secrets")]
+impl std::fmt::Debug for FileStore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FileStore")
+            .field("path", &self.path)
+            .field("cache", &self.cache)
+            .field("cipher", &"[XChaCha20Poly1305]")
+            .finish()
+    }
 }
 
 impl FileStore {

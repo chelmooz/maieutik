@@ -8,7 +8,7 @@ fn rec(file: &str, i: usize) -> VectorRecord {
         file_path: file.to_string(),
         chunk_index: i,
         text: format!("{file} chunk {i}"),
-        embedding: vec![0.0; 4],
+        embedding: vec![0u8; 8],
         heading_path: None,
         chunk_ordinal: i,
         display_text: None,
