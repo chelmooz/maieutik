@@ -211,8 +211,8 @@ fn crash_between_vectors_and_fingerprint() {
     rt.block_on(index.upsert_file(&file_path, &content))
         .unwrap();
 
-    // Verify the index can be rebuilt
-    rt.block_on(index.build_hnsw()).unwrap();
+    // Verify the index can be rebuilt (HNSW only, BM25 is incremental)
+    rt.block_on(index.rebuild_hnsw()).unwrap();
 
     let results = rt.block_on(index.search("test", 5)).unwrap();
     assert!(!results.is_empty());

@@ -31,6 +31,8 @@ async fn seed(index: &VectorIndex) {
             .await
             .unwrap();
     }
+    // Rebuild HNSW for semantic search (upsert_file doesn't rebuild HNSW)
+    index.rebuild_hnsw().await.unwrap();
 }
 
 #[tokio::test]

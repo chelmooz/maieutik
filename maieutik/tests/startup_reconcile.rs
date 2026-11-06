@@ -277,9 +277,9 @@ async fn entry_without_recorded_fingerprint_is_kept_and_reported() {
         1,
         "l'entrée doit être conservée et signalée : {report:?}"
     );
-    // Entrée conservée = toujours cherchable (HNSW construit ici, car ce
+    // Entrée conservée = toujours cherchable (HNSW reconstruit ici, car ce
     // test n'est pas passé par index_all).
-    index.build_hnsw().await.unwrap();
+    index.rebuild_hnsw().await.unwrap();
     let hits = index.search("quick brown fox", 5).await.unwrap();
     assert!(hits.iter().any(|(p, _, _)| p.ends_with("a.md")), "{hits:?}");
 }

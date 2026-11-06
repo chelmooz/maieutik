@@ -699,8 +699,36 @@ impl VectorIndex {
         Ok(())
     }
 
-    /// Nom historique conservé pour les appelants existants : construit HNSW
-    /// **et** BM25.
+    /// Initialise les deux index (HNSW + BM25) depuis les données sled.
+    /// À appeler UNE SEULE FOIS au démarrage (lib.rs).
+    /// Pour les reconstructions ultérieures, utiliser `rebuild_hnsw()` (HNSW seul)
+    /// car BM25 est maintenu incrémentalement via `update_bm25_for_file()`.
+    pub async fn initialize_indexes(&self) -> Result<()> {
+        self.build_indexes().await
+    }
+
+    /// Reconstruit l'index HNSW SEULEMENT (dense), sans toucher à BM25.
+    /// BM25 est mis à jour incrémentalement via `update_bm25_for_file()`.
+    /// À appeler après indexation par lot (`store_file_batch`) ou réconciliation.
+    pub async fn rebuild_hnsw(&self) -> Result<()> {
+        let mut hnsw = HnswIndex::new(EMBEDDING_DIM);
+
+        for item in self.vectors_tree.iter() {
+            let (_, val) = item?;
+            let record: VectorRecord = bincode::deserialize(&val)?;
+            let embedding = crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
+            hnsw.add(record.id.clone(), &embedding)?;
+        }
+
+        let chunks = hnsw.len();
+        info!("Rebuilt HNSW index with {chunks} vectors (BM25 updated incrementally)");
+        *self.hnsw.write().await = Some(hnsw);
+        Ok(())
+    }
+
+    /// @deprecated Utiliser `initialize_indexes()` au démarrage ou `rebuild_hnsw()` après.
+    /// Conservé pour compatibilité : reconstruit HNSW + BM25 (comportement legacy).
+    #[deprecated(since = "0.2.0", note = "use initialize_indexes() or rebuild_hnsw()")]
     pub async fn build_hnsw(&self) -> Result<()> {
         self.build_indexes().await
     }
@@ -711,7 +739,7 @@ impl VectorIndex {
     /// NOTE: HNSW n'est PAS reconstruit ici car fast-hnsw v1.0 ne supporte pas
     /// l'insertion incrémentalement. Cette méthode est utilisée par le watcher
     /// pour les mises à jour en temps réel. Pour l'indexation par lot, utiliser
-    /// store_file_batch() suivi de build_hnsw().
+    /// store_file_batch() suivi de rebuild_hnsw().
     pub async fn upsert_file(&self, file_path: &Path, content: &FileContent) -> Result<()> {
         let fingerprint = FileFingerprint::read(file_path).ok().flatten();
         let path_str = file_path.to_string_lossy().to_string();
@@ -735,26 +763,8 @@ impl VectorIndex {
         self.store_file(file_path, content, fingerprint)
     }
 
-    /// Reconstruit seulement l'index HNSW (dense), sans toucher à BM25.
-    pub async fn rebuild_hnsw(&self) -> Result<()> {
-        let mut hnsw = HnswIndex::new(EMBEDDING_DIM);
-
-        for item in self.vectors_tree.iter() {
-            let (_, val) = item?;
-            let record: VectorRecord = bincode::deserialize(&val)?;
-            // Décompresser l'embedding f16 -> f32
-            let embedding = crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
-            hnsw.add(record.id.clone(), &embedding)?;
-        }
-
-        let chunks = hnsw.len();
-        info!("Rebuilt HNSW index with {chunks} vectors (BM25 updated incrementally)");
-        *self.hnsw.write().await = Some(hnsw);
-        Ok(())
-    }
-
     /// Comme `upsert_file`, sans reconstruire HNSW : l'appelant lance
-    /// `build_hnsw` une fois à la fin d'un lot.
+    /// `rebuild_hnsw()` une fois à la fin d'un lot.
     /// Écrit les chunks d'un fichier et l'empreinte de la version indexée.
     ///
     /// Ordre d'écriture assumé : les vecteurs d'abord, l'empreinte ensuite.
