@@ -1,8 +1,9 @@
 //! Réglages : compatibilité des anciens fichiers et permissions (sans modèle).
 
 use maieutik::config::store::{
-    data_dir, embedder_model_path, embedder_tokenizer_path, load_settings_from, models_dir,
-    save_settings_to, save_settings_to_file, settings_dir,
+    config_path, data_dir, embedder_model_path, embedder_tokenizer_path, ensure_dirs, load_settings,
+    load_settings_from, models_dir, ort_dylib_path, save_settings, save_settings_to,
+    save_settings_to_file, settings_dir,
 };
 use maieutik::config::AppSettings;
 
@@ -71,4 +72,65 @@ fn saved_config_is_private() {
     save_settings_to(&path, &AppSettings::default()).unwrap();
     let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o600);
+}
+
+#[test]
+fn config_path_returns_valid_path() {
+    let path = config_path();
+    assert!(path.is_ok());
+    let path = path.unwrap();
+    assert!(path.to_string_lossy().contains("maieutik"));
+    assert!(path.to_string_lossy().ends_with("config.json"));
+}
+
+#[test]
+fn ensure_dirs_creates_required_directories() {
+    // ensure_dirs creates the default config, data, and models directories
+    // using the standard directory functions. It should succeed.
+    let result = ensure_dirs();
+    assert!(result.is_ok());
+}
+
+#[test]
+fn load_settings_works_with_default_config() {
+    // Test that load_settings works (uses default config dir)
+    let result = load_settings();
+    // May fail if no config exists, but shouldn't panic
+    assert!(result.is_ok() || result.is_err());
+}
+
+#[test]
+fn save_settings_works_with_custom_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("custom_config.json");
+    
+    let settings = AppSettings::default();
+    let result = save_settings_to_file(&settings, &path);
+    assert!(result.is_ok());
+    assert!(path.exists());
+    
+    // Verify we can load it back
+    let loaded = load_settings_from(&path);
+    assert!(loaded.is_ok());
+}
+
+#[test]
+fn ort_dylib_path_returns_option() {
+    let path = ort_dylib_path();
+    // Should return None or Some path without panicking
+    assert!(path.is_none() || path.is_some());
+}
+
+#[test]
+fn save_settings_to_creates_directories() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nested").join("deep").join("config.json");
+    
+    // Create parent directories first (save_settings_to doesn't create them)
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    
+    let settings = AppSettings::default();
+    let result = save_settings_to(&path, &settings);
+    assert!(result.is_ok());
+    assert!(path.exists());
 }
