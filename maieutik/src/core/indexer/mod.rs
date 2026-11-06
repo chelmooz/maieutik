@@ -520,6 +520,8 @@ pub struct VectorIndex {
     /// Index lexical reconstruit depuis sled, comme HNSW.
     bm25: Arc<RwLock<Option<Bm25Index>>>,
     embedder: Arc<dyn TextEmbedder>,
+    /// Cache LRU pour éviter le recalcul des embeddings
+    embedding_cache: crate::core::embedding_cache::EmbeddingCache,
 }
 
 impl VectorIndex {
@@ -606,6 +608,7 @@ impl VectorIndex {
             hnsw: Arc::new(RwLock::new(None)),
             bm25: Arc::new(RwLock::new(None)),
             embedder: Arc::new(embedder),
+            embedding_cache: crate::core::embedding_cache::EmbeddingCache::new(1000),
         })
     }
 
@@ -754,7 +757,11 @@ impl VectorIndex {
         let mut records = Vec::with_capacity(chunks.len());
         if !chunks.is_empty() {
             let texts: Vec<&str> = chunks.iter().map(|c| c.text.as_str()).collect();
-            let embeddings = self.embedder.embed_batch(&texts)?;
+            // Utiliser le cache LRU pour éviter le recalcul des embeddings
+            let embeddings: Vec<Vec<f32>> = texts
+                .iter()
+                .map(|t| self.embedding_cache.get_or_insert(t, || self.embedder.embed(t)))
+                .collect::<Result<Vec<_>>>()?;
             for (i, (chunk, emb)) in chunks.iter().zip(embeddings).enumerate() {
                 records.push(VectorRecord {
                     id: format!("{}#{}", path_str, i),
