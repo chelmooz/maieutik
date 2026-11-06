@@ -2,7 +2,20 @@ name: CI
 
 on: [push, pull_request]
 
+permissions:
+  contents: read  # restrict scope for checkout token
+
 jobs:
+  check-orphan-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: jq  # for the orphan-finding gate
+      - name: Check for orphaned .rs files
+        run: .github/scripts/check_orphaned_rust.sh
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -14,8 +27,12 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: Cargo test
-        run: cargo test --features cpp-modules --workspace
+      - name: Cargo check --locked --all-targets
+        run: cargo check --locked --features cpp-modules --all-targets
+      - name: Cargo test --locked
+        run: cargo test --locked --features cpp-modules --workspace
+      - name: Clippy -D warnings
+        run: cargo clippy --locked --features cpp-modules --all-targets -- -D warnings
       - name: NPM install
         working-directory: maieutik-web
         run: npm ci
