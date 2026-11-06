@@ -38,7 +38,9 @@ impl Default for EmbeddingCache {
 impl EmbeddingCache {
     /// Crée un nouveau cache avec la capacité spécifiée
     pub fn new(capacity: usize) -> Self {
-        let cache = LruCache::new(NonZeroUsize::new(capacity.max(1)).expect("Cache capacity must be at least 1"));
+        let cache = LruCache::new(
+            NonZeroUsize::new(capacity.max(1)).expect("Cache capacity must be at least 1"),
+        );
         Self {
             capacity,
             cache: Arc::new(RwLock::new(cache)),
@@ -96,7 +98,11 @@ impl EmbeddingCache {
         let embedding = compute_fn()?;
         let len = embedding.len();
         self.insert(text, embedding.clone());
-        tracing::debug!("Cached embedding de taille {} pour texte de {} bytes", len, text.len());
+        tracing::debug!(
+            "Cached embedding de taille {} pour texte de {} bytes",
+            len,
+            text.len()
+        );
         Ok(embedding)
     }
 
@@ -138,7 +144,11 @@ mod tests {
 
         // Get
         let cached = cache.get(text);
-        assert_eq!(cached, Some(embedding.clone()), "Embedding devrait être trouvé");
+        assert_eq!(
+            cached,
+            Some(embedding.clone()),
+            "Embedding devrait être trouvé"
+        );
 
         // Length
         assert_eq!(cache.len(), 1);
@@ -173,7 +183,10 @@ mod tests {
 
         // Texte différent = hash différent (probable)
         let other_hash = EmbeddingCache::hash_text("different text");
-        assert_ne!(hash1, other_hash, "Hashes différents devraient être différents");
+        assert_ne!(
+            hash1, other_hash,
+            "Hashes différents devraient être différents"
+        );
     }
 
     #[test]

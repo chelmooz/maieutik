@@ -88,6 +88,9 @@ jobs:
         env:
           CMAKE_ARGS: ${{ matrix.cmake_args }}
 
+      - name: Rustfmt check
+        run: cargo fmt --all -- --check
+
       # Web tests only on Linux (faster, sufficient)
       - name: NPM install
         if: runner.os == 'Linux'

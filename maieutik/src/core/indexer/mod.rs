@@ -211,7 +211,8 @@ impl Embedder {
     pub fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         use rayon::prelude::*;
 
-        texts.par_iter()
+        texts
+            .par_iter()
             .map(|t| self.embed(t))
             .collect::<Result<Vec<_>>>()
     }
@@ -246,7 +247,8 @@ impl Embedder {
         tokio::time::timeout(
             timeout,
             tokio::task::spawn_blocking(move || {
-                texts.par_iter()
+                texts
+                    .par_iter()
                     .map(|t| embedder.embed(t))
                     .collect::<Result<Vec<_>>>()
             }),
@@ -264,7 +266,8 @@ pub trait TextEmbedder: Send + Sync + std::fmt::Debug {
     fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         use rayon::prelude::*;
 
-        texts.par_iter()
+        texts
+            .par_iter()
             .map(|t| self.embed(t))
             .collect::<Result<Vec<_>>>()
     }
@@ -626,7 +629,8 @@ impl VectorIndex {
             let (_, val) = item?;
             let record: VectorRecord = bincode::deserialize(&val)?;
             // Décompresser l'embedding f16 -> f32
-            let embedding = crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
+            let embedding =
+                crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
             hnsw.add(record.id.clone(), &embedding)?;
             docs.push(Bm25Doc {
                 id: record.id.clone(),
@@ -716,7 +720,8 @@ impl VectorIndex {
         for item in self.vectors_tree.iter() {
             let (_, val) = item?;
             let record: VectorRecord = bincode::deserialize(&val)?;
-            let embedding = crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
+            let embedding =
+                crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
             hnsw.add(record.id.clone(), &embedding)?;
         }
 
@@ -791,7 +796,10 @@ impl VectorIndex {
             // Utiliser le cache LRU pour éviter le recalcul des embeddings
             let embeddings: Vec<Vec<f32>> = texts
                 .iter()
-                .map(|t| self.embedding_cache.get_or_insert(t, || self.embedder.embed(t)))
+                .map(|t| {
+                    self.embedding_cache
+                        .get_or_insert(t, || self.embedder.embed(t))
+                })
                 .collect::<Result<Vec<_>>>()?;
             // Compresser les embeddings en f16 pour économiser la mémoire
             for (i, (chunk, emb)) in chunks.iter().zip(embeddings).enumerate() {

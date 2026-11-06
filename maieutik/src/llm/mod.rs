@@ -173,7 +173,10 @@ pub mod ollama {
                 .await;
 
             let client = OllamaClient::new(&server.uri(), "qwen2.5:7b").expect("test");
-            let answer = client.chat(vec![user_message("salut")]).await.expect("test");
+            let answer = client
+                .chat(vec![user_message("salut")])
+                .await
+                .expect("test");
 
             assert_eq!(answer, "Bonjour depuis Ollama");
         }
@@ -609,10 +612,21 @@ mod tests {
         let prompt = "Résume ce texte en une phrase : intelligence artificielle est le domaine qui vise à créer des machines intelligentes.";
         let start = std::time::Instant::now();
         // Use Ollama client directly for test
-        let client = crate::llm::ollama::OllamaClient::new("http://localhost:11434", "qwen2.5:3b").expect("client");
-        let response = client.chat(vec![crate::llm::ollama::ChatMessage { role: "user".to_string(), content: prompt.to_string() }]).await.expect("generation");
+        let client = crate::llm::ollama::OllamaClient::new("http://localhost:11434", "qwen2.5:3b")
+            .expect("client");
+        let response = client
+            .chat(vec![crate::llm::ollama::ChatMessage {
+                role: "user".to_string(),
+                content: prompt.to_string(),
+            }])
+            .await
+            .expect("generation");
         let elapsed = start.elapsed();
-        info!("Generation took {:?}, response len {}", elapsed, response.len());
+        info!(
+            "Generation took {:?}, response len {}",
+            elapsed,
+            response.len()
+        );
 
         if let Some(value) = previous {
             std::env::set_var("MAIEUTIK_LLM_MODEL", value);

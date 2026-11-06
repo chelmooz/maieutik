@@ -205,7 +205,9 @@ mod tests {
         // Simulate existing partial file (8 bytes)
         let tmp = TempDir::new().expect("test");
         let dest = tmp.path().join("resume.bin");
-        tokio::fs::write(&dest, &test_data[..8]).await.expect("test");
+        tokio::fs::write(&dest, &test_data[..8])
+            .await
+            .expect("test");
 
         // Second request returns remaining bytes (simulating resume)
         Mock::given(method("GET"))

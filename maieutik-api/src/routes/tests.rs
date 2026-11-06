@@ -1,16 +1,16 @@
 #[cfg(test)]
 mod tests {
-    use super::super::{search, ChatRequest, SearchParams, SearchResult, health, list_files, chat};
+    use super::super::{chat, health, list_files, search, ChatRequest, SearchParams, SearchResult};
+    use axum::http::StatusCode;
     use axum::{
         extract::Query,
         routing::{get, post},
-        Router, Json,
+        Json, Router,
     };
-    use axum::http::StatusCode;
     use serde_json::json;
 
     // Tests unitaires des handlers autonomes (pour la logique pure)
-    
+
     #[tokio::test]
     async fn health_returns_ok() {
         let res: Json<super::super::Health> = health().await;

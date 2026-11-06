@@ -30,8 +30,7 @@ extern "C" {
 /// Returns an error if the path cannot be converted to a C string.
 pub fn list_mcp_files<P: AsRef<Path>>(path: P) -> Result<Vec<String>> {
     let path_str = path.as_ref().to_string_lossy();
-    let c_path = CString::new(path_str.as_ref())
-        .context("Failed to create CString from path")?;
+    let c_path = CString::new(path_str.as_ref()).context("Failed to create CString from path")?;
     unsafe {
         let mut ptr: *mut *mut c_char = std::ptr::null_mut();
         let count = cpp_list_mcp_files(c_path.as_ptr(), &mut ptr);
@@ -57,8 +56,7 @@ pub fn list_mcp_files<P: AsRef<Path>>(path: P) -> Result<Vec<String>> {
 /// Returns an error if the path cannot be converted to a C string.
 pub fn read_mcp_file<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
     let path_str = path.as_ref().to_string_lossy();
-    let c_path = CString::new(path_str.as_ref())
-        .context("Failed to create CString from path")?;
+    let c_path = CString::new(path_str.as_ref()).context("Failed to create CString from path")?;
     unsafe {
         let ptr = cpp_read_mcp_file(c_path.as_ptr());
         if ptr.is_null() {
@@ -75,8 +73,7 @@ pub fn read_mcp_file<P: AsRef<Path>>(path: P) -> Result<Option<String>> {
 /// # Errors
 /// Returns an error if the content cannot be converted to a C string.
 pub fn extract_links(content: &str) -> Result<Vec<String>> {
-    let c_content = CString::new(content)
-        .context("Failed to create CString from content")?;
+    let c_content = CString::new(content).context("Failed to create CString from content")?;
     unsafe {
         let mut ptr: *mut *mut c_char = std::ptr::null_mut();
         let count = cpp_extract_links(c_content.as_ptr(), &mut ptr);
@@ -102,10 +99,9 @@ pub fn extract_links(content: &str) -> Result<Vec<String>> {
 /// Returns an error if the headers cannot be converted to a C string.
 pub fn create_table(rows: usize, cols: usize, headers: Option<&str>) -> Result<String> {
     // Keep CString alive for the duration of the call
-    let c_headers_opt = headers.map(|h| {
-        CString::new(h)
-            .context("Failed to create CString from headers")
-    }).transpose()?;
+    let c_headers_opt = headers
+        .map(|h| CString::new(h).context("Failed to create CString from headers"))
+        .transpose()?;
     let headers_ptr = c_headers_opt
         .as_ref()
         .map_or(std::ptr::null(), |h| h.as_ptr());
@@ -128,7 +124,8 @@ pub fn create_table(rows: usize, cols: usize, headers: Option<&str>) -> Result<S
 pub fn get_license_status() -> &'static str {
     unsafe {
         let c_str = CStr::from_ptr(cpp_get_license_status());
-        c_str.to_str()
+        c_str
+            .to_str()
             .expect("License status from C++ must be valid UTF-8")
     }
 }

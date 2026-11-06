@@ -6,8 +6,8 @@
 
 use axum::{
     extract::{Query, State},
-    Json,
     http::StatusCode,
+    Json,
 };
 use serde::{Deserialize, Serialize};
 
@@ -35,18 +35,15 @@ pub struct SearchResult {
 }
 
 /// Liste les fichiers indexés via le `FileCatalog` port.
-pub async fn list_files(State(state): State<ApiState>) -> Result<Json<Vec<String>>, (StatusCode, Json<serde_json::Value>)> {
-    state
-        .file_catalog
-        .list()
-        .await
-        .map(Json)
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": e.to_string()})),
-            )
-        })
+pub async fn list_files(
+    State(state): State<ApiState>,
+) -> Result<Json<Vec<String>>, (StatusCode, Json<serde_json::Value>)> {
+    state.file_catalog.list().await.map(Json).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": e.to_string()})),
+        )
+    })
 }
 
 /// Recherche sémantique en utilisant l'index vectoriel.
@@ -78,7 +75,11 @@ pub async fn search(
     let hits = state
         .file_catalog
         .index
-        .search_mode(&params.query, 20, maieutik::core::retrieval::SearchMode::Hybrid)
+        .search_mode(
+            &params.query,
+            20,
+            maieutik::core::retrieval::SearchMode::Hybrid,
+        )
         .await
         .map_err(|e| {
             (
@@ -118,21 +119,22 @@ pub async fn chat(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     match &state.generator {
         Some(gen) => {
-            let response = gen
-                .chat(req.messages)
-                .await
-                .map_err(|e| {
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(serde_json::json!({"error": e.to_string()})),
-                    )
-                })?;
+            let response = gen.chat(req.messages).await.map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(serde_json::json!({"error": e.to_string()})),
+                )
+            })?;
 
-            Ok(Json(serde_json::json!({"message": {"role": "assistant", "content": response}})))
+            Ok(Json(
+                serde_json::json!({"message": {"role": "assistant", "content": response}}),
+            ))
         }
         None => Err((
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(serde_json::json!({"error": "Generator not configured (MAIEUTIK_LLM_MODEL not set)"})),
+            Json(
+                serde_json::json!({"error": "Generator not configured (MAIEUTIK_LLM_MODEL not set)"}),
+            ),
         )),
     }
 }

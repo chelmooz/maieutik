@@ -17,7 +17,9 @@ pub fn escape_shell_chars(s: &str) -> String {
 }
 
 pub fn sanitize_path(p: &str) -> String {
-    p.chars().filter(|c| c.is_alphanumeric() || *c == '/' || *c == '.' || *c == '_' || *c == '-').collect()
+    p.chars()
+        .filter(|c| c.is_alphanumeric() || *c == '/' || *c == '.' || *c == '_' || *c == '-')
+        .collect()
 }
 
 /// Extract text from various document formats
@@ -136,7 +138,10 @@ fn decode_numeric_entities(s: &str) -> String {
             continue;
         }
         // Caractère normal : avancer d'un codepoint UTF-8
-        let ch = s[i..].chars().next().expect("UTF-8 slice should yield a character");
+        let ch = s[i..]
+            .chars()
+            .next()
+            .expect("UTF-8 slice should yield a character");
         result.push(ch);
         i += ch.len_utf8();
     }

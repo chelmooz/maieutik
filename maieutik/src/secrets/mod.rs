@@ -199,7 +199,10 @@ pub mod tests {
         // First instance writes
         {
             let store = FileStore::with_path(path.clone()).await.expect("test");
-            store.set("persist_key", "persist_value").await.expect("test");
+            store
+                .set("persist_key", "persist_value")
+                .await
+                .expect("test");
         }
 
         // Second instance reads

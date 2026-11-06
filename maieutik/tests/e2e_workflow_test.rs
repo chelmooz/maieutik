@@ -108,14 +108,21 @@ async fn files_scan_index_hybrid_search_and_mcp_are_connected() {
     assert_eq!(report.scanned, 2, "deux notes doivent être parcourues");
     assert_eq!(report.indexed, 2, "deux notes doivent être indexées");
     assert!(report.failed.is_empty(), "échecs : {:?}", report.failed);
-    assert!(report.no_text.is_empty(), "sans texte : {:?}", report.no_text);
+    assert!(
+        report.no_text.is_empty(),
+        "sans texte : {:?}",
+        report.no_text
+    );
     assert_eq!(report.exit_code(), 0);
 
     let hits = index
         .search_mode("rust borrow checker", 5, SearchMode::Hybrid)
         .await
         .expect("recherche hybride directe");
-    assert!(!hits.is_empty(), "la recherche doit rendre au moins un passage");
+    assert!(
+        !hits.is_empty(),
+        "la recherche doit rendre au moins un passage"
+    );
     assert!(
         hits[0].file_path.ends_with("rust.md"),
         "attendu rust.md en tête, obtenu {:?}",
@@ -145,7 +152,11 @@ async fn files_scan_index_hybrid_search_and_mcp_are_connected() {
         serde_json::json!({ "query": "sourdough starter", "limit": 5 }),
     )
     .await;
-    assert!(response.ok, "search.hybrid doit réussir : {:?}", response.error);
+    assert!(
+        response.ok,
+        "search.hybrid doit réussir : {:?}",
+        response.error
+    );
     let paths = hit_paths(&response);
     assert!(!paths.is_empty(), "search.hybrid doit rendre un passage");
     assert!(

@@ -339,7 +339,8 @@ mod tests {
             ..AppSettings::default()
         };
         let (tx, _rx) = mpsc::channel(4);
-        let mut watcher = FileWatcher::new(Arc::new(tokio::sync::RwLock::new(dead)), tx).expect("test");
+        let mut watcher =
+            FileWatcher::new(Arc::new(tokio::sync::RwLock::new(dead)), tx).expect("test");
         let err = watcher.watch().await.unwrap_err();
         let message = format!("{err:#}");
         assert!(

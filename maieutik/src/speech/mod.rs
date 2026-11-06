@@ -308,7 +308,10 @@ mod tests {
 
     #[test]
     fn silero_vad_new_fails_with_nonexistent_model() {
-        let err = match SileroVad::new(std::path::Path::new("/tmp/silero_vad_nonexistent.onnx"), 0.5) {
+        let err = match SileroVad::new(
+            std::path::Path::new("/tmp/silero_vad_nonexistent.onnx"),
+            0.5,
+        ) {
             Ok(_) => panic!("un modèle VAD absent doit provoquer une erreur"),
             Err(e) => e,
         };

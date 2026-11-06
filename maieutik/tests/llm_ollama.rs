@@ -7,12 +7,12 @@
 //! cargo test --test llm_ollama -- --nocapture
 //! ```
 
+use anyhow::Result;
 use std::path::PathBuf;
 use std::time::Duration;
-use anyhow::Result;
 
 /// Imports corrigés selon l'API réelle de maieutik
-use maieutik::llm::{LlamaManager, GenerationParams, GenerationResult};
+use maieutik::llm::{GenerationParams, GenerationResult, LlamaManager};
 
 /// Configuration de base pour les tests
 fn test_params(prompt: &str) -> GenerationParams {

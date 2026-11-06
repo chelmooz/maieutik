@@ -185,7 +185,10 @@ mod tests {
         assert_eq!(reg.list().expect("test").len(), 1);
         assert!(reg.is_installed("m1").expect("test"));
         let status = reg.status("m1").expect("test");
-        assert!(matches!(status, crate::model::ModelStatus::Installed { .. }));
+        assert!(matches!(
+            status,
+            crate::model::ModelStatus::Installed { .. }
+        ));
         reg.update_sha256("m1", "def".into()).expect("test");
         let got = reg.get("m1").expect("test").expect("test");
         assert_eq!(got.sha256, "def");

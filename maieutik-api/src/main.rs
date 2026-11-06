@@ -5,8 +5,8 @@
 
 use axum::{routing::get, routing::post, Router};
 use maieutik::AppState as MaieutikAppState;
-use maieutik_api::routes::{chat, health, list_files, search};
 use maieutik_api::app::ApiState;
+use maieutik_api::routes::{chat, health, list_files, search};
 use std::net::SocketAddr;
 
 #[tokio::main]
@@ -24,7 +24,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Charger l'état maieutik existant
-    let maieutik_state = MaieutikAppState::new().await
+    let maieutik_state = MaieutikAppState::new()
+        .await
         .map_err(|e| anyhow::anyhow!("Échec de l'initialisation: {}", e))?;
     let _vector_index = maieutik_state
         .vector_index

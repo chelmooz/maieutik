@@ -266,7 +266,10 @@ mod tests {
         let mock = Arc::new(MockStore::new());
         let store = ConfigStore::new(Some(mock.clone())).await.expect("test");
 
-        store.set_secret("test_key", "test_value").await.expect("test");
+        store
+            .set_secret("test_key", "test_value")
+            .await
+            .expect("test");
         let val = store.get_secret("test_key").await.expect("test");
         assert_eq!(val, Some("test_value".to_string()));
     }
@@ -276,7 +279,10 @@ mod tests {
         // Without MAIEUTIK_SECRETS_BACKEND=keyring, should use FileStore
         let store = ConfigStore::new(None).await.expect("test");
 
-        store.set_secret("fallback_test", "works").await.expect("test");
+        store
+            .set_secret("fallback_test", "works")
+            .await
+            .expect("test");
         let val = store.get_secret("fallback_test").await.expect("test");
         assert_eq!(val, Some("works".to_string()));
     }

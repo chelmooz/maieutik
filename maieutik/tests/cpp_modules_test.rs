@@ -1,7 +1,7 @@
 use maieutik::cpp_modules::list_mcp_files;
 use std::fs;
-use tempfile::tempdir;
 use std::time::Instant;
+use tempfile::tempdir;
 
 #[test]
 fn test_list_files_performance() {

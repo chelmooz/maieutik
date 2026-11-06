@@ -91,7 +91,9 @@ impl FileStore {
             if key_bytes.len() != 32 {
                 anyhow::bail!("Invalid key length: {}", key_bytes.len());
             }
-            let key_array: [u8; 32] = key_bytes.try_into().expect("key length already validated as 32");
+            let key_array: [u8; 32] = key_bytes
+                .try_into()
+                .expect("key length already validated as 32");
             Some(XChaCha20Poly1305::new(&key_array.into()))
         } else {
             // Generate new key
@@ -127,7 +129,9 @@ impl FileStore {
             if key_path.exists() {
                 let key_bytes = fs::read(&key_path).context("Reading encryption key")?;
                 if key_bytes.len() == 32 {
-                    let key_array: [u8; 32] = key_bytes.try_into().expect("key length already validated as 32");
+                    let key_array: [u8; 32] = key_bytes
+                        .try_into()
+                        .expect("key length already validated as 32");
                     let cipher = XChaCha20Poly1305::new(&key_array.into());
                     let data: Vec<u8> = serde_json::from_str(&text)?;
                     if data.len() < 24 {

@@ -781,15 +781,21 @@ mod tests {
         let result = framed::socket_dir_for(None, Some(dir.path().to_path_buf()));
 
         assert!(result.is_err(), "world-writable parents must be rejected");
-        let mode = std::fs::metadata(dir.path()).expect("test").permissions().mode() & 0o777;
+        let mode = std::fs::metadata(dir.path())
+            .expect("test")
+            .permissions()
+            .mode()
+            & 0o777;
         assert_eq!(mode, 0o777, "the unsafe parent must not be chmod-ed");
     }
 
     #[test]
     fn socket_path_is_stable_and_has_no_process_id() {
         let dir = project_tempdir();
-        let first = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).expect("test");
-        let second = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).expect("test");
+        let first =
+            framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).expect("test");
+        let second =
+            framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).expect("test");
 
         assert_eq!(first, second);
         assert_eq!(first.file_name().expect("test"), "maieutik_mcp.sock");
@@ -1025,7 +1031,8 @@ mod tests {
         for method in methods {
             let server = McpServer::new();
             let runtime = tokio::runtime::Runtime::new().expect("runtime");
-            let response = runtime.block_on(server.dispatch(request(method, serde_json::json!({}))));
+            let response =
+                runtime.block_on(server.dispatch(request(method, serde_json::json!({}))));
             assert!(!response.ok, "{method} doit être refusé");
             let error = response.error.expect("erreur attendue");
             assert!(error.contains(method), "message doit citer la méthode");
@@ -1037,7 +1044,10 @@ mod tests {
     async fn dispatch_search_rejects_negative_limit() {
         let server = McpServer::new();
         let response = server
-            .dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": -5 })))
+            .dispatch(request(
+                "search.semantic",
+                serde_json::json!({ "query": "test", "limit": -5 }),
+            ))
             .await;
         assert!(!response.ok, "limit négatif doit être refusé par serde");
     }
@@ -1045,7 +1055,9 @@ mod tests {
     #[tokio::test]
     async fn dispatch_unknown_method_returns_method_unknown_error() {
         let server = McpServer::new();
-        let response = server.dispatch(request("bogus.method", serde_json::json!({}))).await;
+        let response = server
+            .dispatch(request("bogus.method", serde_json::json!({})))
+            .await;
         assert!(!response.ok);
         let err = response.error.expect("test");
         assert!(err.contains("non implémentée") || err.contains("unknown"));
@@ -1055,7 +1067,12 @@ mod tests {
     async fn dispatch_search_without_vector_index_returns_state_missing() {
         let state = Arc::new(crate::AppState::new().await.expect("test"));
         let server = McpServer::with_state(state);
-        let response = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test" }))).await;
+        let response = server
+            .dispatch(request(
+                "search.semantic",
+                serde_json::json!({ "query": "test" }),
+            ))
+            .await;
         assert!(!response.ok);
         let err = response.error.expect("test");
         assert!(err.contains("index indisponible") || err.contains("sans état"));
@@ -1066,7 +1083,12 @@ mod tests {
         // limit >100 should be clamped, test via params parsing
         let server = McpServer::new();
         // With no state, it will fail earlier, but we ensure no panic on large limit
-        let response = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": 1000 }))).await;
+        let response = server
+            .dispatch(request(
+                "search.semantic",
+                serde_json::json!({ "query": "test", "limit": 1000 }),
+            ))
+            .await;
         assert!(!response.ok); // fails due to no state, not panic
     }
 
@@ -1079,7 +1101,10 @@ mod tests {
         std::env::set_var("MAIEUTIK_LLM_MODEL", "ollama://nonexistent-model");
         let server = McpServer::new();
         let runtime = tokio::runtime::Runtime::new().expect("test");
-        let response = runtime.block_on(server.dispatch(request("chat.complete", serde_json::json!({ "message": "hi" }))));
+        let response = runtime.block_on(server.dispatch(request(
+            "chat.complete",
+            serde_json::json!({ "message": "hi" }),
+        )));
         // Should fail gracefully, not panic
         assert!(!response.ok || response.ok);
         if let Some(previous) = previous {
@@ -1093,31 +1118,56 @@ mod tests {
     async fn dispatch_search_limit_clamp_negative_and_overflow() {
         let server = McpServer::new();
         // Negative limit rejected by serde
-        let resp_neg = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": -5 }))).await;
+        let resp_neg = server
+            .dispatch(request(
+                "search.semantic",
+                serde_json::json!({ "query": "test", "limit": -5 }),
+            ))
+            .await;
         assert!(!resp_neg.ok);
         // Very large limit should not panic
-        let resp_big = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test", "limit": 999999 }))).await;
+        let resp_big = server
+            .dispatch(request(
+                "search.semantic",
+                serde_json::json!({ "query": "test", "limit": 999999 }),
+            ))
+            .await;
         assert!(!resp_big.ok);
     }
 
     #[tokio::test]
     async fn mcp_dispatch_chat_invalid_json() {
         let server = McpServer::new();
-        let response = server.dispatch(request("chat.complete", serde_json::json!({"message": null}))).await;
+        let response = server
+            .dispatch(request(
+                "chat.complete",
+                serde_json::json!({"message": null}),
+            ))
+            .await;
         assert!(!response.ok || response.ok); // ensure no panic
     }
 
     #[tokio::test]
     async fn mcp_dispatch_search_empty_folders() {
         let server = McpServer::new();
-        let response = server.dispatch(request("search.semantic", serde_json::json!({"query": "test", "folders": []}))).await;
+        let response = server
+            .dispatch(request(
+                "search.semantic",
+                serde_json::json!({"query": "test", "folders": []}),
+            ))
+            .await;
         assert!(!response.ok || response.ok);
     }
 
     #[tokio::test]
     async fn mcp_dispatch_initialize_malformed() {
         let server = McpServer::new();
-        let response = server.dispatch(request("initialize", serde_json::json!({"protocolVersion": "bad"}))).await;
+        let response = server
+            .dispatch(request(
+                "initialize",
+                serde_json::json!({"protocolVersion": "bad"}),
+            ))
+            .await;
         assert!(!response.ok || response.ok);
     }
 }

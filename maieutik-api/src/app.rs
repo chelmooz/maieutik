@@ -42,10 +42,8 @@ impl ApiState {
         let model_config = std::env::var("MAIEUTIK_LLM_MODEL").ok()?;
         let model_name = model_config.strip_prefix("ollama://")?;
 
-        let client = maieutik::llm::ollama::OllamaClient::new(
-            "http://localhost:11434",
-            model_name,
-        ).ok()?;
+        let client =
+            maieutik::llm::ollama::OllamaClient::new("http://localhost:11434", model_name).ok()?;
 
         Some(OllamaGenerator {
             client: Arc::new(client),
