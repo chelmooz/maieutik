@@ -330,7 +330,9 @@ pub struct VectorRecord {
     pub file_path: String,
     pub chunk_index: usize,
     pub text: String,
-    pub embedding: Vec<f32>,
+    /// Embedding compressé en f16 (2 bytes par élément au lieu de 4).
+    /// Décompressé via embedding_compression::decompress_f16_to_f32()
+    pub embedding: Vec<u8>,
     pub heading_path: Option<String>,
     pub chunk_ordinal: usize,
     pub display_text: Option<String>,
@@ -623,7 +625,9 @@ impl VectorIndex {
         for item in self.vectors_tree.iter() {
             let (_, val) = item?;
             let record: VectorRecord = bincode::deserialize(&val)?;
-            hnsw.add(record.id.clone(), &record.embedding)?;
+            // Décompresser l'embedding f16 -> f32
+            let embedding = crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
+            hnsw.add(record.id.clone(), &embedding)?;
             docs.push(Bm25Doc {
                 id: record.id.clone(),
                 file_path: record.file_path.clone(),
@@ -738,7 +742,9 @@ impl VectorIndex {
         for item in self.vectors_tree.iter() {
             let (_, val) = item?;
             let record: VectorRecord = bincode::deserialize(&val)?;
-            hnsw.add(record.id.clone(), &record.embedding)?;
+            // Décompresser l'embedding f16 -> f32
+            let embedding = crate::core::embedding_compression::decompress_f16_to_f32(&record.embedding);
+            hnsw.add(record.id.clone(), &embedding)?;
         }
 
         let chunks = hnsw.len();
@@ -777,13 +783,15 @@ impl VectorIndex {
                 .iter()
                 .map(|t| self.embedding_cache.get_or_insert(t, || self.embedder.embed(t)))
                 .collect::<Result<Vec<_>>>()?;
+            // Compresser les embeddings en f16 pour économiser la mémoire
             for (i, (chunk, emb)) in chunks.iter().zip(embeddings).enumerate() {
+                let compressed = crate::core::embedding_compression::compress_f32_to_f16(&emb);
                 records.push(VectorRecord {
                     id: format!("{}#{}", path_str, i),
                     file_path: path_str.clone(),
                     chunk_index: i,
                     text: chunk.text.clone(),
-                    embedding: emb,
+                    embedding: compressed,
                     heading_path: chunk.heading_path.clone(),
                     chunk_ordinal: chunk.index,
                     display_text: None,
