@@ -27,6 +27,16 @@ fn instance_name(sandbox: &Path) -> String {
 /// Lance le binaire dans `sandbox` avec un environnement vidé puis reconstruit.
 /// `folders` : dossiers à écrire dans `config.json` (`None` = pas de config).
 fn run(sandbox: &Path, folders: Option<&[&Path]>, args: &[&str]) -> Output {
+    run_with_env(sandbox, folders, args, &[])
+}
+
+/// Variante de `run` qui ajoute des variables d'environnement au bac à sable.
+fn run_with_env(
+    sandbox: &Path,
+    folders: Option<&[&Path]>,
+    args: &[&str],
+    extra_env: &[(&str, &str)],
+) -> Output {
     let work = sandbox.join("work");
     let home = sandbox.join("home");
     let cfg = sandbox.join("cfg");
@@ -48,8 +58,8 @@ fn run(sandbox: &Path, folders: Option<&[&Path]>, args: &[&str]) -> Output {
         );
         fs::write(dir.join("config.json"), body).unwrap();
     }
-    Command::new(env!("CARGO_BIN_EXE_maieutik"))
-        .args(args)
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_maieutik"));
+    cmd.args(args)
         .current_dir(&work)
         .env_clear()
         .env("HOME", &home)
@@ -58,9 +68,11 @@ fn run(sandbox: &Path, folders: Option<&[&Path]>, args: &[&str]) -> Output {
         .env("XDG_CACHE_HOME", &cache)
         .env("MAIEUTIK_INSTANCE_NAME", instance_name(sandbox))
         .env("MAIEUTIK_EMBEDDER_MODEL", sandbox.join("absent.onnx"))
-        .env("MAIEUTIK_EMBEDDER_TOKENIZER", sandbox.join("absent.json"))
-        .output()
-        .expect("lancement du binaire maieutik")
+        .env("MAIEUTIK_EMBEDDER_TOKENIZER", sandbox.join("absent.json"));
+    for (key, value) in extra_env {
+        cmd.env(key, value);
+    }
+    cmd.output().expect("lancement du binaire maieutik")
 }
 
 fn code(o: &Output) -> i32 {
@@ -114,13 +126,45 @@ fn search_limit_zero_exits_two() {
 }
 
 #[test]
-fn chat_without_llm_model_echoes_and_exits_zero() {
+fn chat_without_llm_model_exits_three() {
     let t = tempfile::tempdir().unwrap();
     let o = run(t.path(), None, &["chat", "hello"]);
-    assert_eq!(code(&o), 0, "stderr: {}", err(&o));
-    assert_eq!(out(&o), "", "stdout doit rester vide sans moteur configuré");
-    assert!(err(&o).contains("Réponse: hello"), "stderr: {}", err(&o));
+    assert_eq!(code(&o), 3, "stderr: {}", err(&o));
+    assert_eq!(
+        out(&o),
+        "",
+        "stdout doit rester vide sans générateur configuré"
+    );
+    assert!(
+        err(&o).contains("aucun générateur configuré"),
+        "stderr: {}",
+        err(&o)
+    );
+    assert!(
+        !err(&o).contains("Réponse: hello"),
+        "le message ne doit jamais être présenté comme une réponse : {}",
+        err(&o)
+    );
     assert_no_ansi(&o);
+}
+
+#[test]
+fn chat_with_unreadable_file_exits_one() {
+    let t = tempfile::tempdir().unwrap();
+    let missing = t.path().join("absent.md");
+    let o = run_with_env(
+        t.path(),
+        None,
+        &["chat", "résume", "--file", missing.to_str().unwrap()],
+        &[("MAIEUTIK_LLM_MODEL", "ollama://qwen2.5:3b")],
+    );
+    assert_eq!(code(&o), 1, "stderr: {}", err(&o));
+    assert_error_streams(&o);
+    assert!(
+        err(&o).contains("absent.md"),
+        "stderr doit nommer le fichier illisible : {}",
+        err(&o)
+    );
 }
 
 #[test]

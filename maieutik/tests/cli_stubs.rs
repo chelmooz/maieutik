@@ -35,9 +35,10 @@ fn setup_test_env(dir: TempDir) -> (TempDir, PathBuf, PathBuf, PathBuf, PathBuf,
     (dir, work, home, cfg, data, cache)
 }
 
-/// `chat` command is wired: without an LLM backend it echoes and exits 0.
+/// `chat` sans générateur configuré ne doit jamais faire passer un echo pour
+/// une réponse générée : stdout vide, diagnostic explicite, code 3.
 #[test]
-fn chat_command_echoes_without_llm_backend() {
+fn chat_without_llm_backend_exits_three() {
     let (_dir, _work, home, cfg, data, cache) = setup_test_env(TempDir::new().unwrap());
 
     let output = run_maieutik(
@@ -48,18 +49,32 @@ fn chat_command_echoes_without_llm_backend() {
             ("XDG_DATA_HOME", data.to_str().unwrap()),
             ("XDG_CACHE_HOME", cache.to_str().unwrap()),
             ("MAIEUTIK_INSTANCE_NAME", "test-a5-chat"),
+            // Neutralise un éventuel générateur hérité de l'environnement.
+            ("MAIEUTIK_LLM_MODEL", ""),
         ]),
     );
 
     assert_eq!(
         output.status.code(),
-        Some(0),
-        "chat should return exit code 0"
+        Some(3),
+        "chat sans générateur doit sortir en 3, stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.trim().is_empty(),
+        "stdout doit rester vide : {}",
+        stdout
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Réponse: hello"),
-        "stderr should echo the message: {}",
+        stderr.contains("aucun générateur configuré"),
+        "stderr doit expliquer l'absence de générateur : {}",
+        stderr
+    );
+    assert!(
+        !stderr.contains("Réponse: hello"),
+        "le message ne doit pas être présenté comme une réponse : {}",
         stderr
     );
 }

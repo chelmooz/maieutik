@@ -4,7 +4,7 @@
 //!   0 succès complet (ou arrêt propre demandé par un signal en `--watch`)
 //!   1 échec partiel (fichier sans texte, corpus vide, dossier partiel, échec de fichier)
 //!   2 usage invalide (clap, `--watch` ou `--mcp-stdio` combiné à une autre commande)
-//!   3 commande non implémentée (`chat`)
+//!   3 `chat` sans générateur configuré (aucune génération possible)
 //!   4 environnement indisponible (modèle, index, `Folders` vide, dossiers absents)
 //! stdout ne porte que des résultats ; tous les diagnostics vont sur stderr.
 
@@ -138,17 +138,27 @@ fn init_logging(debug: bool) -> Result<()> {
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-/// Message sur stderr, stdout vide, code 3.
-fn not_implemented(label: &str) -> i32 {
-    eprintln!("Non implémenté : {label}.");
-    EXIT_NOT_IMPLEMENTED
-}
+/// Construit le prompt envoyé au générateur.
+///
+/// Sans `--file`, le message est utilisé tel quel. Avec `--file`, le contenu
+/// du fichier est inséré comme contexte et le message devient la consigne :
+/// un fichier illisible est une erreur, jamais un contexte vide silencieux.
+fn build_chat_prompt(message: &str, file: Option<&std::path::Path>) -> Result<String> {
+    let Some(path) = file else {
+        return Ok(message.to_string());
+    };
 
-fn not_implemented_label(cmd: &Commands) -> Option<&'static str> {
-    match cmd {
-        Commands::Chat { .. } => None,
-        _ => None,
-    }
+    let context = std::fs::read_to_string(path)
+        .map_err(|e| anyhow::anyhow!("Lecture de {} impossible : {e}", path.display()))?;
+
+    Ok(format!(
+        "Contexte (fichier {path}):\n\
+         ---\n\
+         {context}\n\
+         ---\n\n\
+         {message}",
+        path = path.display()
+    ))
 }
 
 #[tokio::main]
@@ -174,11 +184,6 @@ async fn run(cli: Cli) -> Result<i32> {
     if cli.mcp_stdio && cli.command.is_some() {
         eprintln!("--mcp-stdio ne se combine pas avec une sous-commande.");
         return Ok(EXIT_USAGE);
-    }
-
-    // Commandes non implémentées : refus avant toute initialisation.
-    if let Some(label) = cli.command.as_ref().and_then(not_implemented_label) {
-        return Ok(not_implemented(label));
     }
 
     // Verrou d'instance unique. `SingleInstance::new` réussit même quand le
@@ -439,44 +444,46 @@ async fn handle_command(cmd: Commands, _state: Arc<AppState>) -> Result<i32> {
             Ok(0)
         }
         Commands::Chat { message, file } => {
-            let _ = file; // TODO: handle file
-
             // Détecter le mode LLM (Ollama vs local)
             let model_config = std::env::var("MAIEUTIK_LLM_MODEL").unwrap_or_default();
 
-            if model_config.starts_with("ollama://") {
-                // Utiliser Ollama en mode direct
-                let model_name = model_config
-                    .strip_prefix("ollama://")
-                    .unwrap_or("qwen2.5:7b");
-                let client =
-                    maieutik::llm::ollama::OllamaClient::new("http://localhost:11434", model_name)
-                        .map_err(|e| {
-                            eprintln!("Erreur client Ollama: {}", e);
-                            anyhow::anyhow!("Échec de connexion à Ollama")
-                        })?;
+            if !model_config.starts_with("ollama://") {
+                // Aucun générateur configuré : ne jamais faire croire à une
+                // réponse. Le contrat documenté réserve le code 3 à `chat`.
+                eprintln!(
+                    "chat : aucun générateur configuré. \
+                     Définissez MAIEUTIK_LLM_MODEL=\"ollama://<modèle>\"."
+                );
+                return Ok(EXIT_NOT_IMPLEMENTED);
+            }
 
-                match client
-                    .chat(vec![maieutik::llm::ollama::ChatMessage {
-                        role: "user".to_string(),
-                        content: message.clone(),
-                    }])
-                    .await
-                {
-                    Ok(response) => {
-                        println!("{}", response);
-                        Ok(0)
-                    }
-                    Err(e) => {
-                        eprintln!("Erreur de génération Ollama: {}", e);
-                        Ok(1)
-                    }
+            let prompt = build_chat_prompt(&message, file.as_deref())?;
+
+            let model_name = model_config
+                .strip_prefix("ollama://")
+                .unwrap_or("qwen2.5:7b");
+            let client =
+                maieutik::llm::ollama::OllamaClient::new("http://localhost:11434", model_name)
+                    .map_err(|e| {
+                        eprintln!("Erreur client Ollama: {}", e);
+                        anyhow::anyhow!("Échec de connexion à Ollama")
+                    })?;
+
+            match client
+                .chat(vec![maieutik::llm::ollama::ChatMessage {
+                    role: "user".to_string(),
+                    content: prompt,
+                }])
+                .await
+            {
+                Ok(response) => {
+                    println!("{}", response);
+                    Ok(0)
                 }
-            } else {
-                // Utiliser llama.cpp local (si configuré)
-                eprintln!("Réponse: {}", message);
-                eprintln!("Note: Pour utiliser Ollama, définissez MAIEUTIK_LLM_MODEL=\"ollama://model_name\"");
-                Ok(0)
+                Err(e) => {
+                    eprintln!("Erreur de génération Ollama: {}", e);
+                    Ok(1)
+                }
             }
         }
         Commands::Model { action } => {
@@ -484,5 +491,39 @@ async fn handle_command(cmd: Commands, _state: Arc<AppState>) -> Result<i32> {
             let manager = ModelManager::new(&data_dir)?;
             run_model_cmd(manager, action).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn prompt_without_file_is_the_message() {
+        let prompt = build_chat_prompt("Résume ceci", None).unwrap();
+        assert_eq!(prompt, "Résume ceci");
+    }
+
+    #[test]
+    fn prompt_with_file_embeds_the_context() {
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        write!(tmp, "contenu du document").unwrap();
+
+        let prompt = build_chat_prompt("Résume ceci", Some(tmp.path())).unwrap();
+
+        assert!(prompt.contains("contenu du document"), "{prompt}");
+        assert!(prompt.contains("Résume ceci"), "{prompt}");
+        assert!(
+            prompt.find("contenu du document") < prompt.find("Résume ceci"),
+            "le contexte doit précéder la consigne : {prompt}"
+        );
+    }
+
+    #[test]
+    fn unreadable_file_is_an_error_not_an_empty_context() {
+        let missing = std::path::Path::new("/nonexistent/maieutik/notes.md");
+        let err = build_chat_prompt("Résume ceci", Some(missing)).unwrap_err();
+        assert!(err.to_string().contains("notes.md"), "{err}");
     }
 }

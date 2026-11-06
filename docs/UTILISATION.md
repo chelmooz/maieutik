@@ -76,7 +76,7 @@ Un fichier en échec n'arrête pas les autres.
 | 0 | tout est indexé, aucun fichier sans texte, corpus non vide ; ou arrêt propre demandé par `SIGINT`/`SIGTERM` en `--watch` |
 | 1 | échec partiel : fichier en échec, fichier sans texte, corpus vide, ou dossier configuré introuvable ou non lisible |
 | 2 | erreur d'usage : sous-commande inconnue, `--limit 0`, `--watch` combiné à une sous-commande ou à `--mcp-stdio`, `--mcp-stdio` combiné à une sous-commande |
-| 3 | commande non implémentée : chat, model |
+| 3 | `chat` sans générateur configuré (`MAIEUTIK_LLM_MODEL` absent ou hors `ollama://`) |
 | 4 | environnement indisponible : aucun dossier configuré, aucun dossier lisible, modèle d'embedding absent ou illisible, verrou d'instance non créable, ou une autre instance déjà en cours |
 
 ## search
@@ -105,6 +105,19 @@ Le score est normalisé entre 0 et 1 (1 = meilleur) et n'est comparable qu'entre
 
 Il faut avoir lancé `maieutik index` au moins une fois. Si le modèle d'embedding est absent ou illisible, la commande écrit « Index indisponible » sur stderr, laisse stdout vide et sort en code 4. `--limit 0` est refusé avec le code 2.
 
+## chat
+
+```sh
+export MAIEUTIK_LLM_MODEL="ollama://qwen2.5:3b"
+maieutik chat "Résume les points clés de mes notes"
+maieutik chat "Résume ce document" --file ~/notes/article.md
+```
+
+`chat` envoie le message au générateur configuré par `MAIEUTIK_LLM_MODEL` (seul le préfixe `ollama://` est reconnu aujourd'hui) et imprime la réponse sur stdout.
+
+- `--file CHEMIN` insère le contenu du fichier comme contexte, avant la consigne. Un fichier absent ou illisible est une erreur (code 1) : le contexte n'est jamais silencieusement vide.
+- Sans générateur configuré, la commande écrit un diagnostic sur stderr, laisse stdout vide et sort en code 3. Elle n'imprime jamais le message comme s'il s'agissait d'une réponse générée.
+
 ## Fichiers et dossiers
 
 | Élément | Emplacement (Linux) |
@@ -125,7 +138,7 @@ maieutik -d index
 
 ## Limites connues
 
-- chat et model sont factices : message sur stderr, code 3.
+- `model` est implémenté (`list`, `download`, `remove`, `status`). `chat` génère via Ollama quand `MAIEUTIK_LLM_MODEL="ollama://<modèle>"` ; `--file CHEMIN` insère le fichier comme contexte et un fichier illisible est une erreur. Sans générateur configuré, `chat` écrit un message sur stderr et sort en code 3 : il n'affiche jamais le message comme s'il s'agissait d'une réponse.
 - Réindexation automatique partielle : le suivi des fichiers en arrière-plan réindexe les créations, modifications, suppressions et renommages. Un événement survenu pendant un arrêt de Maieutik n'est pas rattrapé : relancer `maieutik index` (ou `--force`) après un arrêt pour réaligner l'index.
 - Les PDF sont acceptés par défaut ; l'extraction a été validée sur un corpus réel au P1.17 (chaîne corrigée `lopdf 0.42`), mais pas la chaîne complète indexation + recherche avec le modèle.
 - L'option `--config-dir` est acceptée mais reste sans effet.
