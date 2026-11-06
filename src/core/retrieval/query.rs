@@ -1,7 +1,7 @@
 //! Analyse de requête — tokenisation partagée par BM25 et la fusion.
 //!
-//! Les pondérations reproduisent celles de Socratus (vérifiées dans le
-//! binaire livré) : le dense pèse 1.0, le lexical 1.0 par défaut, 1.5 pour une
+//! Les pondérations suivent les valeurs de référence : le dense pèse 1.0,
+//! le lexical 1.0 par défaut, 1.5 pour une
 //! requête courte (≤ 5 mots) et 2.0 quand la requête ressemble à un
 //! identifiant de code (`snake_case`, `camelCase`, `::`, `()`).
 

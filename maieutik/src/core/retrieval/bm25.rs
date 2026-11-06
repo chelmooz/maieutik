@@ -1,5 +1,5 @@
 //! Index lexical BM25 sur les chunks — reconstruit en mémoire depuis sled,
-//! comme HNSW. Paramètres identiques à Socratus : k1 = 1.2, b = 0.75.
+//! comme HNSW. Paramètres de référence : k1 = 1.2, b = 0.75.
 
 use super::query::tokenize;
 use std::cmp::Ordering;

@@ -1,5 +1,5 @@
 //! Sélection de passages — dédoublonnage, planchers, plafond par fichier et
-//! budget. Constantes reprises de Socratus.
+//! budget. Constantes de référence.
 
 use super::query::tokenize;
 use std::cmp::Ordering;
@@ -17,7 +17,7 @@ pub const DEFAULT_MAX_TOKENS: usize = 1200;
 /// Nombre maximal de passages retenus par fichier.
 pub const DEFAULT_PER_FILE_LIMIT: usize = 2;
 /// Rang minimal BM25 (1-based) pour qu'un candidat lexical soit éligible.
-/// Socratus: `Bm25FloorRank = 10`.
+/// Constante de référence : `Bm25FloorRank = 10`.
 pub const BM25_FLOOR_RANK: usize = 10;
 /// Si vrai, essaie de remplacer un chunk par le fichier entier quand le
 /// fichier tient dans le budget et améliore le rappel.

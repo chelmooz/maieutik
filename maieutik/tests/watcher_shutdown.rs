@@ -14,7 +14,15 @@ use tokio::sync::{mpsc, oneshot};
 
 /// État sans dossier surveillé ni index : le watcher démarre sans toucher au
 /// disque de l'utilisateur.
+///
+/// `MAIEUTIK_CONFIG_DIR` isole la lecture de la configuration : sans cela,
+/// `ConfigStore::new` lit `~/.config/maieutik/config.json` et le test échoue
+/// dès que ce fichier pointe vers un dossier inaccessible. Le répertoire
+/// temporaire est conservé (`keep`) pour rester valide pendant tout le test.
 async fn app_state() -> Arc<AppState> {
+    let config_dir = tempfile::tempdir().unwrap().keep();
+    std::env::set_var("MAIEUTIK_CONFIG_DIR", &config_dir);
+
     Arc::new(AppState {
         config: Arc::new(ConfigStore::new(None).await.unwrap()),
         vector_index: None,

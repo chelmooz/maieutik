@@ -1,6 +1,6 @@
 //! Fusion de listes classées (Reciprocal Rank Fusion) et normalisation.
 //!
-//! `RRF_K = 60` et la normalisation par le maximum reproduisent Socratus.
+//! `RRF_K = 60` et la normalisation par le maximum suivent les constantes de référence.
 //! La fusion se fait sur les identifiants de chunk, pas sur les fichiers :
 //! deux listes peuvent proposer des chunks différents du même fichier.
 
