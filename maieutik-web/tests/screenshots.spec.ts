@@ -1,16 +1,24 @@
 import { test } from '@playwright/test';
 
-test('home screenshot', async ({ page }) => {
+// Captures d'écran : artefacts de test (test-results/, ignoré par git), pas
+// des baselines de comparaison. Aucune assertion visuelle pour l'instant.
+const cors = { 'access-control-allow-origin': '*' };
+
+test('capture home', async ({ page }) => {
+  await page.route('**/api/files', (route) =>
+    route.fulfill({ json: ['alpha.md', 'beta.md'], headers: cors }),
+  );
   await page.goto('/');
-  await page.screenshot({ path: '../docs/screenshots/home.png' });
+  await page.screenshot({
+    path: 'test-results/screenshots/home.png',
+    fullPage: true,
+  });
 });
 
-test('chat screenshot', async ({ page }) => {
+test('capture chat', async ({ page }) => {
   await page.goto('/chat');
-  await page.screenshot({ path: '../docs/screenshots/chat.png' });
-});
-
-test('search screenshot', async ({ page }) => {
-  await page.goto('/?q=test');
-  await page.screenshot({ path: '../docs/screenshots/search-results.png' });
+  await page.screenshot({
+    path: 'test-results/screenshots/chat.png',
+    fullPage: true,
+  });
 });

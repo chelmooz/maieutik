@@ -9,15 +9,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
       - name: Cargo test
         run: cargo test --features cpp-modules --workspace
-      - name: NPM test
+      - name: NPM install
         working-directory: maieutik-web
-        run: |
-          npm ci || npm install
-          npm test || echo "No tests"
+        run: npm ci
+      - name: Typecheck and build
+        working-directory: maieutik-web
+        run: npm run build
+      - name: Install Playwright browser
+        working-directory: maieutik-web
+        run: npx playwright install --with-deps chromium
+      - name: Playwright tests
+        working-directory: maieutik-web
+        run: npm test

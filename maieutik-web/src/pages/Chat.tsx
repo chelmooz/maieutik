@@ -1,4 +1,5 @@
-import { useState, useRef, FormEvent, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import type { FormEvent } from 'react';
 import { useChat } from '../hooks/useChat';
 
 interface Message {
@@ -12,7 +13,7 @@ let messageId = 0;
 export function Chat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
-  const { sendMessage, isLoading, error } = useChat();
+  const { sendMessage, isLoading } = useChat();
 
   const handleSubmit = useCallback(async (e: FormEvent) => {
     e.preventDefault();
