@@ -1,0 +1,14 @@
+version: "3.8"
+services:
+  maieutik:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./notes:/data/notes
+      - ./models:/root/.local/share/maieutik/models
+      - ./config:/root/.config/maieutik
+    environment:
+      - MAIEUTIK_LLM_MODEL=ollama://qwen2.5:3b
+      - MAIEUTIK_INSTANCE_NAME=maieutik
+    restart: unless-stopped
