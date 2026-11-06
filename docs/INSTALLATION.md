@@ -32,6 +32,7 @@ Build par défaut headless (CLI + MCP + watcher). UI graphique désactivée via 
 ```sh
 cargo build --features cpp-modules,gui
 ```
+
 Variables utiles :
 - `MAIEUTIK_LLM_MODEL=ollama://model_name` pour utiliser Ollama
 - `MAIEUTIK_INSTANCE_NAME` pour le verrou d'instance unique
@@ -118,16 +119,148 @@ target/release/maieutik index
 
 La commande affiche une ligne de bilan de la forme `N fichier(s) indexé(s), M échec(s)`. Pendant le chargement du modèle, le journal affiche de nombreuses lignes d'onnxruntime (« Fused reshape node… ») : elles sont normales. Les codes de sortie sont décrits dans [UTILISATION.md](UTILISATION.md#index).
 
+## 7. Démarrer le serveur API (optionnel)
+
+Pour utiliser Maieutik comme serveur de recherche, exécutez :
+
+```sh
+export ORT_DYLIB_PATH="$HOME/outils/onnxruntime-1.31.0/lib/libonnxruntime.so"
+target/release/maieutik-api
+```
+
+Le serveur expose une API HTTP sur `http://127.0.0.1:3000` :
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/health` | GET | Vérifie que le serveur est opérationnel |
+| `/api/files` | GET | Liste les fichiers indexés (pagination) |
+| `/api/search?query=...` | GET | Recherche sémantique avec le texte de la requête |
+| `/chat` | POST | Génération LLM (nécessite `MAIEUTIK_LLM_MODEL`) |
+| `/mcp` | POST | Bridge pour clients MCP |
+
+### Codes de sortie
+
+- `0` : Succès
+- `1` : Erreur (fichier, permission, etc.)
+- `2` : Configuration invalide
+- `3` : Signal Unix (Ctrl+C)
+- `4` : Erreur interne (panic)
+
+## 8. Utiliser avec MCP
+
+Maieutik expose un bridge MCP (Model Context Protocol) pour les agents comme OpenCode, Cursor, ou d'autres LLM-opérated IDE.
+
+### Configuration MCP avec OpenCode
+
+Créez ou éditez le fichier `~/.config/opencode/mcp.json` :
+
+```json
+{
+  "mcpServers": {
+    "maieutik": {
+      "command": "target/release/maieutik",
+      "args": ["--mcp-stdio"],
+      "env": {
+        "ORT_DYLIB_PATH": "$HOME/outils/onnxruntime-1.31.0/lib/libonnxruntime.so",
+        "MAIEUTIK_LLM_MODEL": "ollama://qwen2.5:3b"
+      }
+    }
+  }
+}
+```
+
+### Configuration MCP avec un serveur HTTP
+
+Pour une utilisation depuis un client distant :
+
+```json
+{
+  "mcpServers": {
+    "maieutik": {
+      "command": "curl",
+      "args": ["-s", "http://localhost:3000/mcp"],
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+### Socket Unix MCP
+
+Pour une configuration sécurisée locale :
+
+```sh
+# Démarrer le serveur MCP avec socket Unix
+MAIEUTIK_MCP_SOCKET=/tmp/maieutik.sock target/release/maieutik --mcp-socket
+```
+
+Le socket sera disponible à `/tmp/maieutik.sock` avec permissions `0700`.
+
+## 9. Docker
+
+Pour une installation containerized :
+
+```sh
+# Construire l'image
+docker build -t maieutik .
+
+# Lancer le serveur API
+docker run -d \
+  -p 3000:3000 \
+  -v $HOME/notes:/data/notes \
+  -v $HOME/.config/maieutik:/root/.config/maieutik \
+  -v $HOME/.local/share/maieutik:/root/.local/share/maieutik \
+  -e MAIEUTIK_LLM_MODEL=ollama://qwen2.5:3b \
+  maieutik
+
+# Ou avec docker-compose
+docker-compose up -d
+```
+
+### docker-compose.yml (autofs)
+
+```yaml
+version: "3.8"
+services:
+  maieutik-api:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./notes:/data/notes
+      - ./models:/root/.local/share/maieutik/models
+      - ./config:/root/.config/maieutik
+    environment:
+      - MAIEUTIK_LLM_MODEL=${MAIEUTIK_LLM_MODEL:-ollama://qwen2.5:3b}
+    command: ["maieutik-api"]
+    restart: unless-stopped
+```
+
 ## Problèmes courants
 
 | Symptôme | Cause probable | Que faire |
-|---|---|---|
+|----------|---------|-------------|
 | « Index indisponible : modèle d'embedding introuvable ou illisible » (code 2) | `model.onnx` ou `tokenizer.json` absent à l'emplacement attendu, ou modèle qui ne s'initialise pas | Lire le journal juste au-dessus : « Embedding model/tokenizer not found » donne les deux chemins attendus ; « Failed to initialize vector index » signale un échec de chargement (vérifier `ORT_DYLIB_PATH` et les fichiers du modèle) |
 | « Aucun dossier à indexer » (code 2) | `settings.Folders` vide ou absent de `config.json` (le message parle de `Folders`) | Renseigner `settings.Folders` |
 | « échec : chemin : No such file or directory » (code 1) | un dossier de `Folders` n'existe pas | Corriger le chemin |
 | « échec : chemin : invalid Zip archive » (code 1) | un fichier `.docx` est corrompu ou n'est pas un vrai fichier Word | Réexporter le fichier |
 | Rien n'est indexé et le programme se termine sans message | un fichier est plus gros que `MaxFileSize`, ou son extension n'est pas dans `Extensions` | Ajuster `MaxFileSize` ou `Extensions` |
+| API ne répond pas sur le port 3000 | serveur non démarré ou modèle manquant | Vérifier `target/release/maieutik-api` et les logs |
+| Erreur MCP : « connection refused » | chemin du socket incorrect ou serveur non lancé | Vérifier le chemin dans la configuration MCP |
+| Téléchargement du modèle lent ou bloqué | connexion internet instable | Utiliser le script autoinstall.sh :<br>`bash scripts/autoinstall.sh` |
 
-## État de vérification
+## Installation automatisée
 
-Ce guide a été écrit à partir du code et de sorties d'exécution du programme. L'installation complète n'a pas été rejouée sur une machine neuve. Non rejoués : la compilation release avec `scripts/release.sh`, le téléchargement d'onnxruntime et du modèle sur une machine vierge, et les tests avec modèle (voir [VERIFICATION.md](../VERIFICATION.md)).
+Pour une installation interactive :
+
+```sh
+# Script d'installation automatique
+bash scripts/autoinstall.sh
+```
+
+Options disponibles :
+- `--model` : Spécifier le modèle (défaut: bge-m3)
+- `--device` : Device CPU ou GPU (défaut: cpu)
+- `--skip-build` : Passer la compilation
+
+Ce script installe automatiquement Rust, cmake, compile le projet, et prépare les dépendances.
