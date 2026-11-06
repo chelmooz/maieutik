@@ -241,14 +241,14 @@ mod tests {
 
     #[test]
     fn all_exist_is_false_when_everything_is_missing() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let paths = paths_in(dir.path());
         assert!(!paths.all_exist());
     }
 
     #[test]
     fn all_exist_is_false_when_a_single_file_is_missing() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let paths = paths_in(dir.path());
         for file in [
             &paths.encoder,
@@ -257,16 +257,16 @@ mod tests {
             &paths.tokens,
             &paths.vad_model,
         ] {
-            fs::write(file, b"x").unwrap();
+            fs::write(file, b"x").expect("test");
         }
         // Un seul fichier manquant doit suffire à invalider le lot.
-        fs::remove_file(&paths.vad_model).unwrap();
+        fs::remove_file(&paths.vad_model).expect("test");
         assert!(!paths.all_exist());
     }
 
     #[test]
     fn all_exist_is_true_when_every_file_is_present() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let paths = paths_in(dir.path());
         for file in [
             &paths.encoder,
@@ -275,7 +275,7 @@ mod tests {
             &paths.tokens,
             &paths.vad_model,
         ] {
-            fs::write(file, b"x").unwrap();
+            fs::write(file, b"x").expect("test");
         }
         assert!(paths.all_exist());
     }
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn speech_model_paths_all_exist_returns_false_for_empty_dir() {
         use tempfile::tempdir;
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("test");
         std::env::set_var("MAIEUTIK_DATA_DIR", dir.path());
         // paths point to non-existent files
         let paths = SpeechModelPaths {
@@ -358,7 +358,7 @@ mod tests {
     #[test]
     fn silero_vad_new_with_dummy_onnx_fails_gracefully() {
         let path = std::path::Path::new("/tmp/dummy_silero.onnx");
-        std::fs::write(path, b"dummy").unwrap();
+        std::fs::write(path, b"dummy").expect("test");
         let err = SileroVad::new(path, 0.5).unwrap_err();
         assert!(err.to_string().contains("ONNX") || err.to_string().len() > 0);
         let _ = std::fs::remove_file(path);

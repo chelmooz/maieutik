@@ -762,7 +762,7 @@ mod tests {
     static SOCKET_ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn project_tempdir() -> tempfile::TempDir {
-        tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap()
+        tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("test")
     }
 
     #[test]
@@ -776,28 +776,28 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = project_tempdir();
-        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o777)).unwrap();
+        std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o777)).expect("test");
 
         let result = framed::socket_dir_for(None, Some(dir.path().to_path_buf()));
 
         assert!(result.is_err(), "world-writable parents must be rejected");
-        let mode = std::fs::metadata(dir.path()).unwrap().permissions().mode() & 0o777;
+        let mode = std::fs::metadata(dir.path()).expect("test").permissions().mode() & 0o777;
         assert_eq!(mode, 0o777, "the unsafe parent must not be chmod-ed");
     }
 
     #[test]
     fn socket_path_is_stable_and_has_no_process_id() {
         let dir = project_tempdir();
-        let first = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).unwrap();
-        let second = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).unwrap();
+        let first = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).expect("test");
+        let second = framed::socket_path_for(None, Some(dir.path().to_path_buf()), None).expect("test");
 
         assert_eq!(first, second);
-        assert_eq!(first.file_name().unwrap(), "maieutik_mcp.sock");
+        assert_eq!(first.file_name().expect("test"), "maieutik_mcp.sock");
     }
 
     #[test]
     fn socket_path_uses_environment_override() {
-        let _guard = SOCKET_ENV_LOCK.lock().unwrap();
+        let _guard = SOCKET_ENV_LOCK.lock().expect("test");
         let dir = project_tempdir();
         let override_path = dir.path().join("custom.sock");
         let previous = std::env::var_os("MAIEUTIK_MCP_SOCKET");
@@ -810,21 +810,21 @@ mod tests {
             None => std::env::remove_var("MAIEUTIK_MCP_SOCKET"),
         }
 
-        assert_eq!(result.unwrap(), override_path);
+        assert_eq!(result.expect("test"), override_path);
     }
 
     #[test]
     fn prepare_accepts_a_missing_path() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let missing = dir.path().join("absent.sock");
-        prepare_socket_path(&missing).unwrap();
+        prepare_socket_path(&missing).expect("test");
     }
 
     #[test]
     fn prepare_refuses_and_keeps_a_regular_file() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let file = dir.path().join("pas-un-socket.sock");
-        std::fs::write(&file, "contenu à préserver").unwrap();
+        std::fs::write(&file, "contenu à préserver").expect("test");
 
         let err = prepare_socket_path(&file).expect_err("un fichier ordinaire doit être refusé");
         assert!(
@@ -832,7 +832,7 @@ mod tests {
             "message : {err:#}"
         );
         assert_eq!(
-            std::fs::read_to_string(&file).unwrap(),
+            std::fs::read_to_string(&file).expect("test"),
             "contenu à préserver",
             "le fichier ne doit pas être supprimé"
         );
@@ -840,15 +840,15 @@ mod tests {
 
     #[test]
     fn prepare_removes_a_stale_socket() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let stale = dir.path().join("reliquat.sock");
         // Un bind Unix crée l'entrée socket ; le drop du listener la laisse
         // en place (reliquat d'une instance précédente).
-        let listener = std::os::unix::net::UnixListener::bind(&stale).unwrap();
+        let listener = std::os::unix::net::UnixListener::bind(&stale).expect("test");
         drop(listener);
         assert!(stale.exists());
 
-        prepare_socket_path(&stale).unwrap();
+        prepare_socket_path(&stale).expect("test");
         assert!(!stale.exists(), "le socket mort doit être retiré");
     }
 
@@ -857,7 +857,7 @@ mod tests {
     fn prepare_refuses_to_unlink_a_live_socket() {
         let dir = project_tempdir();
         let active = dir.path().join("actif.sock");
-        let listener = std::os::unix::net::UnixListener::bind(&active).unwrap();
+        let listener = std::os::unix::net::UnixListener::bind(&active).expect("test");
 
         let err = prepare_socket_path(&active).expect_err("un socket actif doit être préservé");
 
@@ -868,8 +868,8 @@ mod tests {
 
     #[test]
     fn socket_path_is_never_in_shared_tmp() {
-        let _guard = SOCKET_ENV_LOCK.lock().unwrap();
-        let path = framed::socket_path().unwrap();
+        let _guard = SOCKET_ENV_LOCK.lock().expect("test");
+        let path = framed::socket_path().expect("test");
         assert!(
             !path.starts_with("/tmp"),
             "le socket ne doit plus vivre sous /tmp : {}",
@@ -1047,17 +1047,17 @@ mod tests {
         let server = McpServer::new();
         let response = server.dispatch(request("bogus.method", serde_json::json!({}))).await;
         assert!(!response.ok);
-        let err = response.error.unwrap();
+        let err = response.error.expect("test");
         assert!(err.contains("non implémentée") || err.contains("unknown"));
     }
 
     #[tokio::test]
     async fn dispatch_search_without_vector_index_returns_state_missing() {
-        let state = Arc::new(crate::AppState::new().await.unwrap());
+        let state = Arc::new(crate::AppState::new().await.expect("test"));
         let server = McpServer::with_state(state);
         let response = server.dispatch(request("search.semantic", serde_json::json!({ "query": "test" }))).await;
         assert!(!response.ok);
-        let err = response.error.unwrap();
+        let err = response.error.expect("test");
         assert!(err.contains("index indisponible") || err.contains("sans état"));
     }
 
@@ -1078,7 +1078,7 @@ mod tests {
         let previous = std::env::var_os("MAIEUTIK_LLM_MODEL");
         std::env::set_var("MAIEUTIK_LLM_MODEL", "ollama://nonexistent-model");
         let server = McpServer::new();
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let runtime = tokio::runtime::Runtime::new().expect("test");
         let response = runtime.block_on(server.dispatch(request("chat.complete", serde_json::json!({ "message": "hi" }))));
         // Should fail gracefully, not panic
         assert!(!response.ok || response.ok);

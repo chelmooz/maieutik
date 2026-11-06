@@ -136,7 +136,7 @@ fn decode_numeric_entities(s: &str) -> String {
             continue;
         }
         // Caractère normal : avancer d'un codepoint UTF-8
-        let ch = s[i..].chars().next().unwrap();
+        let ch = s[i..].chars().next().expect("UTF-8 slice should yield a character");
         result.push(ch);
         i += ch.len_utf8();
     }

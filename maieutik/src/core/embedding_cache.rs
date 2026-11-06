@@ -38,7 +38,7 @@ impl Default for EmbeddingCache {
 impl EmbeddingCache {
     /// Crée un nouveau cache avec la capacité spécifiée
     pub fn new(capacity: usize) -> Self {
-        let cache = LruCache::new(NonZeroUsize::new(capacity).unwrap_or(NonZeroUsize::new(1).unwrap()));
+        let cache = LruCache::new(NonZeroUsize::new(capacity.max(1)).expect("Cache capacity must be at least 1"));
         Self {
             capacity,
             cache: Arc::new(RwLock::new(cache)),
@@ -187,7 +187,7 @@ mod tests {
             Ok(vec![compute_count as f32])
         });
         assert!(result1.is_ok());
-        assert_eq!(result1.unwrap(), vec![1.0]);
+        assert_eq!(result1.expect("test"), vec![1.0]);
         assert_eq!(compute_count, 1);
 
         // Deuxième appel devrait utiliser le cache
@@ -196,7 +196,7 @@ mod tests {
             Ok(vec![compute_count as f32])
         });
         assert!(result2.is_ok());
-        assert_eq!(result2.unwrap(), vec![1.0]); // Pas [2.0] - cache utilisé!
+        assert_eq!(result2.expect("test"), vec![1.0]); // Pas [2.0] - cache utilisé!
         assert_eq!(compute_count, 1); // Pas appelé de nouveau
     }
 }

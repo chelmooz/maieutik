@@ -41,7 +41,7 @@ impl LocalRegistry {
 
     /// Ajoute ou met à jour un modèle
     pub fn add(&self, metadata: ModelMetadata) -> Result<()> {
-        let mut models = self.models.write().unwrap();
+        let mut models = self.models.write().expect("registry write lock poisoned");
         models.insert(metadata.name.clone(), metadata);
         save_registry(&self.path, &models)?;
         Ok(())
@@ -49,7 +49,7 @@ impl LocalRegistry {
 
     /// Supprime un modèle
     pub fn remove(&self, name: &str) -> Result<()> {
-        let mut models = self.models.write().unwrap();
+        let mut models = self.models.write().expect("registry write lock poisoned");
         if models.remove(name).is_some() {
             save_registry(&self.path, &models)?;
             Ok(())
@@ -60,13 +60,13 @@ impl LocalRegistry {
 
     /// Récupère un modèle
     pub fn get(&self, name: &str) -> Result<Option<ModelMetadata>> {
-        let models = self.models.read().unwrap();
+        let models = self.models.read().expect("registry read lock poisoned");
         Ok(models.get(name).cloned())
     }
 
     /// Liste tous les modèles
     pub fn list(&self) -> Result<Vec<ModelMetadata>> {
-        let models = self.models.read().unwrap();
+        let models = self.models.read().expect("registry read lock poisoned");
         let mut list: Vec<ModelMetadata> = models.values().cloned().collect();
         list.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(list)
@@ -74,13 +74,13 @@ impl LocalRegistry {
 
     /// Vérifie si un modèle est installé
     pub fn is_installed(&self, name: &str) -> Result<bool> {
-        let models = self.models.read().unwrap();
+        let models = self.models.read().expect("registry read lock poisoned");
         Ok(models.contains_key(name))
     }
 
     /// Retourne le statut d'un modèle
     pub fn status(&self, name: &str) -> Result<ModelStatus> {
-        let models = self.models.read().unwrap();
+        let models = self.models.read().expect("registry read lock poisoned");
         match models.get(name) {
             Some(metadata) => Ok(ModelStatus::Installed {
                 version: metadata.version.clone(),
@@ -92,7 +92,7 @@ impl LocalRegistry {
 
     /// Met à jour l'empreinte d'un modèle après vérification
     pub fn update_sha256(&self, name: &str, sha256: String) -> Result<()> {
-        let mut models = self.models.write().unwrap();
+        let mut models = self.models.write().expect("registry write lock poisoned");
         if let Some(metadata) = models.get_mut(name) {
             metadata.sha256 = sha256;
             save_registry(&self.path, &models)?;
@@ -131,15 +131,15 @@ mod tests {
 
     #[test]
     fn registry_new_creates_empty_registry() {
-        let dir = tempdir().unwrap();
-        let reg = LocalRegistry::new(dir.path()).unwrap();
-        assert!(reg.list().unwrap().is_empty());
+        let dir = tempdir().expect("test");
+        let reg = LocalRegistry::new(dir.path()).expect("test");
+        assert!(reg.list().expect("test").is_empty());
     }
 
     #[test]
     fn registry_add_and_get() {
-        let dir = tempdir().unwrap();
-        let reg = LocalRegistry::new(dir.path()).unwrap();
+        let dir = tempdir().expect("test");
+        let reg = LocalRegistry::new(dir.path()).expect("test");
         let meta = ModelMetadata {
             name: "test-model".into(),
             version: "1.0".into(),
@@ -152,23 +152,23 @@ mod tests {
             min_free_memory: Some(0),
             local_path: None,
         };
-        reg.add(meta.clone()).unwrap();
-        let got = reg.get("test-model").unwrap().unwrap();
+        reg.add(meta.clone()).expect("test");
+        let got = reg.get("test-model").expect("test").expect("test");
         assert_eq!(got.name, meta.name);
     }
 
     #[test]
     fn registry_remove_not_found_error() {
-        let dir = tempdir().unwrap();
-        let reg = LocalRegistry::new(dir.path()).unwrap();
+        let dir = tempdir().expect("test");
+        let reg = LocalRegistry::new(dir.path()).expect("test");
         let err = reg.remove("missing").unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 
     #[test]
     fn registry_list_is_installed_status_update() {
-        let dir = tempdir().unwrap();
-        let reg = LocalRegistry::new(dir.path()).unwrap();
+        let dir = tempdir().expect("test");
+        let reg = LocalRegistry::new(dir.path()).expect("test");
         let meta = ModelMetadata {
             name: "m1".into(),
             version: "1".into(),
@@ -181,13 +181,13 @@ mod tests {
             min_free_memory: Some(0),
             local_path: None,
         };
-        reg.add(meta).unwrap();
-        assert_eq!(reg.list().unwrap().len(), 1);
-        assert!(reg.is_installed("m1").unwrap());
-        let status = reg.status("m1").unwrap();
+        reg.add(meta).expect("test");
+        assert_eq!(reg.list().expect("test").len(), 1);
+        assert!(reg.is_installed("m1").expect("test"));
+        let status = reg.status("m1").expect("test");
         assert!(matches!(status, crate::model::ModelStatus::Installed { .. }));
-        reg.update_sha256("m1", "def".into()).unwrap();
-        let got = reg.get("m1").unwrap().unwrap();
+        reg.update_sha256("m1", "def".into()).expect("test");
+        let got = reg.get("m1").expect("test").expect("test");
         assert_eq!(got.sha256, "def");
     }
 }

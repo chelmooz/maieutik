@@ -334,24 +334,24 @@ mod tests {
 
     #[tokio::test]
     async fn modified_oversize_file_is_not_reindexed_at_startup_and_size_never_overflows() {
-        let data = tempfile::tempdir().unwrap();
-        let docs = tempfile::tempdir().unwrap();
+        let data = tempfile::tempdir().expect("test");
+        let docs = tempfile::tempdir().expect("test");
         let file = docs.path().join("notes.md");
-        std::fs::write(&file, "bonjour\n").unwrap();
+        std::fs::write(&file, "bonjour\n").expect("test");
 
         let mut settings = AppSettings {
             folders: vec![docs.path().to_string_lossy().to_string()],
             max_file_size: 1,
             ..AppSettings::default()
         };
-        let index = VectorIndex::open(data.path(), HashEmbedder::new()).unwrap();
-        index_all(&index, &settings, false).await.unwrap();
-        let stored = index.stored_file_paths().unwrap();
+        let index = VectorIndex::open(data.path(), HashEmbedder::new()).expect("test");
+        index_all(&index, &settings, false).await.expect("test");
+        let stored = index.stored_file_paths().expect("test");
         assert_eq!(stored.len(), 1, "corpus initial inattendu : {stored:?}");
 
         // Fichier modifié au-delà de la limite pendant l'arrêt du service.
-        std::fs::write(&file, vec![b'x'; MB + 1]).unwrap();
-        let report = reconcile_startup(&index, &settings).await.unwrap();
+        std::fs::write(&file, vec![b'x'; MB + 1]).expect("test");
+        let report = reconcile_startup(&index, &settings).await.expect("test");
         assert!(
             report.reindexed.is_empty(),
             "un fichier hors limite ne doit pas être réindexé : {report:?}"
@@ -365,8 +365,8 @@ mod tests {
         // valeur fausse en release) : le même fichier redevient éligible.
         settings.max_file_size = usize::MAX;
         assert_eq!(max_file_size_bytes(&settings), u64::MAX);
-        std::fs::write(&file, "petit\n").unwrap();
-        let report = reconcile_startup(&index, &settings).await.unwrap();
+        std::fs::write(&file, "petit\n").expect("test");
+        let report = reconcile_startup(&index, &settings).await.expect("test");
         assert_eq!(
             report.reindexed, stored,
             "limite saturée mal interprétée : {report:?}"

@@ -141,11 +141,11 @@ mod tests {
 
     #[test]
     fn test_list_mcp_files() {
-        let dir = tempdir().unwrap();
-        fs::write(dir.path().join("test1.md"), "content1").unwrap();
-        fs::write(dir.path().join("test2.txt"), "content2").unwrap();
-        fs::write(dir.path().join("test3.rs"), "content3").unwrap();
-        fs::create_dir(dir.path().join("subdir")).unwrap();
+        let dir = tempdir().expect("test");
+        fs::write(dir.path().join("test1.md"), "content1").expect("test");
+        fs::write(dir.path().join("test2.txt"), "content2").expect("test");
+        fs::write(dir.path().join("test3.rs"), "content3").expect("test");
+        fs::create_dir(dir.path().join("subdir")).expect("test");
 
         let files = list_mcp_files(dir.path()).expect("list_mcp_files should succeed");
         assert!(!files.is_empty());
@@ -158,9 +158,9 @@ mod tests {
 
     #[test]
     fn test_read_mcp_file() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("test");
         let file_path = dir.path().join("test.md");
-        fs::write(&file_path, "Hello, World!").unwrap();
+        fs::write(&file_path, "Hello, World!").expect("test");
 
         let content = read_mcp_file(&file_path).expect("read_mcp_file should succeed");
         assert_eq!(content, Some("Hello, World!".to_string()));

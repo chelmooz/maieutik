@@ -203,7 +203,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_installer_creates_directories() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let models_dir = tmp.path().join("models");
 
         let installer = Installer::new(models_dir.clone());
@@ -218,7 +218,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_installer_model_path() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let models_dir = tmp.path().join("models");
         let installer = Installer::new(models_dir.clone());
 
@@ -230,7 +230,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_installer_model_path_gguf() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let models_dir = tmp.path().join("models");
         let installer = Installer::new(models_dir.clone());
 

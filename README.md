@@ -61,50 +61,74 @@ Consulte [docs/UTILISATION.md](docs/UTILISATION.md) pour le guide d'utilisation.
 
 ## Architecture
 
-```mermaid
-flowchart TD
-    CLI["CLI : main.rs<br/>index, search, chat, model"]
-    STATE["AppState<br/>settings, vector_index (Option)"]
-    SCAN["core::scan<br/>collect_files, index_all"]
-    FILTER["core::watch<br/>filtres extension et taille"]
-    EXTRACT["utils::extract_text<br/>md, txt, docx, pdf"]
-    CHUNK["Chunker, extract_headings"]
-    IDX["VectorIndex<br/>sled + HNSW"]
-    BM25["BM25 lexical<br/>core::retrieval"]
-    FUSE["Fusion RRF +<br/>sélection de passages"]
-    EMB["TextEmbedder (trait)"]
-    HASH["HashEmbedder<br/>tests et CI"]
-    ONNX["Embedder ONNX BGE-M3<br/>core::ort_env"]
-    WATCHER["Watcher notify<br/>création, modification,<br/>suppression, renommage"]
-    GEN["Génération<br/>llama.cpp, jamais exécutée"]
-    JUDGE["Jugement<br/>Laya, sidecar HTTP"]
-
-    subgraph STUBS["Modules présents mais non reliés"]
-        MCP["mcp : pont JSON-RPC"]
-        SPEECH["speech : VAD, STT"]
-        UI["ui : build sans interface"]
+%%{init: {'theme': 'default', 'themeVariables': { 'primaryColor': '#6c5ce7', 'primaryTextColor': '#fff', 'lineColor': '#a29bfe', 'secondaryColor': '#fd79a8', 'tertiaryColor': '#fdcb6e'}}}%%
+flowchart TB
+    subgraph CLI["🎯 CLI (main.rs)"]
+        A[CLI: index, search, chat, model]
     end
 
-    CLI --> STATE
-    CLI -- index --> SCAN
-    CLI -- search --> FUSE
-    SCAN --> FILTER
-    SCAN --> EXTRACT
-    SCAN --> CHUNK
-    SCAN --> IDX
-    IDX --> EMB
-    IDX --> BM25
-    IDX --> FUSE
-    BM25 --> FUSE
-    EMB --> HASH
-    EMB --> ONNX
-    WATCHER --> FILTER
-    WATCHER --> IDX
-    CLI -.-> GEN
-    GEN -.-> JUDGE
+    subgraph State["📦 État"]
+        B[AppState\nsettings, vector_index]
+    end
 
-    classDef planned stroke-dasharray: 5 5
-    class GEN,JUDGE,MCP,SPEECH,UI planned
+    subgraph Pipeline["🔄 Pipeline"]
+        C[scan\ncollect_files, index_all]
+        D[watch\nfiltres extension/taille]
+        E[extract\nmd, txt, docx, pdf]
+        F[chunk\nChunker, extract_headings]
+        G[VectorIndex\nsled + HNSW]
+        H[BM25\nlexical search]
+        I[Fusion RRF\nsélection passages]
+    end
+
+    subgraph AI["🤖 AI Components"]
+        J[TextEmbedder trait]
+        K[HashEmbedder\ntests & CI]
+        L[Embedder ONNX\nBGE-M3]
+        M[Watcher\nnotify: création/modif/suppr]
+    end
+
+    subgraph Planned["🚧 À venir"]
+        N[Génération\nllama.cpp]
+        O[Jugement\nLaya sidecar]
+    end
+
+    subgraph Stubs["📦 Stubs (non reliés)"]
+        P[MCP\npont JSON-RPC]
+        Q[speech\nVAD, STT]
+        R[ui\nbuild sans interface]
+    end
+
+    A --> B
+    A -- index --> C
+    A -- search --> I
+    C --> D
+    C --> E
+    C --> F
+    C --> G
+    G --> J
+    G --> H
+    G --> I
+    H --> I
+    J --> K
+    J --> L
+    M --> D
+    M --> G
+    A -.-> N
+    N -.-> O
+
+    classDef current fill:#e8f5e9,stroke:#4caf50,stroke-width:2px,color:#2e7d32
+    classDef planned fill:#fff3e0,stroke:#ff9800,stroke-width:2px,color:#e65100
+    classDef stub fill:#f3e5f5,stroke:#9c27b0,stroke-width:2px,color:#7b1fa2
+    classDef pipeline fill:#e3f2fd,stroke:#2196f3,stroke-width:2px,color:#1976d2
+
+    class A,B,C,D,E,F,G,H,I,J,K,L,M current
+    class N,O planned
+    class P,Q,R stub
+    class C,D,E,F,G,H,I pipeline
+
+    style A fill:#6c5ce7,color:#fff
+    style I fill:#fd79a8,color:#fff
 ```
 
 Légende : trait plein = implémenté et relié ; pointillé = partiel, stub ou prévu.
@@ -219,82 +243,154 @@ cargo test --locked -- --ignored --nocapture --test-threads=1
 
 ### Architecture FFI Maieutik-Corrige
 
-```mermaid
+%%{init: {'theme': 'dark', 'themeVariables': { 'primaryColor': '#bb86fc', 'primaryTextColor': '#000', 'lineColor': '#03dac6', 'secondaryColor': '#3700b3', 'tertiaryColor': '#ffd700'}}}%%
 flowchart TB
-    subgraph "Layer 1: MCP Clients"
-        E2[MCP Clients<br/>OpenCode, Claude, etc.]
+    subgraph Clients["💻 Layer 1: MCP Clients"]
+        direction TB
+        E2[OpenCode]
+        E3[Claude]
+        E4[Cursor]
+        E5[Autres...]
     end
-    subgraph "Layer 2: Rust Core"
-        R3["MCP Dispatcher<br/>ffi: Rust ↔ C++"]
-        C1[Index Engine<br/>BM25 + HNSW + RRF]
-        C2[Vector Store<br/>sled + embeddings]
-        C3[Search<br/>semantic/keyword/hybrid]
+
+    subgraph RustCore["🦀 Layer 2: Rust Core"]
+        direction TB
+        R1[MCP Dispatcher\nffi: Rust ↔ C++]
+        R2[Index Engine\nBM25 + HNSW + RRF]
+        R3[Vector Store\nsled + embeddings]
+        R4[Search\nsemantic/keyword/hybrid]
     end
-    subgraph "Layer 3: FFI C++"
-        F1[File Service<br/>list_mcp_files, read_mcp_file]
-        F2[Wiki Links<br/>extract_links, resolve]
-        F3[Markdown Tables<br/>create_table, format]
-        F4[License Checker<br/>get_license_status]
+
+    subgraph CppModules["⚡ Layer 3: FFI C++"]
+        direction TB
+        F1[File Service\nlist_mcp_files, read_mcp_file]
+        F2[Wiki Links\nextract_links, resolve]
+        F3[Markdown Tables\ncreate_table, format]
+        F4[License Checker\nget_license_status]
     end
-    subgraph "Layer 4: Fichiers & Modèles"
-        E1[Filesystem<br/>markdown notes]
-        E3[Model Embeddings<br/>llama.cpp/ONNX]
+
+    subgraph Files["📁 Layer 4: Fichiers & Modèles"]
+        direction TB
+        E1[Filesystem\nmarkdown notes]
+        E2[Model Embeddings\nllama.cpp/ONNX]
+        E3[Configuration\nsettings, cache]
     end
-    E2 --> R3
-    R3 --> C1 & C2 & C3
-    R3 --> F1 & F2 & F3 & F4
-    C1 --> E1 & E3
+
+    E2 & E3 & E4 & E5 --> R1
+    R1 --> R2 & R3 & R4
+    R1 --> F1 & F2 & F3 & F4
+    R2 --> E1 & E2
+    R3 --> E1 & E2
+
+    classDef layer1 fill:#03dac6,stroke:#018786,stroke-width:3px,color:#000
+    classDef layer2 fill:#bb86fc,stroke:#8e2de2,stroke-width:3px,color:#000
+    classDef layer3 fill:#ffd700,stroke:#ffa500,stroke-width:3px,color:#000
+    classDef layer4 fill:#e0e0e0,stroke:#a0a0a0,stroke-width:3px,color:#000
+
+    class E2,E3,E4,E5 layer1
+    class R1,R2,R3,R4 layer2
+    class F1,F2,F3,F4 layer3
+    class E1,E2,E3 layer4
+
+    style E2 fill:#03dac6
+    style E3 fill:#03dac6
+    style E4 fill:#03dac6
+    style E5 fill:#03dac6
 ```
 
 ### Roadmap Développement
 
-```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#6c5ce7', 'primaryTextColor': '#fff', 'lineColor': '#a29bfe'}}}%%
 gantt
-    title Maieutik Roadmap
+    title 🎯 Maieutik Roadmap 2026-2027
     dateFormat YYYY-MM-DD
-    section Core
-    Index BM25+HNSW      :done, des1, 2026-10-01, 2026-10-15
-    Recherche Hybrid     :done, des2, 2026-10-15, 2026-10-30
-    Watcher + Reconcile  :done, des3, 2026-11-01, 2026-11-10
-    section FFI C++
-    File Service         :done, ffi1, 2026-11-04, 2026-11-04
-    Wiki Links           :done, ffi2, 2026-11-04, 2026-11-04
-    Markdown Tables      :done, ffi3, 2026-11-04, 2026-11-04
-    License              :done, ffi4, 2026-11-04, 2026-11-04
-    section System 1
-    Encoder ONNX         :active, s1, 2026-11-15, 2026-11-30
-    Noul Guardrail       :s2, 2026-12-01, 2026-12-15
-    Choice Router        :s3, 2026-12-15, 2026-12-30
-    Score Critiquer      :s4, 2027-01-05, 2027-01-20
-    section AI
-    Génération llama.cpp :gen1, 2027-02-01, 2027-02-28
-    Laya Sidecar HTTP    :lay1, 2027-03-01, 2027-03-31
+    todayMarker stroke-width:2px,stroke:#ff6b6b,stroke-dasharray: 5 5
+    barHeight 30
+    axisFormat %b-%Y
+
+    section 🟢 Core (Terminé)
+    Index BM25+HNSW          :done, core1, 2026-10-01, 2026-10-15
+    Recherche Hybrid        :done, core2, 2026-10-15, 2026-10-30
+    Watcher + Reconcile     :done, core3, 2026-11-01, 2026-11-10
+
+    section 🟢 FFI C++ (Terminé)
+    File Service            :done, ffi1, 2026-11-04, 2026-11-04
+    Wiki Links              :done, ffi2, 2026-11-04, 2026-11-04
+    Markdown Tables         :done, ffi3, 2026-11-04, 2026-11-04
+    License                 :done, ffi4, 2026-11-04, 2026-11-04
+
+    section 🔵 System 1 (En cours)
+    Encoder ONNX            :active, sys1, 2026-11-15, 2026-11-30
+    Noul Guardrail          :sys2, 2026-12-01, 2026-12-15
+    Choice Router           :sys3, 2026-12-15, 2026-12-30
+    Score Critiquer         :sys4, 2027-01-05, 2027-01-20
+
+    section 🟡 AI (Prévu)
+    Génération llama.cpp    :gen1, 2027-02-01, 2027-02-28
+    Laya Sidecar HTTP       :lay1, 2027-03-01, 2027-03-31
+
+    section 🟣 Optimisations (Futur)
+    Cache LRU Embeddings    :opt1, after sys1, 7d
+    HNSW Incremental        :opt2, after opt1, 14d
+    Compression f16        :done, opt3, 2026-11-05, 2026-11-06
+
+    classDef done fill:#e8f5e9,stroke:#4caf50
+    classDef active fill:#e3f2fd,stroke:#2196f3
+    classDef future fill:#fff3e0,stroke:#ff9800
+    classDef opt fill:#f3e5f5,stroke:#9c27b0
+
+    class core1,core2,core3,ffi1,ffi2,ffi3,ffi4,opt3 done
+    class sys1 active
+    class sys2,sys3,sys4,gen1,lay1 future
+    class opt1,opt2 opt
 ```
 
 ### Dépendances Rust ↔ C++
 
-```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': { 'primaryColor': '#e74c3c', 'primaryTextColor': '#fff', 'lineColor': '#3498db', 'secondaryColor': '#2ecc71', 'tertiaryColor': '#f39c12'}}}%%
 flowchart LR
-    subgraph "Rust"
-        R1[build.rs]
-        R2[src/cpp_modules.rs]
-        R3["ffi extern C"]
+    subgraph Rust["🦀 Rust Side"]
+        direction TB
+        R1[build.rs\nconfiguration]
+        R2[src/cpp_modules.rs\nFFI bindings]
+        R3[extern C\nABI compatible]
     end
-    subgraph "C++"
-        C1[file_service.cpp]
-        C2[wiki_links.cpp]
-        C3[markdown_tables.cpp]
-        C4[license.cpp]
+
+    subgraph Cpp["⚡ C++ Side"]
+        direction TB
+        C1[file_service.cpp\nfichiers MCP]
+        C2[wiki_links.cpp\nliens wiki]
+        C3[markdown_tables.cpp\ntables]
+        C4[license.cpp\nlicence]
     end
-    subgraph "Build"
-        CC[cc crate]
-        STATIC[libcpp_modules.a]
+
+    subgraph Build["🔨 Build System"]
+        direction TB
+        CC[cc crate\ncompilation C++]
+        STATIC[libcpp_modules.a\nlibrairie statique]
+        LINK[Linking\nintégration]
     end
-    R1 --> CC
-    CC --> C1 & C2 & C3 & C4
-    C1 & C2 & C3 & C4 --> STATIC
-    R2 --> R3
-    STATIC -.-> R3
+
+    R1 -->|"configure"| CC
+    CC -->|"compile"| C1 & C2 & C3 & C4
+    C1 & C2 & C3 & C4 -->|"archive"| STATIC
+    STATIC -->|"link"| LINK
+    LINK -->|"intègre"| R2
+    R2 -->|"expose"| R3
+
+    classDef rust fill:#e74c3c,stroke:#c0392b,stroke-width:2px,color:#fff
+    classDef cpp fill:#3498db,stroke:#2980b9,stroke-width:2px,color:#fff
+    classDef build fill:#f39c12,stroke:#d35400,stroke-width:2px,color:#fff
+    classDef link fill:#2ecc71,stroke:#27ae60,stroke-width:2px,color:#fff
+
+    class R1,R2,R3 rust
+    class C1,C2,C3,C4 cpp
+    class CC,STATIC build
+    class LINK link
+
+    style R1 fill:#e74c3c
+    style R2 fill:#e74c3c
+    style R3 fill:#e74c3c
 ```
 
 ### 🛠️ Utilisation

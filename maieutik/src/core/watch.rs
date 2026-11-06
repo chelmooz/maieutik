@@ -299,25 +299,25 @@ mod tests {
 
     #[test]
     fn size_limit_accepts_file_within_limit() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let file = dir.path().join("a.md");
-        std::fs::write(&file, "hello").unwrap();
-        assert!(is_within_size_limit(&file, &settings(10)).unwrap());
+        std::fs::write(&file, "hello").expect("test");
+        assert!(is_within_size_limit(&file, &settings(10)).expect("test"));
     }
 
     #[test]
     fn size_limit_rejects_file_above_limit() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let file = dir.path().join("a.md");
-        std::fs::write(&file, "hello").unwrap();
-        assert!(!is_within_size_limit(&file, &settings(0)).unwrap());
+        std::fs::write(&file, "hello").expect("test");
+        assert!(!is_within_size_limit(&file, &settings(0)).expect("test"));
     }
 
     #[tokio::test]
     async fn watch_rejects_all_missing_roots_and_canonicalizes_relative_paths() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let notes = dir.path().join("notes");
-        std::fs::create_dir(&notes).unwrap();
+        std::fs::create_dir(&notes).expect("test");
         let missing = dir.path().join("absent");
 
         // Un chemin relatif doit être résolu contre `base` puis canonicalisé,
@@ -326,7 +326,7 @@ mod tests {
         let (roots, errors) = resolve_watch_roots(&folders, dir.path());
         assert_eq!(
             roots,
-            vec![notes.canonicalize().unwrap()],
+            vec![notes.canonicalize().expect("test")],
             "racine relative non canonicalisée : {roots:?}"
         );
         assert_eq!(errors.len(), 1, "dossier absent non signalé : {errors:?}");
@@ -339,7 +339,7 @@ mod tests {
             ..AppSettings::default()
         };
         let (tx, _rx) = mpsc::channel(4);
-        let mut watcher = FileWatcher::new(Arc::new(tokio::sync::RwLock::new(dead)), tx).unwrap();
+        let mut watcher = FileWatcher::new(Arc::new(tokio::sync::RwLock::new(dead)), tx).expect("test");
         let err = watcher.watch().await.unwrap_err();
         let message = format!("{err:#}");
         assert!(

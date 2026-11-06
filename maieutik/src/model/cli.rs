@@ -161,7 +161,7 @@ mod tests {
     #[async_trait::async_trait]
     impl ModelProvider for MockProvider {
         async fn list(&self) -> Result<Vec<ModelMetadata>, ModelError> {
-            Ok(self.installed.lock().unwrap().clone())
+            Ok(self.installed.lock().expect("test").clone())
         }
 
         async fn download(
@@ -172,7 +172,7 @@ mod tests {
         ) -> Result<ModelMetadata, ModelError> {
             self.downloads
                 .lock()
-                .unwrap()
+                .expect("test")
                 .push((name.to_string(), version.map(str::to_string)));
             Ok(metadata(name))
         }
@@ -187,12 +187,12 @@ mod tests {
         }
 
         async fn remove(&self, name: &str) -> Result<(), ModelError> {
-            self.removed.lock().unwrap().push(name.to_string());
+            self.removed.lock().expect("test").push(name.to_string());
             Ok(())
         }
 
         async fn status(&self, _name: &str) -> Result<ModelStatus, ModelError> {
-            Ok(self.status.lock().unwrap().clone())
+            Ok(self.status.lock().expect("test").clone())
         }
     }
 
@@ -201,7 +201,7 @@ mod tests {
         let provider = MockProvider::with_installed(vec![metadata("bge-m3")]);
         let code = run_model_cmd(provider, ModelCmd::List { json: true })
             .await
-            .unwrap();
+            .expect("test");
         assert_eq!(code, 0);
     }
 
@@ -210,7 +210,7 @@ mod tests {
         let provider = MockProvider::with_installed(vec![metadata("bge-m3"), metadata("qwen")]);
         let code = run_model_cmd(provider, ModelCmd::List { json: false })
             .await
-            .unwrap();
+            .expect("test");
         assert_eq!(code, 0);
     }
 
@@ -219,7 +219,7 @@ mod tests {
         let provider = MockProvider::default();
         let code = run_model_cmd(provider, ModelCmd::List { json: false })
             .await
-            .unwrap();
+            .expect("test");
         assert_eq!(code, 0);
     }
 
@@ -234,7 +234,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 0);
     }
 
@@ -249,7 +249,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 0, "--force doit supprimer même un modèle absent");
     }
 
@@ -264,7 +264,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 1, "un modèle absent doit être refusé");
     }
 
@@ -282,7 +282,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 0);
     }
 
@@ -299,7 +299,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 0);
     }
 
@@ -313,7 +313,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 1);
     }
 
@@ -329,7 +329,7 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("test");
         assert_eq!(code, 1);
     }
 

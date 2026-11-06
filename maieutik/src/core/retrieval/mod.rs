@@ -73,12 +73,12 @@ mod tests {
     #[test]
     fn mode_parses_aliases() {
         assert_eq!(
-            "semantic".parse::<SearchMode>().unwrap(),
+            "semantic".parse::<SearchMode>().expect("test"),
             SearchMode::Semantic
         );
-        assert_eq!("dense".parse::<SearchMode>().unwrap(), SearchMode::Semantic);
-        assert_eq!("bm25".parse::<SearchMode>().unwrap(), SearchMode::Lexical);
-        assert_eq!("HYBRID".parse::<SearchMode>().unwrap(), SearchMode::Hybrid);
+        assert_eq!("dense".parse::<SearchMode>().expect("test"), SearchMode::Semantic);
+        assert_eq!("bm25".parse::<SearchMode>().expect("test"), SearchMode::Lexical);
+        assert_eq!("HYBRID".parse::<SearchMode>().expect("test"), SearchMode::Hybrid);
         assert!("fuzzy".parse::<SearchMode>().is_err());
     }
 }

@@ -177,7 +177,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let dest = tmp.path().join("test.bin");
 
         let downloader = Downloader::new();
@@ -189,10 +189,10 @@ mod tests {
                 None,
             )
             .await
-            .unwrap();
+            .expect("test");
 
         assert_eq!(hash, expected_hash);
-        let content = tokio::fs::read(&dest).await.unwrap();
+        let content = tokio::fs::read(&dest).await.expect("test");
         assert_eq!(content, test_data);
     }
 
@@ -203,9 +203,9 @@ mod tests {
         let second_half = &test_data[8..];
 
         // Simulate existing partial file (8 bytes)
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let dest = tmp.path().join("resume.bin");
-        tokio::fs::write(&dest, &test_data[..8]).await.unwrap();
+        tokio::fs::write(&dest, &test_data[..8]).await.expect("test");
 
         // Second request returns remaining bytes (simulating resume)
         Mock::given(method("GET"))
@@ -220,10 +220,10 @@ mod tests {
         let _ = downloader
             .download(&format!("{}/resume.bin", server.uri()), &dest, None, None)
             .await
-            .unwrap();
+            .expect("test");
 
         // Verify complete file
-        let content = tokio::fs::read(&dest).await.unwrap();
+        let content = tokio::fs::read(&dest).await.expect("test");
         assert_eq!(content, test_data);
     }
 
@@ -240,7 +240,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let dest = tmp.path().join("verify.bin");
 
         let downloader = Downloader::new();
@@ -254,7 +254,7 @@ mod tests {
                 None,
             )
             .await
-            .unwrap();
+            .expect("test");
         assert_eq!(hash, correct_hash);
 
         // Wrong hash should fail
@@ -281,7 +281,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let dest = tmp.path().join("progress.bin");
 
         let progress_called = Arc::new(AtomicBool::new(false));
@@ -300,7 +300,7 @@ mod tests {
                 })),
             )
             .await
-            .unwrap();
+            .expect("test");
 
         assert!(progress_called.load(Ordering::Relaxed));
     }
@@ -316,14 +316,14 @@ mod tests {
             .mount(&server)
             .await;
 
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let dest = tmp.path().join("a").join("b").join("c").join("nested.bin");
 
         let downloader = Downloader::new();
         downloader
             .download(&format!("{}/nested.bin", server.uri()), &dest, None, None)
             .await
-            .unwrap();
+            .expect("test");
 
         assert!(dest.exists());
     }

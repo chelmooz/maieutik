@@ -79,7 +79,7 @@ impl FileStore {
             if key_bytes.len() != 32 {
                 anyhow::bail!("Invalid key length: {}", key_bytes.len());
             }
-            let key_array: [u8; 32] = key_bytes.try_into().unwrap();
+            let key_array: [u8; 32] = key_bytes.try_into().expect("key length already validated as 32");
             Some(XChaCha20Poly1305::new(&key_array.into()))
         } else {
             // Generate new key
@@ -115,7 +115,7 @@ impl FileStore {
             if key_path.exists() {
                 let key_bytes = fs::read(&key_path).context("Reading encryption key")?;
                 if key_bytes.len() == 32 {
-                    let key_array: [u8; 32] = key_bytes.try_into().unwrap();
+                    let key_array: [u8; 32] = key_bytes.try_into().expect("key length already validated as 32");
                     let cipher = XChaCha20Poly1305::new(&key_array.into());
                     let data: Vec<u8> = serde_json::from_str(&text)?;
                     if data.len() < 24 {
@@ -254,56 +254,56 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_store_atomic_write_corruption_resilience() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = FileStore::with_path(path.clone()).await.unwrap();
-        store.set("key1", "value1").await.unwrap();
+        let store = FileStore::with_path(path.clone()).await.expect("test");
+        store.set("key1", "value1").await.expect("test");
 
         // Verify file exists and is valid JSON
-        let content = fs::read_to_string(&path).unwrap();
-        let _: SecretsFile = serde_json::from_str(&content).unwrap();
+        let content = fs::read_to_string(&path).expect("test");
+        let _: SecretsFile = serde_json::from_str(&content).expect("test");
 
         // Simulate crash during write by creating a corrupt temp file
         // (the actual atomic write prevents corruption, but we test the file is readable)
-        let content2 = fs::read_to_string(&path).unwrap();
-        let _: SecretsFile = serde_json::from_str(&content2).unwrap();
+        let content2 = fs::read_to_string(&path).expect("test");
+        let _: SecretsFile = serde_json::from_str(&content2).expect("test");
     }
 
     #[tokio::test]
     async fn test_file_store_overwrite_existing_key() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = FileStore::with_path(path).await.unwrap();
-        store.set("key", "old").await.unwrap();
-        store.set("key", "new").await.unwrap();
+        let store = FileStore::with_path(path).await.expect("test");
+        store.set("key", "old").await.expect("test");
+        store.set("key", "new").await.expect("test");
 
-        let val = store.get("key").await.unwrap();
+        let val = store.get("key").await.expect("test");
         assert_eq!(val, Some("new".to_string()));
     }
 
     #[tokio::test]
     async fn test_file_store_delete_nonexistent_is_ok() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = FileStore::with_path(path).await.unwrap();
+        let store = FileStore::with_path(path).await.expect("test");
         // Should not error
-        store.delete("nonexistent").await.unwrap();
+        store.delete("nonexistent").await.expect("test");
     }
 
     #[tokio::test]
     async fn test_file_store_list_sorted() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = FileStore::with_path(path).await.unwrap();
-        store.set("zebra", "1").await.unwrap();
-        store.set("alpha", "2").await.unwrap();
-        store.set("beta", "3").await.unwrap();
+        let store = FileStore::with_path(path).await.expect("test");
+        store.set("zebra", "1").await.expect("test");
+        store.set("alpha", "2").await.expect("test");
+        store.set("beta", "3").await.expect("test");
 
-        let mut keys = store.list().await.unwrap();
+        let mut keys = store.list().await.expect("test");
         keys.sort();
         assert_eq!(keys, vec!["alpha", "beta", "zebra"]);
     }

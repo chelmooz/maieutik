@@ -264,20 +264,20 @@ mod tests {
     #[tokio::test]
     async fn test_config_store_uses_injected_secrets() {
         let mock = Arc::new(MockStore::new());
-        let store = ConfigStore::new(Some(mock.clone())).await.unwrap();
+        let store = ConfigStore::new(Some(mock.clone())).await.expect("test");
 
-        store.set_secret("test_key", "test_value").await.unwrap();
-        let val = store.get_secret("test_key").await.unwrap();
+        store.set_secret("test_key", "test_value").await.expect("test");
+        let val = store.get_secret("test_key").await.expect("test");
         assert_eq!(val, Some("test_value".to_string()));
     }
 
     #[tokio::test]
     async fn test_config_store_falls_back_to_file_store() {
         // Without MAIEUTIK_SECRETS_BACKEND=keyring, should use FileStore
-        let store = ConfigStore::new(None).await.unwrap();
+        let store = ConfigStore::new(None).await.expect("test");
 
-        store.set_secret("fallback_test", "works").await.unwrap();
-        let val = store.get_secret("fallback_test").await.unwrap();
+        store.set_secret("fallback_test", "works").await.expect("test");
+        let val = store.get_secret("fallback_test").await.expect("test");
         assert_eq!(val, Some("works".to_string()));
     }
 }

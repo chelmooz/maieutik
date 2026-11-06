@@ -395,7 +395,7 @@ mod tests {
         };
         let kept = select_passages(vec![c1, c2, c3], 1000, 5);
         assert_eq!(kept.len(), 2);
-        let merged = kept.iter().find(|c| c.id.contains("merged")).unwrap();
+        let merged = kept.iter().find(|c| c.id.contains("merged")).expect("test");
         assert!(merged.text.contains("premier chunk"));
         assert!(merged.text.contains("deuxième chunk"));
         assert!(!merged.text.contains("quatrième"));
@@ -404,9 +404,9 @@ mod tests {
     #[test]
     fn try_whole_file_replaces_chunk_when_fits() {
         // Créer un fichier temporaire
-        let tmp = tempfile::NamedTempFile::new().unwrap();
+        let tmp = tempfile::NamedTempFile::new().expect("test");
         let content = "contenu du fichier entier qui tient dans le budget".repeat(10);
-        std::fs::write(tmp.path(), &content).unwrap();
+        std::fs::write(tmp.path(), &content).expect("test");
 
         let c = Candidate {
             id: format!("{}#0", tmp.path().display()),

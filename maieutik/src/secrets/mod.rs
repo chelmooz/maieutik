@@ -159,33 +159,33 @@ pub mod tests {
     #[tokio::test]
     async fn test_secrets_store_get_missing_returns_none() {
         let store = MockStore::new();
-        let result = store.get("nonexistent").await.unwrap();
+        let result = store.get("nonexistent").await.expect("test");
         assert_eq!(result, None);
     }
 
     #[tokio::test]
     async fn test_secrets_store_set_then_get() {
         let store = MockStore::new();
-        store.set("api_key", "sk-test123").await.unwrap();
-        let result = store.get("api_key").await.unwrap();
+        store.set("api_key", "sk-test123").await.expect("test");
+        let result = store.get("api_key").await.expect("test");
         assert_eq!(result, Some("sk-test123".to_string()));
     }
 
     #[tokio::test]
     async fn test_secrets_store_delete_then_get_none() {
         let store = MockStore::new();
-        store.set("key", "value").await.unwrap();
-        store.delete("key").await.unwrap();
-        let result = store.get("key").await.unwrap();
+        store.set("key", "value").await.expect("test");
+        store.delete("key").await.expect("test");
+        let result = store.get("key").await.expect("test");
         assert_eq!(result, None);
     }
 
     #[tokio::test]
     async fn test_secrets_store_list_keys() {
         let store = MockStore::new();
-        store.set("key1", "v1").await.unwrap();
-        store.set("key2", "v2").await.unwrap();
-        let keys = store.list().await.unwrap();
+        store.set("key1", "v1").await.expect("test");
+        store.set("key2", "v2").await.expect("test");
+        let keys = store.list().await.expect("test");
         assert_eq!(keys.len(), 2);
         assert!(keys.contains(&"key1".to_string()));
         assert!(keys.contains(&"key2".to_string()));
@@ -193,35 +193,35 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_file_store_persists_across_instances() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
         // First instance writes
         {
-            let store = FileStore::with_path(path.clone()).await.unwrap();
-            store.set("persist_key", "persist_value").await.unwrap();
+            let store = FileStore::with_path(path.clone()).await.expect("test");
+            store.set("persist_key", "persist_value").await.expect("test");
         }
 
         // Second instance reads
         {
-            let store = FileStore::with_path(path).await.unwrap();
-            let result = store.get("persist_key").await.unwrap();
+            let store = FileStore::with_path(path).await.expect("test");
+            let result = store.get("persist_key").await.expect("test");
             assert_eq!(result, Some("persist_value".to_string()));
         }
     }
 
     #[tokio::test]
     async fn test_file_store_permissions_0600() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = FileStore::with_path(path.clone()).await.unwrap();
-        store.set("test", "value").await.unwrap();
+        let store = FileStore::with_path(path.clone()).await.expect("test");
+        store.set("test", "value").await.expect("test");
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
-            let metadata = std::fs::metadata(&path).unwrap();
+            let metadata = std::fs::metadata(&path).expect("test");
             let mode = metadata.mode() & 0o777;
             assert_eq!(
                 mode, 0o600,
@@ -233,10 +233,10 @@ pub mod tests {
 
     #[tokio::test]
     async fn test_file_store_concurrent_access() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = std::sync::Arc::new(FileStore::with_path(path).await.unwrap());
+        let store = std::sync::Arc::new(FileStore::with_path(path).await.expect("test"));
         let mut handles = vec![];
 
         for i in 0..10 {
@@ -245,28 +245,28 @@ pub mod tests {
                 store
                     .set(&format!("key{}", i), &format!("value{}", i))
                     .await
-                    .unwrap();
+                    .expect("test");
             }));
         }
 
         for h in handles {
-            h.await.unwrap();
+            h.await.expect("test");
         }
 
         // Verify all written
         for i in 0..10 {
-            let val = store.get(&format!("key{}", i)).await.unwrap();
+            let val = store.get(&format!("key{}", i)).await.expect("test");
             assert_eq!(val, Some(format!("value{}", i)));
         }
     }
 
     #[tokio::test]
     async fn test_file_store_empty_dir_returns_empty_list() {
-        let tmp = TempDir::new().unwrap();
+        let tmp = TempDir::new().expect("test");
         let path = tmp.path().join("secrets.json");
 
-        let store = FileStore::with_path(path).await.unwrap();
-        let keys = store.list().await.unwrap();
+        let store = FileStore::with_path(path).await.expect("test");
+        let keys = store.list().await.expect("test");
         assert!(keys.is_empty());
     }
 
@@ -285,9 +285,9 @@ pub mod tests {
     #[tokio::test]
     async fn test_default_secrets_store_factory() {
         // Test that factory returns a working store (file fallback in CI)
-        let store = default_secrets_store().await.unwrap();
-        store.set("factory_test", "works").await.unwrap();
-        let val = store.get("factory_test").await.unwrap();
+        let store = default_secrets_store().await.expect("test");
+        store.set("factory_test", "works").await.expect("test");
+        let val = store.get("factory_test").await.expect("test");
         assert_eq!(val, Some("works".to_string()));
     }
 }

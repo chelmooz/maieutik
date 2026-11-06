@@ -1208,9 +1208,9 @@ mod tests {
 
     #[test]
     fn needs_reindex_propagates_metadata_deserialization_errors() {
-        let db = sled::Config::new().temporary(true).open().unwrap();
-        let meta_tree = db.open_tree(META_TABLE).unwrap();
-        meta_tree.insert("meta", &[0xff]).unwrap();
+        let db = sled::Config::new().temporary(true).open().expect("test");
+        let meta_tree = db.open_tree(META_TABLE).expect("test");
+        meta_tree.insert("meta", &[0xff]).expect("test");
 
         assert!(read_needs_reindex(&meta_tree).is_err());
     }
@@ -1254,7 +1254,7 @@ mod tests {
 
         index
             .add("chunk-valide".to_string(), &[1.0, 0.0, 0.0])
-            .unwrap();
+            .expect("test");
         assert_eq!(index.len(), 1);
 
         // Le contrat vaut aussi à la recherche : une requête hors dimension
@@ -1270,7 +1270,7 @@ mod tests {
             "requête non finie acceptée"
         );
 
-        let hits = index.search(&[1.0, 0.0, 0.0], 1).unwrap();
+        let hits = index.search(&[1.0, 0.0, 0.0], 1).expect("test");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].0, 0);
     }

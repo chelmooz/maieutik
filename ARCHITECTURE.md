@@ -21,17 +21,49 @@ Principe : dépendances dirigées vers l'intérieur, aucune couche ne contourne 
 
 ## Data Flow clair
 
-```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#ff6b6b', 'primaryTextColor': '#fff', 'lineColor': '#4ecdc4', 'secondaryColor': '#45b7d1', 'tertiaryColor': '#f9ca24'}}}%%
 flowchart TD
-    A[Utilisateur / Frontend] --> B[API Axum/Tauri Bridge]
-    B --> C[Core Traits]
-    C --> D[Implémentations Rust]
-    C --> E[FFI C++ Modules]
-    D --> F[Système : fichiers, réseau]
-    E --> F
-    F --> D
-    D --> B
-    B --> A
+    subgraph Frontend["🖥️ Frontend"]
+        A[Utilisateur\nReact/TypeScript/Tauri]
+    end
+
+    subgraph API["🌐 API Layer"]
+        B[API Axum\nJSON-RPC/Tauri Bridge]
+    end
+
+    subgraph Core["🧠 Core"]
+        C[Core Traits\nEmbedder, Retriever,\nGenerator, Judge]
+        D[Implémentations Rust\nONNX, HNSW, BM25]
+    end
+
+    subgraph FFI["⚡ FFI"]
+        E[FFI C++ Modules\nfile_service, wiki_links,\nmarkdown_tables]
+    end
+
+    subgraph System["💾 Système"]
+        F[Système\nfichiers, réseau, sled]
+    end
+
+    A -->|"Requêtes"| B
+    B -->|"Orchestration"| C
+    C -->|"Délégation"| D
+    C -->|"Performance"| E
+    D -->|"Persistance"| F
+    E -->|"Optimisation I/O"| F
+    F -->|"Données"| D
+    D -->|"Résultats"| B
+    B -->|"Réponses"| A
+
+    classDef layer fill:#f8f9fa,stroke:#dee2e6,stroke-width:2px
+    classDef component fill:#e3f2fd,stroke:#2196f3,stroke-width:2px,color:#1976d2
+    classDef critical fill:#ffcdd2,stroke:#f44336,stroke-width:2px,color:#c62828
+
+    class Frontend,API,Core,FFI,System layer
+    class A,B,C,D,E,F component
+    class E critical
+
+    style A fill:#e8f5e9,stroke:#4caf50
+    style F fill:#fff3e0,stroke:#ff9800
 ```
 
 Légende :

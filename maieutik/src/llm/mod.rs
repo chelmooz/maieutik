@@ -155,7 +155,7 @@ pub mod ollama {
 
         #[test]
         fn ollama_client_is_created_with_a_base_url_and_model() {
-            let client = OllamaClient::new("http://localhost:11434", "qwen2.5:7b").unwrap();
+            let client = OllamaClient::new("http://localhost:11434", "qwen2.5:7b").expect("test");
             let debug = format!("{client:?}");
             assert!(debug.contains("qwen2.5:7b"), "{debug}");
         }
@@ -172,8 +172,8 @@ pub mod ollama {
                 .mount(&server)
                 .await;
 
-            let client = OllamaClient::new(&server.uri(), "qwen2.5:7b").unwrap();
-            let answer = client.chat(vec![user_message("salut")]).await.unwrap();
+            let client = OllamaClient::new(&server.uri(), "qwen2.5:7b").expect("test");
+            let answer = client.chat(vec![user_message("salut")]).await.expect("test");
 
             assert_eq!(answer, "Bonjour depuis Ollama");
         }
@@ -190,7 +190,7 @@ pub mod ollama {
                 .mount(&server)
                 .await;
 
-            let client = OllamaClient::new(&server.uri(), "qwen2.5:7b").unwrap();
+            let client = OllamaClient::new(&server.uri(), "qwen2.5:7b").expect("test");
             let err = client
                 .chat(vec![user_message("salut")])
                 .await
@@ -203,7 +203,7 @@ pub mod ollama {
         async fn ollama_client_chat_reports_a_connection_failure() {
             // Aucun serveur n'écoute sur ce port : l'erreur de connexion doit
             // être remontée et non avalée.
-            let client = OllamaClient::new("http://127.0.0.1:1", "qwen2.5:7b").unwrap();
+            let client = OllamaClient::new("http://127.0.0.1:1", "qwen2.5:7b").expect("test");
             let result = client.chat(vec![user_message("salut")]).await;
             assert!(result.is_err(), "une connexion impossible doit échouer");
         }
@@ -221,9 +221,9 @@ pub mod ollama {
                 .await;
 
             let generator = OllamaGenerator {
-                client: OllamaClient::new(&server.uri(), "qwen2.5:7b").unwrap(),
+                client: OllamaClient::new(&server.uri(), "qwen2.5:7b").expect("test"),
             };
-            let answer = generator.generate("question").await.unwrap();
+            let answer = generator.generate("question").await.expect("test");
             assert_eq!(answer, "réponse du générateur");
         }
 
@@ -450,8 +450,8 @@ mod tests {
             ..Default::default()
         };
 
-        let json = serde_json::to_string(&params).unwrap();
-        let deserialized: GenerationParams = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&params).expect("test");
+        let deserialized: GenerationParams = serde_json::from_str(&json).expect("test");
 
         assert_eq!(params.prompt, deserialized.prompt);
         assert_eq!(params.temperature, deserialized.temperature);
@@ -466,7 +466,7 @@ mod tests {
             max_tokens: None,
             ..Default::default()
         };
-        let json = serde_json::to_string(&params).unwrap();
+        let json = serde_json::to_string(&params).expect("test");
         assert!(!json.contains("temperature"), "json inattendu : {json}");
         assert!(!json.contains("max_tokens"), "json inattendu : {json}");
         assert!(json.contains("\"prompt\":\"p\""), "json inattendu : {json}");
@@ -483,9 +483,9 @@ mod tests {
 
     #[test]
     fn llama_manager_accepts_an_existing_model_file() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let path = dir.path().join("model.gguf");
-        std::fs::write(&path, b"gguf").unwrap();
+        std::fs::write(&path, b"gguf").expect("test");
 
         let manager = LlamaManager::new(path).expect("modèle présent");
         assert!(
@@ -496,22 +496,22 @@ mod tests {
 
     #[test]
     fn llama_manager_init_marks_the_model_ready() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let path = dir.path().join("model.gguf");
-        std::fs::write(&path, b"gguf").unwrap();
+        std::fs::write(&path, b"gguf").expect("test");
 
-        let mut manager = LlamaManager::new(path).unwrap();
-        manager.init().unwrap();
+        let mut manager = LlamaManager::new(path).expect("test");
+        manager.init().expect("test");
         assert!(manager.is_ready());
     }
 
     #[test]
     fn llama_manager_generate_initialises_lazily() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let path = dir.path().join("model.gguf");
-        std::fs::write(&path, b"gguf").unwrap();
+        std::fs::write(&path, b"gguf").expect("test");
 
-        let mut manager = LlamaManager::new(path).unwrap();
+        let mut manager = LlamaManager::new(path).expect("test");
         assert!(!manager.is_ready());
 
         let result = manager
@@ -519,7 +519,7 @@ mod tests {
                 prompt: "bonjour".to_string(),
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test");
 
         assert!(manager.is_ready(), "generate() doit initialiser le modèle");
         assert!(
@@ -534,18 +534,18 @@ mod tests {
 
     #[test]
     fn llama_manager_generate_truncates_a_very_long_prompt() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("test");
         let path = dir.path().join("model.gguf");
-        std::fs::write(&path, b"gguf").unwrap();
+        std::fs::write(&path, b"gguf").expect("test");
 
-        let mut manager = LlamaManager::new(path).unwrap();
+        let mut manager = LlamaManager::new(path).expect("test");
         let long = "é".repeat(200);
         let result = manager
             .generate(GenerationParams {
                 prompt: long,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("test");
 
         // Le prompt est tronqué à 50 caractères dans la réponse simulée.
         assert!(!result.text.contains(&"é".repeat(51)), "prompt non tronqué");

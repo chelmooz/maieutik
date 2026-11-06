@@ -501,16 +501,16 @@ mod tests {
 
     #[test]
     fn prompt_without_file_is_the_message() {
-        let prompt = build_chat_prompt("Résume ceci", None).unwrap();
+        let prompt = build_chat_prompt("Résume ceci", None).expect("test");
         assert_eq!(prompt, "Résume ceci");
     }
 
     #[test]
     fn prompt_with_file_embeds_the_context() {
-        let mut tmp = tempfile::NamedTempFile::new().unwrap();
-        write!(tmp, "contenu du document").unwrap();
+        let mut tmp = tempfile::NamedTempFile::new().expect("test");
+        write!(tmp, "contenu du document").expect("test");
 
-        let prompt = build_chat_prompt("Résume ceci", Some(tmp.path())).unwrap();
+        let prompt = build_chat_prompt("Résume ceci", Some(tmp.path())).expect("test");
 
         assert!(prompt.contains("contenu du document"), "{prompt}");
         assert!(prompt.contains("Résume ceci"), "{prompt}");
