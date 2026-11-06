@@ -59,6 +59,7 @@ eframe = { version = "0.30", default-features = false, features = ["persistence"
 egui = { version = "0.30", features = ["accesskit", "persistence", "default_fonts"] }
 prometheus = "0.13"
 wiremock = "0.6"
+rayon = "1.10"
 
 [profile.release]
 lto = "fat"
